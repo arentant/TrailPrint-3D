@@ -28,6 +28,8 @@ import { hydrateGpxConfig } from "../gpx/hydrate-gpx-config";
 import { generateTerrainMain } from "../terrain/terrain-main-service";
 import { generateTrayBase } from "../tray/tray-service";
 import { buildTrayCoverMesh } from "../tray/tray-cover-mesh";
+import { buildMoldMasterMesh } from "../mold/mold-master-mesh";
+import { buildMoldLidMesh } from "../mold/mold-lid-mesh";
 import { assertTrailLineMesh, assertWatertightMesh } from "@shared/utils/mesh-manifold";
 import { writeBinaryStl } from "./stl-writer";
 import { packZip, type ZipEntry } from "./zip-packager";
@@ -220,6 +222,34 @@ export async function generateModelsZip(
       zipEntries.push({ name: STL_FILE_NAMES.trayCover, filePath: coverStl });
     }
 
+    if (config.moldKit?.enabled) {
+      onProgress({
+        phase: "stl",
+        progress: 0.72,
+        message: "正在生成翻模主模与盖板…",
+      });
+      try {
+        const masterMesh = buildMoldMasterMesh(terrainWithGroove.mesh, config);
+        const lidMesh = buildMoldLidMesh(config);
+        assertWatertightMesh(masterMesh, "Mold_Master");
+        assertWatertightMesh(lidMesh, "Mold_Lid");
+
+        const masterStl = join(workDir, STL_FILE_NAMES.moldMaster);
+        const lidStl = join(workDir, STL_FILE_NAMES.moldLid);
+        await writeBinaryStl(masterStl, masterMesh, "Mold_Master");
+        await writeBinaryStl(lidStl, lidMesh, "Mold_Lid");
+        zipEntries.push(
+          { name: STL_FILE_NAMES.moldMaster, filePath: masterStl },
+          { name: STL_FILE_NAMES.moldLid, filePath: lidStl },
+        );
+      } catch (err) {
+        if (err instanceof IpcException) throw err;
+        const msg =
+          err instanceof Error ? err.message : "翻模套件生成失败，请重试";
+        throw new IpcException("MOLD_KIT_FAILED", msg);
+      }
+    }
+
     if (config.sprayPaint.enabled) {
       if (!terrainWithGroove.heightPreview || !terrainWithGroove.crop) {
         throw new IpcException(
@@ -290,6 +320,7 @@ export async function generateModelsZip(
           );
         }
 
+        const zipCountBeforeMasks = zipEntries.length;
         for (const mask of maskRes.masks) {
           if (!mask.indices?.length || mask.indices.length < 3) continue;
           const maskPath = join(workDir, mask.fileName);
@@ -297,7 +328,7 @@ export async function generateModelsZip(
           zipEntries.push({ name: mask.fileName, filePath: maskPath });
         }
 
-        if (zipEntries.length <= 3) {
+        if (zipEntries.length <= zipCountBeforeMasks) {
           throw new IpcException(
             "SPRAY_MASK_EMPTY",
             "遮挡罩网格为空，无法导出",

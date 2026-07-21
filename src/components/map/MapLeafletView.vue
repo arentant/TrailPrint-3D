@@ -17,6 +17,11 @@ import {
 } from "@/utils/tray-mask-geometry";
 import { useUiStore } from "@/stores/ui";
 import { maskFitPadding } from "@shared/utils/map-projection";
+import { gcj02ToWgs84, wgs84ToGcj02 } from "@shared/utils/geo-coord";
+import {
+  type BasemapSpec,
+  resolveBasemap,
+} from "@/utils/basemap-tiles";
 
 const configStore = useConfigStore();
 const ui = useUiStore();
@@ -32,6 +37,9 @@ const maskH = ref(1);
 const mapInstance = shallowRef<L.Map | null>(null);
 const trackLayer = shallowRef<L.Polyline | null>(null);
 const tileLayer = shallowRef<L.TileLayer | null>(null);
+/** 当前底图；GCJ 瓦片时地图交互坐标需转换 */
+const activeBasemap = shallowRef<BasemapSpec | null>(null);
+const basemapStatus = ref<string | null>(null);
 
 /** 滚轮每变化一级缩放所需像素；Leaflet 默认 60，越大单次缩放越平缓 */
 const WHEEL_PX_PER_ZOOM_LEVEL = 5;
@@ -144,12 +152,29 @@ const trayPolygonOutline = computed(() => {
   return trayOuterPolygonPoints(t);
 });
 
+function toMapLatLng(lat: number, lon: number): L.LatLng {
+  if (activeBasemap.value?.usesGcj02) {
+    const g = wgs84ToGcj02(lat, lon);
+    return L.latLng(g.lat, g.lon);
+  }
+  return L.latLng(lat, lon);
+}
+
+function fromMapLatLng(lat: number, lng: number): { lat: number; lon: number } {
+  if (activeBasemap.value?.usesGcj02) {
+    const w = gcj02ToWgs84(lat, lng);
+    return { lat: w.lat, lon: w.lon };
+  }
+  return { lat, lon: lng };
+}
+
 function syncStoreFromMap(): void {
   const map = mapInstance.value;
   if (!map) return;
   const c = map.getCenter();
-  config.value.mapCrop.mapCenterLat = c.lat;
-  config.value.mapCrop.mapCenterLon = c.lng;
+  const wgs = fromMapLatLng(c.lat, c.lng);
+  config.value.mapCrop.mapCenterLat = wgs.lat;
+  config.value.mapCrop.mapCenterLon = wgs.lon;
   config.value.mapCrop.mapZoom = map.getZoom();
   if (typeof map.getBearing === "function") {
     config.value.mapCrop.mapBearingDeg = map.getBearing();
@@ -168,7 +193,7 @@ function updateTrackLayer(): void {
   const points = effectivePoints.value;
   if (!points.length) return;
 
-  const latlngs = points.map((p) => L.latLng(p.lat, p.lon));
+  const latlngs = points.map((p) => toMapLatLng(p.lat, p.lon));
   trackLayer.value = L.polyline(latlngs, TRACK_STYLE).addTo(map);
 }
 
@@ -192,12 +217,13 @@ function fitTrackInView(attempt = 0): void {
     return;
   }
 
-  const latLngBounds = L.latLngBounds(
-    [bounds.minLat, bounds.minLon],
-    [bounds.maxLat, bounds.maxLon],
-  );
+  const sw = toMapLatLng(bounds.minLat, bounds.minLon);
+  const ne = toMapLatLng(bounds.maxLat, bounds.maxLon);
+  const latLngBounds = L.latLngBounds(sw, ne);
+  const pad = maskFitPadding(config.value.mapCrop, w, h);
   map.fitBounds(latLngBounds, {
-    padding: maskFitPadding(config.value.mapCrop, w, h),
+    paddingTopLeft: [pad[3], pad[0]],
+    paddingBottomRight: [pad[1], pad[2]],
     maxZoom: 19,
     animate: false,
   });
@@ -290,14 +316,47 @@ function setupAltDragRotate(map: L.Map, container: HTMLElement): () => void {
 
 let teardownAltRotate: (() => void) | null = null;
 
-function initMap(): void {
+function attachBasemap(map: L.Map, spec: BasemapSpec): void {
+  if (tileLayer.value) {
+    map.removeLayer(tileLayer.value);
+    tileLayer.value = null;
+  }
+  activeBasemap.value = spec;
+  const layer = L.tileLayer(spec.url, {
+    attribution: spec.attribution,
+    maxZoom: spec.maxZoom,
+    subdomains: spec.subdomains,
+  });
+  layer.addTo(map);
+  tileLayer.value = layer;
+  basemapStatus.value =
+    spec.kind === "gaode" ? "底图：高德卫星（Esri 不可用时自动切换）" : null;
+}
+
+async function initMap(): Promise<void> {
   const el = mapRoot.value;
   if (!el || mapInstance.value) return;
 
   const { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg } =
     config.value.mapCrop;
+  const wgsLat = mapCenterLat || 30;
+  const wgsLon = mapCenterLon || 105;
+
+  basemapStatus.value = "正在检测底图…";
+  const spec = await resolveBasemap();
+
+  // 异步探测期间组件可能已卸载
+  if (!mapRoot.value || mapInstance.value) return;
+
+  const center = spec.usesGcj02
+    ? (() => {
+        const g = wgs84ToGcj02(wgsLat, wgsLon);
+        return L.latLng(g.lat, g.lon);
+      })()
+    : L.latLng(wgsLat, wgsLon);
+
   const map = L.map(el, {
-    center: [mapCenterLat || 30, mapCenterLon || 105],
+    center,
     zoom: mapZoom || 10,
     zoomControl: false,
     attributionControl: true,
@@ -312,14 +371,7 @@ function initMap(): void {
     rotateControl: false,
   });
 
-  tileLayer.value = L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    {
-      attribution:
-        "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
-      maxZoom: 19,
-    },
-  ).addTo(map);
+  attachBasemap(map, spec);
 
   map.on("moveend", syncStoreFromMap);
   map.on("zoomend", syncStoreFromMap);
@@ -330,11 +382,18 @@ function initMap(): void {
 
   mapInstance.value = map;
   updateMaskLayout();
+  map.invalidateSize({ animate: false });
   updateTrackLayer();
 
   if (config.value.gpx.imported && config.value.gpx.bounds) {
     scheduleFitTrackInView();
   }
+
+  // 布局稳定后再刷一次，避免首帧容器尺寸为 0 导致瓦片不绘
+  requestAnimationFrame(() => {
+    map.invalidateSize({ animate: false });
+    setTimeout(() => map.invalidateSize({ animate: false }), 120);
+  });
 }
 
 let resizeObserver: ResizeObserver | null = null;
@@ -342,7 +401,7 @@ let resizeObserver: ResizeObserver | null = null;
 let unregisterPrepareExport: (() => void) | null = null;
 
 onMounted(() => {
-  initMap();
+  void initMap();
   unregisterPrepareExport = ui.registerPrepareExportHook(syncStoreFromMap);
   const wrap = mapWrap.value;
   if (wrap) {
@@ -365,6 +424,8 @@ onUnmounted(() => {
   mapInstance.value = null;
   trackLayer.value = null;
   tileLayer.value = null;
+  activeBasemap.value = null;
+  basemapStatus.value = null;
 });
 
 watch(
@@ -430,6 +491,7 @@ defineExpose({
 <template>
   <div ref="mapWrap" class="map-wrap">
     <div ref="mapRoot" class="leaflet-map" />
+    <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
     <!-- 遮罩固定于屏幕；圆形/矩形用 CSS 避免 SVG 非等比拉伸导致虚线变形 -->
     <div v-if="maskGeom" class="map-mask">
       <div v-if="maskHoleStyle" class="mask-hole" :style="maskHoleStyle" />
@@ -482,6 +544,20 @@ defineExpose({
   width: 100%;
   height: 100%;
   background: #1a1a2e;
+}
+
+.basemap-status {
+  position: absolute;
+  left: 12px;
+  bottom: 28px;
+  z-index: 1002;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  pointer-events: none;
 }
 
 .map-mask {

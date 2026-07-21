@@ -162,6 +162,28 @@ export interface SprayPaintConfig {
   bleedMarginMm: number;
 }
 
+// ─── 模块六：翻模套件（可选导出）──────────────────────────────────────
+
+export interface MoldKitConfig {
+  /** 总开关；false 时不导出 Mold_* */
+  enabled: boolean;
+  /** 裙边高度 (mm)：自浇注停面向下 */
+  skirtHeightMm: number;
+  /** 裙边外扩宽度 (mm)：相对山体打印外轮廓 */
+  skirtWidthMm: number;
+  /** 盖板高度 (mm) */
+  lidHeightMm: number;
+  /** 盖板外扩宽度 (mm)：相对山体打印外轮廓 */
+  lidWidthMm: number;
+  /**
+   * 盖板外轮廓相对裙边外轮廓的内缩间隙 (mm)。
+   * 实际盖板外扩 = lidWidthMm - lidClearanceMm。
+   */
+  lidClearanceMm: number;
+  /** 盖板尺寸是否与裙边同步 */
+  lidSyncWithSkirt: boolean;
+}
+
 // ─── 应用全局配置 ───────────────────────────────────────────────────────
 
 export interface AppConfig {
@@ -172,6 +194,7 @@ export interface AppConfig {
   tray: TrayConfig;
   assembly: AssemblyConfig;
   sprayPaint: SprayPaintConfig;
+  moldKit: MoldKitConfig;
 }
 
 export function createDefaultConfig(): AppConfig {
@@ -245,6 +268,15 @@ export function createDefaultConfig(): AppConfig {
       maskShellThicknessMm: 1.0,
       maskFitToleranceMm: 0.2,
       bleedMarginMm: 0.5,
+    },
+    moldKit: {
+      enabled: false,
+      skirtHeightMm: 2,
+      skirtWidthMm: 2,
+      lidHeightMm: 2,
+      lidWidthMm: 2,
+      lidClearanceMm: 0.2,
+      lidSyncWithSkirt: true,
     },
   };
 }

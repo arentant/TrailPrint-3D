@@ -9,6 +9,7 @@ export const useUiStore = defineStore("ui", () => {
     tray: true,
     assembly: true,
     sprayPaint: false,
+    moldKit: false,
   });
   const generating = ref(false);
   const statusMessage = ref<string | null>(null);

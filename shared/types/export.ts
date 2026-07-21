@@ -6,6 +6,8 @@ export const STL_FILE_NAMES = {
   trailLine: "Trail_Line.stl",
   trayBase: "Tray_Base.stl",
   trayCover: "Tray_Cover.stl",
+  moldMaster: "Mold_Master.stl",
+  moldLid: "Mold_Lid.stl",
 } as const;
 
 export type ExportPhase =

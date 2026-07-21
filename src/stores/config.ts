@@ -81,6 +81,25 @@ function ensureSprayPaintDefaults(cfg: AppConfig): void {
   }
 }
 
+function ensureMoldKitDefaults(cfg: AppConfig): void {
+  if (!cfg.moldKit) {
+    cfg.moldKit = createDefaultConfig().moldKit;
+    return;
+  }
+  const defaults = createDefaultConfig().moldKit;
+  const mk = cfg.moldKit as AppConfig["moldKit"] & {
+    lidSyncWithSkirt?: boolean;
+    lidClearanceMm?: number;
+  };
+  if (mk.lidSyncWithSkirt == null) mk.lidSyncWithSkirt = defaults.lidSyncWithSkirt;
+  if (mk.lidClearanceMm == null) mk.lidClearanceMm = defaults.lidClearanceMm;
+  if (mk.skirtHeightMm == null) mk.skirtHeightMm = defaults.skirtHeightMm;
+  if (mk.skirtWidthMm == null) mk.skirtWidthMm = defaults.skirtWidthMm;
+  if (mk.lidHeightMm == null) mk.lidHeightMm = defaults.lidHeightMm;
+  if (mk.lidWidthMm == null) mk.lidWidthMm = defaults.lidWidthMm;
+  if (mk.enabled == null) mk.enabled = defaults.enabled;
+}
+
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig>(createDefaultConfig());
   applyOpenTopoApiKey(config.value);
@@ -88,6 +107,7 @@ export const useConfigStore = defineStore("config", () => {
   ensureMagnetConfigDefaults(config.value);
   ensureTrayNfcDefaults(config.value);
   ensureSprayPaintDefaults(config.value);
+  ensureMoldKitDefaults(config.value);
 
   watch(
     () => config.value.terrain.openTopographyApiKey,
@@ -109,6 +129,7 @@ export const useConfigStore = defineStore("config", () => {
     ensureMagnetConfigDefaults(config.value);
     ensureTrayNfcDefaults(config.value);
     ensureSprayPaintDefaults(config.value);
+    ensureMoldKitDefaults(config.value);
   }
 
   function patchConfig(partial: Partial<AppConfig>): void {

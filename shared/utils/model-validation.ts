@@ -11,6 +11,7 @@ import {
 import { projectTrailToModelMm } from "./trail-coords";
 import { resolveTrailPoints } from "./trail-resolve";
 import { validateTrayFromAppConfig } from "./tray-validation";
+import { validateMoldKitFromAppConfig } from "./mold-kit-validation";
 
 const MIN_BOTTOM_FLOOR_MM = 0.3;
 const MIN_MAGNET_WALL_MM = 0.8;
@@ -22,7 +23,8 @@ export type ModelValidationScope =
   | "tray"
   | "trail"
   | "magnet"
-  | "nfc";
+  | "nfc"
+  | "moldKit";
 
 export interface ModelValidationResult extends TrayValidationResult {
   scope?: ModelValidationScope;
@@ -245,6 +247,11 @@ export function validateModelGeneration(
   const magnetCheck = validateMagnetAssembly(config);
   if (!magnetCheck.valid) return magnetCheck;
 
+  const moldCheck = validateMoldKitFromAppConfig(config);
+  if (!moldCheck.valid) {
+    return { ...moldCheck, scope: "moldKit" };
+  }
+
   if (requireGpx && hasViewport) {
     const trailCheck = validateTrailInPrintArea(config, vw, vh);
     if (!trailCheck.valid) return trailCheck;
@@ -305,4 +312,15 @@ export function validateAssemblySection(
   config: AppConfig,
 ): ModelValidationResult {
   return validateMagnetAssembly(config);
+}
+
+/** 侧栏「翻模套件」区块 */
+export function validateMoldKitSection(
+  config: AppConfig,
+): ModelValidationResult {
+  const check = validateMoldKitFromAppConfig(config);
+  if (!check.valid) {
+    return { ...check, scope: "moldKit" };
+  }
+  return { valid: true };
 }

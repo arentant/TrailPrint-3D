@@ -66,6 +66,12 @@ Please build a layout with two main areas:
 - 打印公差: Inputs for "轨迹槽公差" (default 0.15mm) and "底座槽公差" (default 0.20mm).
 - 磁铁组件: Toggle "启用免胶水磁吸装配". If ON, show inputs for "磁铁直径" and "磁铁厚度", and checkboxes for "底面展示孔(如冰箱贴)" and "模型拼接定位孔".
 
+**6. 翻模套件 (Section 6 - Optional, default collapsed)** — 详见 [PRD-mold-kit.md](./PRD-mold-kit.md)
+
+- 启用开关: iOS Toggle「启用翻模套件」(default OFF)。关闭时隐藏子项，导出不含 Mold_*。
+- 开启后: 「裙边高度」「裙边外扩宽度」(mm)；「盖板高度」「盖板外扩宽度」(mm)；「与裙边同步」Toggle (default ON)；高级「盖板配合间隙」(default 0.2mm)。
+- 辅助文案: 「滴胶浇至原基础底面台阶；裙边区域用于容纳飞边。」
+
 ### Sidebar Footer (Sticky Bottom)
 
 - A frosted glass footer stuck to the bottom of the sidebar.

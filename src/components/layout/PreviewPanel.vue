@@ -160,13 +160,13 @@ async function onDownloadStl(): Promise<void> {
           <path d="M16 6v16" />
         </svg>
         <p class="preview__title">
-          {{ dragOver ? "松开以导入 GPX" : "导入 GPX 显示卫星地图与轨迹" }}
+          {{ dragOver ? "松开以导入 GPX" : "拖入 GPX 开始构图" }}
         </p>
         <p class="preview__hint">
           {{
             importing
               ? "正在解析轨迹…"
-              : "拖动 GPX 到此处 · 或点击左侧「导入 GPX」"
+              : "卫星底图应已显示；拖动 GPX 到此处，或点击左侧「导入 GPX」"
           }}
         </p>
       </div>
