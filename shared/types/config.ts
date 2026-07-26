@@ -197,6 +197,28 @@ export interface AppConfig {
   moldKit: MoldKitConfig;
 }
 
+/**
+ * 可持久化的参数方案切片。
+ * 不含：GPX、API Key、地图取景（中心/缩放/旋转）；加载时沿用当前取景与 GPX/Key。
+ */
+export interface ConfigSchemePayload {
+  mapCrop: MapCropConfig;
+  terrain: Omit<TerrainConfig, "openTopographyApiKey">;
+  trail: TrailConfig;
+  tray: TrayConfig;
+  assembly: AssemblyConfig;
+  sprayPaint: SprayPaintConfig;
+  moldKit: MoldKitConfig;
+}
+
+export interface ConfigScheme {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  payload: ConfigSchemePayload;
+}
+
 export function createDefaultConfig(): AppConfig {
   return {
     gpx: {

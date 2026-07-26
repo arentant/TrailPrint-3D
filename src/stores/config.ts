@@ -3,6 +3,8 @@ import { ref, watch } from "vue";
 import {
   createDefaultConfig,
   type AppConfig,
+  type ConfigScheme,
+  type ConfigSchemePayload,
   type GpxPoint,
   type TrailConfig,
 } from "@shared/types";
@@ -11,6 +13,7 @@ import { zoomToFitBoundsInMask } from "@shared/utils/map-projection";
 import { useUiStore } from "@/stores/ui";
 
 const OPENTOPO_API_KEY_STORAGE = "trailprint.openTopographyApiKey";
+const SCHEMES_STORAGE = "trailprint.configSchemes";
 
 function envOpenTopoApiKey(): string {
   return import.meta.env.VITE_OPENTOPOGRAPHY_API_KEY?.trim() ?? "";
@@ -100,6 +103,115 @@ function ensureMoldKitDefaults(cfg: AppConfig): void {
   if (mk.enabled == null) mk.enabled = defaults.enabled;
 }
 
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** 方案只存底座造型/尺寸，不含地图中心、缩放、旋转等取景 */
+function extractMapCropForScheme(mapCrop: AppConfig["mapCrop"]): AppConfig["mapCrop"] {
+  return {
+    shape: mapCrop.shape,
+    radiusMm: mapCrop.radiusMm,
+    lengthMm: mapCrop.lengthMm,
+    widthMm: mapCrop.widthMm,
+    polygonSides: mapCrop.polygonSides,
+    polygonSideLengthMm: mapCrop.polygonSideLengthMm,
+    cornerRadiusMm: mapCrop.cornerRadiusMm,
+    // 占位字段，加载时一律沿用当前取景，不读方案里的值
+    mapCenterLat: 0,
+    mapCenterLon: 0,
+    mapZoom: 12,
+    mapBearingDeg: 0,
+  };
+}
+
+function extractSchemePayload(cfg: AppConfig): ConfigSchemePayload {
+  const { openTopographyApiKey: _key, ...terrainRest } = cfg.terrain;
+  return deepClone({
+    mapCrop: extractMapCropForScheme(cfg.mapCrop),
+    terrain: terrainRest,
+    trail: cfg.trail,
+    tray: cfg.tray,
+    assembly: cfg.assembly,
+    sprayPaint: cfg.sprayPaint,
+    moldKit: cfg.moldKit,
+  });
+}
+
+function applySchemePayload(cfg: AppConfig, payload: ConfigSchemePayload): void {
+  const apiKey = cfg.terrain.openTopographyApiKey;
+  const gpx = cfg.gpx;
+  const framing = {
+    mapCenterLat: cfg.mapCrop.mapCenterLat,
+    mapCenterLon: cfg.mapCrop.mapCenterLon,
+    mapZoom: cfg.mapCrop.mapZoom,
+    mapBearingDeg: cfg.mapCrop.mapBearingDeg,
+    mapPaneX: cfg.mapCrop.mapPaneX,
+    mapPaneY: cfg.mapCrop.mapPaneY,
+  };
+
+  const nextMap = extractMapCropForScheme(payload.mapCrop);
+  cfg.mapCrop = { ...nextMap, ...framing };
+  cfg.terrain = {
+    ...deepClone(payload.terrain),
+    openTopographyApiKey: apiKey,
+  };
+  cfg.trail = deepClone(payload.trail);
+  cfg.tray = deepClone(payload.tray);
+  cfg.assembly = deepClone(payload.assembly);
+  cfg.sprayPaint = deepClone(payload.sprayPaint);
+  cfg.moldKit = deepClone(payload.moldKit);
+  cfg.gpx = gpx;
+  ensureTrailConfigDefaults(cfg);
+  ensureMagnetConfigDefaults(cfg);
+  ensureTrayNfcDefaults(cfg);
+  ensureSprayPaintDefaults(cfg);
+  ensureMoldKitDefaults(cfg);
+}
+
+function loadPersistedSchemes(): ConfigScheme[] {
+  try {
+    const raw = localStorage.getItem(SCHEMES_STORAGE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is ConfigScheme =>
+        !!item &&
+        typeof item === "object" &&
+        typeof (item as ConfigScheme).id === "string" &&
+        typeof (item as ConfigScheme).name === "string" &&
+        !!(item as ConfigScheme).payload,
+    );
+  } catch {
+    return [];
+  }
+}
+
+function persistSchemes(list: ConfigScheme[]): void {
+  try {
+    localStorage.setItem(SCHEMES_STORAGE, JSON.stringify(list));
+  } catch {
+    /* 隐私模式等环境可能禁用 localStorage */
+  }
+}
+
+function newSchemeId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `scheme-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** 清理此前注入的联调测试方案 */
+function purgeTestSchemes(existing: ConfigScheme[]): ConfigScheme[] {
+  const cleaned = existing.filter((s) => !s.id.startsWith("test-scheme-"));
+  if (cleaned.length !== existing.length) {
+    persistSchemes(cleaned);
+  }
+  return cleaned;
+}
+
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig>(createDefaultConfig());
   applyOpenTopoApiKey(config.value);
@@ -108,6 +220,11 @@ export const useConfigStore = defineStore("config", () => {
   ensureTrayNfcDefaults(config.value);
   ensureSprayPaintDefaults(config.value);
   ensureMoldKitDefaults(config.value);
+
+  const schemes = ref<ConfigScheme[]>(
+    purgeTestSchemes(loadPersistedSchemes()),
+  );
+  const activeSchemeId = ref<string | null>(null);
 
   watch(
     () => config.value.terrain.openTopographyApiKey,
@@ -130,6 +247,7 @@ export const useConfigStore = defineStore("config", () => {
     ensureTrayNfcDefaults(config.value);
     ensureSprayPaintDefaults(config.value);
     ensureMoldKitDefaults(config.value);
+    activeSchemeId.value = null;
   }
 
   function patchConfig(partial: Partial<AppConfig>): void {
@@ -186,17 +304,102 @@ export const useConfigStore = defineStore("config", () => {
 
   /** 供主进程读取的快照（后续任务通过 IPC 传递） */
   function toSnapshot(): AppConfig {
-    return JSON.parse(JSON.stringify(config.value)) as AppConfig;
+    return deepClone(config.value);
+  }
+
+  /** 将当前参数保存为命名方案（名称必须唯一） */
+  function saveScheme(name: string): ConfigScheme {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error("方案名称不能为空");
+    }
+    if (schemes.value.some((s) => s.name === trimmed)) {
+      throw new Error("方案名称已存在，请换一个名字");
+    }
+    const now = Date.now();
+    const scheme: ConfigScheme = {
+      id: newSchemeId(),
+      name: trimmed,
+      createdAt: now,
+      updatedAt: now,
+      payload: extractSchemePayload(config.value),
+    };
+    schemes.value = [scheme, ...schemes.value];
+    persistSchemes(schemes.value);
+    activeSchemeId.value = scheme.id;
+    return scheme;
+  }
+
+  function isSchemeNameTaken(name: string, excludeId?: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    return schemes.value.some(
+      (s) => s.name === trimmed && s.id !== excludeId,
+    );
+  }
+
+  /** 覆盖已有方案内容为当前参数 */
+  function updateScheme(id: string): ConfigScheme | null {
+    const target = schemes.value.find((s) => s.id === id);
+    if (!target) return null;
+    target.payload = extractSchemePayload(config.value);
+    target.updatedAt = Date.now();
+    schemes.value = [...schemes.value];
+    persistSchemes(schemes.value);
+    activeSchemeId.value = id;
+    return target;
+  }
+
+  function loadScheme(id: string): boolean {
+    const target = schemes.value.find((s) => s.id === id);
+    if (!target) return false;
+    applySchemePayload(config.value, target.payload);
+    activeSchemeId.value = id;
+    return true;
+  }
+
+  function deleteScheme(id: string): boolean {
+    const next = schemes.value.filter((s) => s.id !== id);
+    if (next.length === schemes.value.length) return false;
+    schemes.value = next;
+    persistSchemes(schemes.value);
+    if (activeSchemeId.value === id) activeSchemeId.value = null;
+    return true;
+  }
+
+  function renameScheme(id: string, name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const target = schemes.value.find((s) => s.id === id);
+    if (!target) return false;
+    if (
+      schemes.value.some((s) => s.id !== id && s.name === trimmed)
+    ) {
+      throw new Error("已存在同名方案");
+    }
+    target.name = trimmed;
+    target.updatedAt = Date.now();
+    schemes.value = [...schemes.value];
+    persistSchemes(schemes.value);
+    return true;
   }
 
   return {
     config,
+    schemes,
+    activeSchemeId,
     resetConfig,
     patchConfig,
     applyGpxImport,
     setGpxImportError,
     clearGpx,
     toSnapshot,
+    saveScheme,
+    updateScheme,
+    loadScheme,
+    deleteScheme,
+    renameScheme,
+    isSchemeNameTaken,
   };
 });
 

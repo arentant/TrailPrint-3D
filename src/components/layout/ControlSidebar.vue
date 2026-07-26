@@ -8,6 +8,8 @@ import { formatIpcError, ipcOnExportProgress, ipcRevealExport } from '@/ipc/clie
 import { validateModelGeneration } from '@shared/utils/model-validation'
 import GpxImportSummary from '@/components/gpx/GpxImportSummary.vue'
 import OpenTopoApiKeyCard from '@/components/sections/OpenTopoApiKeyCard.vue'
+import SaveSchemeDialog from '@/components/sections/SaveSchemeDialog.vue'
+import LoadSchemeDialog from '@/components/sections/LoadSchemeDialog.vue'
 import TrailPrintLogo from '@/components/ui/TrailPrintLogo.vue'
 import MapSizeSection from '@/components/sections/MapSizeSection.vue'
 import TerrainSection from '@/components/sections/TerrainSection.vue'
@@ -20,6 +22,7 @@ import MoldKitSection from '@/components/sections/MoldKitSection.vue'
 const ui = useUiStore()
 const configStore = useConfigStore()
 const { generating, statusMessage, exportProgress, lastExportZipPath } = storeToRefs(ui)
+const { schemes } = storeToRefs(configStore)
 
 function exportFileName(path: string): string {
   const parts = path.split(/[/\\]/)
@@ -54,6 +57,8 @@ const { importing, importFromFile } = useGpxImport()
 const fileInput = ref<HTMLInputElement | null>(null)
 /** 上次导出详情默认收起，减少底部占用 */
 const exportDoneOpen = ref(false)
+const saveSchemeOpen = ref(false)
+const loadSchemeOpen = ref(false)
 
 function openGpxPicker(): void {
   if (!importing.value) fileInput.value?.click()
@@ -82,6 +87,7 @@ function openPreviewModal(): void {
   ui.runPrepareExport()
   ui.terrainPreviewOpen = true
 }
+
 </script>
 
 <template>
@@ -94,19 +100,36 @@ function openPreviewModal(): void {
           <p class="sidebar__subtitle">TrailPrint 3D</p>
         </div>
       </div>
-      <button
-        type="button"
-        class="sidebar__import"
-        :disabled="importing"
-        @click="openGpxPicker"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-        {{ importing ? '解析中…' : '导入 GPX' }}
-      </button>
+      <div class="sidebar__header-actions">
+        <button
+          type="button"
+          class="sidebar__import"
+          :disabled="importing"
+          @click="openGpxPicker"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          {{ importing ? '解析中…' : '导入 GPX' }}
+        </button>
+        <button
+          type="button"
+          class="sidebar__scheme"
+          title="应用已保存的配置方案"
+          @click="loadSchemeOpen = true"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="9" y1="13" x2="15" y2="13" />
+            <line x1="9" y1="17" x2="15" y2="17" />
+          </svg>
+          应用方案
+          <span v-if="schemes.length" class="sidebar__scheme-count">{{ schemes.length }}</span>
+        </button>
+      </div>
       <input
         ref="fileInput"
         type="file"
@@ -175,15 +198,28 @@ function openPreviewModal(): void {
         </template>
         {{ statusMessage }}
       </p>
-      <button
-        type="button"
-        class="sidebar__cta"
-        :disabled="generating || importing"
-        @click="openPreviewModal"
-      >
-        预览并下载 STL
-      </button>
+      <div class="sidebar__cta-row">
+        <button
+          type="button"
+          class="sidebar__save-scheme"
+          :disabled="generating || importing"
+          @click="saveSchemeOpen = true"
+        >
+          保存方案
+        </button>
+        <button
+          type="button"
+          class="sidebar__cta"
+          :disabled="generating || importing"
+          @click="openPreviewModal"
+        >
+          预览并下载 STL
+        </button>
+      </div>
     </footer>
+
+    <SaveSchemeDialog v-model:open="saveSchemeOpen" />
+    <LoadSchemeDialog v-model:open="loadSchemeOpen" />
   </aside>
 </template>
 
@@ -206,8 +242,8 @@ function openPreviewModal(): void {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 20px 20px 4px;
+  gap: 10px;
+  padding: 20px 16px 4px;
   background: var(--tp-bg-panel);
 }
 
@@ -216,6 +252,7 @@ function openPreviewModal(): void {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex-shrink: 1;
 }
 
 .sidebar__brand-text {
@@ -238,23 +275,54 @@ function openPreviewModal(): void {
   color: var(--tp-text-secondary);
 }
 
-.sidebar__import {
-  display: inline-flex;
+.sidebar__header-actions {
+  display: flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 18px;
+  flex-shrink: 0;
+}
+
+.sidebar__import,
+.sidebar__scheme {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 17px;
   background: var(--tp-bg-input);
   color: var(--tp-text-accent);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sidebar__scheme {
+  color: var(--tp-text-primary);
+}
+
+.sidebar__scheme:hover,
+.sidebar__import:hover {
+  background: var(--tp-bg-segment);
 }
 
 .sidebar__import:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+.sidebar__scheme-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--tp-text-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 
 .sidebar__divider {
@@ -365,8 +433,38 @@ function openPreviewModal(): void {
   line-height: 1.4;
 }
 
+.sidebar__cta-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.sidebar__save-scheme {
+  flex: 0 0 auto;
+  min-width: 96px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: var(--tp-radius-pill);
+  background: var(--tp-bg-panel);
+  border: 1.5px solid var(--tp-border-strong);
+  color: var(--tp-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.sidebar__save-scheme:hover:not(:disabled) {
+  background: var(--tp-bg-input);
+}
+
+.sidebar__save-scheme:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .sidebar__cta {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 52px;
   border-radius: var(--tp-radius-pill);
   background: var(--tp-cta);
