@@ -2,6 +2,7 @@ import type { MapCropConfig } from '@shared/types/config'
 import type { DemFetchOptions } from '@shared/types/dem'
 import type { TerrainCropRegion } from '@shared/types/terrain'
 import type { DemGrid } from '../../electron/main/terrain/dem-provider'
+import { IpcException } from '@shared/ipc/types'
 
 let cached: { key: string; values: Float64Array } | undefined
 
@@ -18,6 +19,7 @@ export async function sampleDemGrid(crop: TerrainCropRegion, cols: number, rows:
     signal: AbortSignal.timeout(250_000),
   })
   if (!response.ok) {
+    if (response.status === 401) throw new IpcException('UNAUTHENTICATED', 'Your session has ended. Sign in again to continue.')
     const error = await response.json().catch(() => null)
     throw new Error(error?.error ?? `Elevation request failed (${response.status}). Try a smaller area.`)
   }

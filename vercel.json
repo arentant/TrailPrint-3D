@@ -4,6 +4,9 @@
   "installCommand": "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci",
   "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/auth/:path*", "destination": "/api/auth?authPath=:path*" }
+  ],
   "functions": {
     "api/elevation.ts": { "maxDuration": 300 }
   },

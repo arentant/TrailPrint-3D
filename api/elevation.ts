@@ -5,6 +5,7 @@ import type { TerrainCropRegion } from '../shared/types/terrain.js'
 import { OPEN_TOPO_DEM_OPTIONS } from '../shared/types/dem.js'
 import { heightfieldSampleGeo } from '../shared/utils/map-mm-projection.js'
 import { createGeotiffSampler } from '../electron/main/terrain/geotiff-sampler.js'
+import { requireSession } from '../server/auth.js'
 
 const MAX_DOWNLOAD_BYTES = 32 * 1024 * 1024
 const MAX_BODY_BYTES = 16 * 1024
@@ -57,6 +58,7 @@ export default async function elevation(req: IncomingMessage & { body?: unknown 
     res.writeHead(405, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Use POST for elevation requests' }))
     return
   }
+  if (!await requireSession(req, res)) return
   let body: any
   try {
     body = await readJson(req)

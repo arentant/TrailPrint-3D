@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './authenticated'
 import { resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { unzipSync } from 'fflate'

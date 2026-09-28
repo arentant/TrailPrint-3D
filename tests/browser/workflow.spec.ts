@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './authenticated'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { unzipSync } from 'fflate'
@@ -64,7 +64,8 @@ test('invalid GPX and missing API key give actionable errors', async ({ page }) 
   await expect(page.getByText(/Enter your OpenTopography API key/).first()).toBeVisible()
 })
 
-test('elevation endpoint rejects invalid input without contacting the provider', async ({ request }) => {
+test('elevation endpoint rejects invalid input without contacting the provider', async ({ page }) => {
+  const request = page.request
   const get = await request.get('/api/elevation')
   expect(get.status()).toBe(405)
   const missingKey = await request.post('/api/elevation', { data: {} })

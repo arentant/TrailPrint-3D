@@ -25,6 +25,7 @@
     "electron/**/*",
     "shared/**/*",
     "vite.web.config.ts",
-    "api/**/*.ts"
+    "api/**/*.ts",
+    "server/**/*.ts"
   ]
 }

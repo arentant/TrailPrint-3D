@@ -26,7 +26,10 @@ export function createBrowserApi(): TrailPrintApi & { runtime: 'browser' } {
       const task = pending.get(data.id)
       if (!task) return
       pending.delete(data.id)
-      if ('error' in data) task.reject(new Error(data.error.message))
+      if ('error' in data) {
+        if (data.error.code === 'UNAUTHENTICATED') window.dispatchEvent(new Event('trailprint:auth-required'))
+        task.reject(new Error(data.error.message))
+      }
       else task.resolve(data.result)
     }
     worker.onerror = () => failAll('Model processing stopped. Try a lower mesh quality or reload the page.')
