@@ -112,7 +112,7 @@ export async function generateTerrainMain(
   const started = Date.now();
   let { config, viewportWidth, viewportHeight } = req;
 
-  reportProgress(onProgress, "prepare", 0.02, "正在准备参数…");
+  reportProgress(onProgress, "prepare", 0.02, "Preparing settings…");
   config = await hydrateGpxConfig(config);
   config = ensureMapZoomFitsTrail(config, viewportWidth, viewportHeight);
 
@@ -123,18 +123,18 @@ export async function generateTerrainMain(
   if (!modelCheck.valid) {
     throw new IpcException(
       "MODEL_INVALID",
-      modelCheck.message ?? "参数冲突，无法生成模型",
+      modelCheck.message ?? "Cannot generate the model. Check the settings.",
     );
   }
 
   if (viewportWidth < 8 || viewportHeight < 8) {
     throw new IpcException(
       "INVALID_VIEWPORT",
-      "视窗尺寸过小，无法计算裁剪范围",
+      "The viewport is too small to calculate the crop area",
     );
   }
 
-  reportProgress(onProgress, "crop", 0.08, "正在计算地图裁剪范围…");
+  reportProgress(onProgress, "crop", 0.08, "Calculating map crop area…");
   const crop = computeTerrainCropRegion(
     config.mapCrop,
     viewportWidth,
@@ -158,7 +158,7 @@ export async function generateTerrainMain(
     onProgress,
     "dem",
     0.12,
-    `正在获取高程数据（${cols}×${rows}）…`,
+    `Fetching elevation data (${cols}×${rows})…`,
   );
   const dem = await sampleDemGrid(
     crop,
@@ -173,9 +173,9 @@ export async function generateTerrainMain(
       fetchTimeoutMs: demFetchTimeoutMs(meshQuality, meshQualityCustom),
     },
   );
-  reportProgress(onProgress, "dem", 0.68, "高程数据已下载，正在解析…");
+  reportProgress(onProgress, "dem", 0.68, "Elevation data downloaded. Processing…");
 
-  reportProgress(onProgress, "process", 0.72, "正在处理地形高度场…");
+  reportProgress(onProgress, "process", 0.72, "Processing terrain heightfield…");
   fillDemHoles(dem.elevations, cols, rows);
   const smoothed = applyTerrainSmoothing(
     dem.elevations,
@@ -217,7 +217,7 @@ export async function generateTerrainMain(
     onProgress,
     "mesh",
     0.9,
-    buildExportMesh ? "正在生成可打印网格…" : "正在生成预览数据…",
+    buildExportMesh ? "Generating printable mesh…" : "Generating preview data…",
   );
   let mesh: TerrainMeshPayload = buildExportMesh
     ? buildHeightfieldTerrainMesh(crop, heightMm, cols, rows, baseThicknessMm)
@@ -235,7 +235,7 @@ export async function generateTerrainMain(
     buildExportMesh ? mesh.minSurfaceZ : minSurfaceZ,
   );
 
-  reportProgress(onProgress, "trail", 0.84, "正在计算轨迹位置…");
+  reportProgress(onProgress, "trail", 0.84, "Calculating trail position…");
   const polylineMm = buildTrailLinePolyline(
     config,
     crop,
@@ -263,7 +263,7 @@ export async function generateTerrainMain(
     });
   }
 
-  reportProgress(onProgress, "done", 1, "地形数据已就绪");
+  reportProgress(onProgress, "done", 1, "Terrain data ready");
   return {
     crop,
     mesh,

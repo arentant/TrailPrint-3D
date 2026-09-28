@@ -11,9 +11,11 @@ const apiKeyConfigured = computed(
 );
 
 const apiKeyTooltip =
-  "地形高程数据来自 OpenTopography。\n" +
-  "在 portal.opentopography.org 免费注册并申请 API Key，\n" +
-  "填写后保存在本机，不会上传到任何服务器。";
+  "Elevation data is provided by OpenTopography.\n" +
+  "Register at portal.opentopography.org to request an API key.\n" +
+  (window.trailPrint.runtime === "browser"
+    ? "Your key is saved in this browser and sent through this site to OpenTopography when requesting elevation data."
+    : "Your key is stored on this device and sent to OpenTopography to request elevation data.");
 </script>
 
 <template>
@@ -23,15 +25,15 @@ const apiKeyTooltip =
     aria-labelledby="opentopo-api-key-title"
   >
     <div class="api-key-card__head">
-      <span v-if="!apiKeyConfigured" class="api-key-card__badge">使用前必读</span>
+      <span v-if="!apiKeyConfigured" class="api-key-card__badge">Setup required</span>
       <div class="api-key-card__title-row">
         <h2 id="opentopo-api-key-title" class="api-key-card__title">
           OpenTopography API Key
         </h2>
-        <InfoTooltip aria-label="API Key 说明" :content="apiKeyTooltip" />
+        <InfoTooltip aria-label="About the API key" :content="apiKeyTooltip" />
       </div>
       <p v-if="!apiKeyConfigured" class="api-key-card__desc">
-        下载地形高程数据前，请先填写 API Key。仅保存在本机。
+        Enter your API key to download elevation data. It is saved on this device.
       </p>
     </div>
 
@@ -40,19 +42,19 @@ const apiKeyTooltip =
       v-model="config.terrain.openTopographyApiKey"
       type="password"
       class="api-key-card__input"
-      placeholder="粘贴你的 API Key"
+      placeholder="Paste your API key"
       autocomplete="off"
       spellcheck="false"
     />
 
     <p v-if="!apiKeyConfigured" class="api-key-card__footer api-key-card__footer--warn">
-      未填写将无法生成地形。
+      An API key is required to generate terrain.
       <a
         class="api-key-card__link"
         href="https://portal.opentopography.org/requestService?service=api"
         target="_blank"
         rel="noopener noreferrer"
-        >免费申请 API Key →</a
+        >Get a free API key →</a
       >
     </p>
   </section>

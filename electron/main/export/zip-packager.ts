@@ -22,7 +22,7 @@ export async function packZip(
   entries: ZipEntry[],
 ): Promise<void> {
   if (entries.length === 0) {
-    throw new Error("ZIP 条目为空");
+    throw new Error("The ZIP archive has no entries");
   }
 
   await mkdir(dirname(outputPath), { recursive: true });

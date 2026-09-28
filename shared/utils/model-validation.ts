@@ -88,7 +88,7 @@ export function validateTrailInPrintArea(
 ): ModelValidationResult {
   const points = resolveTrailPoints(config);
   if (points.length < 2) {
-    return fail("gpx", "轨迹点数不足，无法生成模型");
+    return fail("gpx", "Not enough track points to generate the model");
   }
 
   const crop = computeTerrainCropRegion(
@@ -105,7 +105,7 @@ export function validateTrailInPrintArea(
   if (polyline.length < 2) {
     return fail(
       "trail",
-      "轨迹未进入打印区域。请在 2D 地图中将红色轨迹拖入中心白框内，或调整地图缩放/位置后重试",
+      "The trail is outside the print area. Move the red trail inside the white outline on the 2D map, or adjust the map position and zoom.",
     );
   }
 
@@ -122,10 +122,10 @@ export function validateMagnetAssembly(
 
   const magnet = config.assembly.magnet;
   if (magnet.diameterMm <= 0) {
-    return fail("magnet", "磁铁直径必须大于 0");
+    return fail("magnet", "Magnet diameter must be greater than 0");
   }
   if (magnet.thicknessMm <= 0) {
-    return fail("magnet", "磁铁厚度必须大于 0");
+    return fail("magnet", "Magnet thickness must be greater than 0");
   }
 
   const bottomSolidMm =
@@ -135,7 +135,7 @@ export function validateMagnetAssembly(
   if (cut.depthMm > maxDepth) {
     return fail(
       "magnet",
-      `磁铁孔深（含公差 ${cut.depthMm.toFixed(1)} mm）超过托盘底面可用厚度（${maxDepth.toFixed(1)} mm），请减小磁铁厚度/公差或增大托盘总厚度`,
+      `Magnet hole depth (including clearance of ${cut.depthMm.toFixed(1)} mm) exceeds the available tray base thickness (${maxDepth.toFixed(1)} mm). Reduce magnet thickness or clearance, or increase tray thickness.`,
     );
   }
 
@@ -150,7 +150,7 @@ export function validateMagnetAssembly(
     if (wall < cut.radiusMm + MIN_MAGNET_WALL_MM) {
       return fail(
         "magnet",
-        "磁铁直径过大或托盘边框过窄，磁铁孔距外缘过近。请减小磁铁直径、缩小边框宽度或增大打印尺寸",
+        "The magnet holes are too close to the tray edge. Reduce the magnet diameter or rim width, or increase the print size.",
       );
     }
   }
@@ -177,7 +177,7 @@ export function validateTrayNfcLayout(
   if (!cavity) {
     return fail(
       "nfc",
-      "NFC 容纳腔过小，请减小「距打印内壁」或增大打印尺寸",
+      "The NFC recess is too small. Reduce Inset from print edge or increase the print size.",
     );
   }
 
@@ -198,7 +198,7 @@ export function validateTrayNfcLayout(
   if (ledPockets.length === 0) {
     return fail(
       "nfc",
-      "无法定位 LED 安装位。请确保轨迹进入打印区域（白框内）后再启用 NFC",
+      "Cannot position the LEDs. Move the trail inside the white print outline before enabling NFC.",
     );
   }
 
@@ -216,7 +216,7 @@ export function validateModelGeneration(
   const requireGpx = options.requireGpx ?? true;
 
   if (requireGpx && !config.gpx.imported) {
-    return fail("gpx", "请先导入 GPX 轨迹文件");
+    return fail("gpx", "Import a GPX track first");
   }
 
   const pointCount = Math.max(
@@ -224,7 +224,7 @@ export function validateModelGeneration(
     config.gpx.rawPoints.length,
   );
   if (requireGpx && pointCount < 2) {
-    return fail("gpx", "轨迹点数不足，无法生成模型");
+    return fail("gpx", "Not enough track points to generate the model");
   }
 
   const vw = options.viewportWidth ?? 0;
@@ -236,7 +236,7 @@ export function validateModelGeneration(
     options.viewportHeight != null &&
     !hasViewport
   ) {
-    return fail("viewport", "预览区域尺寸过小，请放大窗口后重试");
+    return fail("viewport", "The preview is too small. Enlarge the window and try again.");
   }
 
   const trayCheck = validateTrayFromAppConfig(config);
@@ -290,7 +290,7 @@ export function validateTraySection(
     if (!cavity) {
       return fail(
         "nfc",
-        "NFC 容纳腔过小，请减小「距打印内壁」或增大打印尺寸",
+        "The NFC recess is too small. Reduce Inset from print edge or increase the print size.",
       );
     }
 

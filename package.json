@@ -1,7 +1,7 @@
 {
   "name": "trailprint-3d",
   "version": "0.1.0",
-  "description": "印迹 TrailPrint 3D — GPX 轨迹转 3D 地形纪念碑",
+  "description": "TrailPrint 3D — Turn GPX tracks into 3D terrain keepsakes",
   "main": "./out/main/index.js",
   "author": "TrailPrint",
   "license": "MIT",
@@ -12,10 +12,15 @@
     "build": "electron-vite build",
     "preview": "NODE_OPTIONS=--max-old-space-size=8192 electron-vite preview",
     "package": "npm run build && electron-builder",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p tsconfig.node.json"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p tsconfig.node.json",
+    "dev:web": "vite --config vite.web.config.ts",
+    "build:web": "vite build --config vite.web.config.ts",
+    "preview:web": "vite preview --config vite.web.config.ts",
+    "test:web": "playwright test"
   },
   "dependencies": {
     "archiver": "^7.0.1",
+    "fflate": "^0.8.3",
     "geotiff": "^3.0.5",
     "leaflet": "^1.9.4",
     "leaflet-rotate": "^0.2.8",
@@ -25,6 +30,7 @@
     "vue": "3.5.13"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/archiver": "^7.0.0",
     "@types/leaflet": "^1.9.15",
     "@types/node": "22.14.1",

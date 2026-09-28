@@ -15,9 +15,9 @@ const { config } = storeToRefs(configStore);
 const { openSections } = storeToRefs(ui);
 
 const shapeOptions: { value: BaseShape; label: string }[] = [
-  { value: "circle", label: "圆形" },
-  { value: "rectangle", label: "矩形" },
-  { value: "polygon", label: "多边形" },
+  { value: "circle", label: "Circle" },
+  { value: "rectangle", label: "Rectangle" },
+  { value: "polygon", label: "Polygon" },
 ];
 
 const isCircle = computed(() => config.value.mapCrop.shape === "circle");
@@ -29,12 +29,12 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
 
 <template>
   <AccordionSection
-    title="1. 地图与尺寸"
+    title="1. Map & size"
     :open="openSections.map"
     @toggle="ui.toggleSection('map')"
   >
     <div class="field-group">
-      <span class="field-group__label">形状</span>
+      <span class="field-group__label">Shape</span>
       <SegmentedControl
         v-model="config.mapCrop.shape"
         :options="shapeOptions"
@@ -42,14 +42,14 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
     </div>
 
     <p class="field-hint">
-      地图上的红色选区大小固定；下方 mm 尺寸仅影响 STL 导出比例。拖拽/缩放地图以调整轨迹在选区内的位置。
+      The selection stays fixed on the map. Dimensions below set the STL print size. Pan and zoom to position the trail inside the selection.
     </p>
 
     <div class="row">
       <NumberField
         v-if="isCircle"
         v-model="config.mapCrop.radiusMm"
-        label="打印半径"
+        label="Print radius"
         suffix="mm"
         :min="10"
         :max="500"
@@ -57,14 +57,14 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
       <template v-if="isRectangle">
         <NumberField
           v-model="config.mapCrop.lengthMm"
-          label="打印长度"
+          label="Print length"
           suffix="mm"
           :min="10"
           :max="500"
         />
         <NumberField
           v-model="config.mapCrop.widthMm"
-          label="打印宽度"
+          label="Print width"
           suffix="mm"
           :min="10"
           :max="500"
@@ -73,14 +73,14 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
       <template v-if="isPolygon">
         <NumberField
           v-model="config.mapCrop.polygonSides"
-          label="边数"
+          label="Sides"
           :min="3"
           :max="8"
           :step="1"
         />
         <NumberField
           v-model="config.mapCrop.polygonSideLengthMm"
-          label="打印边长"
+          label="Side length"
           suffix="mm"
           :min="10"
           :max="300"
@@ -91,7 +91,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
     <div v-if="showCornerRadius" class="row">
       <NumberField
         v-model="config.mapCrop.cornerRadiusMm"
-        label="R 角"
+        label="Corner radius"
         suffix="mm"
         :min="0"
         :max="maxCornerRadius"

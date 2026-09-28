@@ -20,7 +20,7 @@ import type {
 
 function getApi(): Window['trailPrint'] {
   if (!window.trailPrint) {
-    throw new Error('preload API 未注入，请检查 preload 脚本')
+    throw new Error('The desktop API is unavailable. Check the preload script.')
   }
   return window.trailPrint
 }

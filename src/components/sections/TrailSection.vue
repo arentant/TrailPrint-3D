@@ -29,18 +29,18 @@ const trailHeightAboveMain = computed({
 
 <template>
   <AccordionSection
-    title="3. 轨迹设置"
+    title="3. Trail settings"
     :open="openSections.trail"
     @toggle="ui.toggleSection('trail')"
   >
     <div class="toggle-row">
-      <span>过滤噪点，平滑轨迹</span>
+      <span>Reduce noise and smooth the trail</span>
       <IosToggle v-model="config.trail.gpxSimplify" />
     </div>
     <div class="row">
       <NumberField
         v-model="config.trail.trailWidthMm"
-        label="轨迹宽度"
+        label="Trail width"
         suffix="mm"
         :min="0.5"
          :max="20"
@@ -48,7 +48,7 @@ const trailHeightAboveMain = computed({
       />
       <NumberField
         v-model="config.trail.trailDepthMm"
-        label="轨迹深度"
+        label="Trail depth"
         suffix="mm"
         :min="0.1"
         :max="10"
@@ -57,14 +57,14 @@ const trailHeightAboveMain = computed({
     </div>
     <NumberField
       v-model="trailHeightAboveMain"
-      label="高出主模型"
+      label="Height above terrain"
       suffix="mm"
       :min="0"
       :max="3"
       :step="0.01"
     />
     <p class="hint">
-      导出轨迹件时，顶面在主模型对应地表高度上再抬高此值，便于嵌入后略露出。
+      Raise the trail above the terrain by this amount so it remains slightly visible when fitted into the groove.
     </p>
   </AccordionSection>
 </template>

@@ -87,7 +87,7 @@ function loadTile(url: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("卫星瓦片加载失败"));
+    img.onerror = () => reject(new Error("Could not load satellite imagery"));
     img.src = url;
   });
 }
@@ -158,7 +158,7 @@ export async function fetchSatelliteTextureForCrop(
   canvas.width = canvasW;
   canvas.height = canvasH;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("无法创建影像画布");
+  if (!ctx) throw new Error("Could not create the image canvas");
 
   const jobs: Array<Promise<void>> = [];
   for (let ty = 0; ty < tileCountY; ty++) {

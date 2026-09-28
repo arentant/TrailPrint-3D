@@ -9,41 +9,41 @@ export function validateTrayConfig(tray: TrayConfig): TrayValidationResult {
   if (tray.recessDepthMm >= tray.totalThicknessMm) {
     return {
       valid: false,
-      message: "下陷深度必须小于总厚度",
+      message: "Recess depth must be less than total thickness",
     };
   }
   if (tray.recessDepthMm <= 0) {
-    return { valid: false, message: "下陷深度必须大于 0" };
+    return { valid: false, message: "Recess depth must be greater than 0" };
   }
   if (tray.totalThicknessMm <= 0) {
-    return { valid: false, message: "总厚度必须大于 0" };
+    return { valid: false, message: "Total thickness must be greater than 0" };
   }
   if (tray.rimWidthMm <= 0) {
-    return { valid: false, message: "边框宽度必须大于 0" };
+    return { valid: false, message: "Rim width must be greater than 0" };
   }
 
   if (tray.nfc?.enabled) {
     const nfc = tray.nfc;
     if (nfc.wallClearanceMm < 0) {
-      return { valid: false, message: "NFC 距内壁距离不能为负" };
+      return { valid: false, message: "NFC inset cannot be negative" };
     }
     if (nfc.recessDepthMm <= 0) {
-      return { valid: false, message: "NFC 下沉深度必须大于 0" };
+      return { valid: false, message: "NFC recess depth must be greater than 0" };
     }
     if (nfc.ledExtraRecessDepthMm < 0) {
-      return { valid: false, message: "LED 额外下沉深度不能为负" };
+      return { valid: false, message: "Extra LED depth cannot be negative" };
     }
     if (nfc.ledPocketLengthMm <= 0) {
-      return { valid: false, message: "LED 安装腔长度必须大于 0" };
+      return { valid: false, message: "LED pocket length must be greater than 0" };
     }
     if (nfc.ledPocketWidthMm <= 0) {
-      return { valid: false, message: "LED 安装腔宽度必须大于 0" };
+      return { valid: false, message: "LED pocket width must be greater than 0" };
     }
     if (nfc.coverThicknessMm <= 0) {
-      return { valid: false, message: "盖片厚度必须大于 0" };
+      return { valid: false, message: "Cover thickness must be greater than 0" };
     }
     if (nfc.coverInsetMm < 0) {
-      return { valid: false, message: "盖片内缩距离不能为负" };
+      return { valid: false, message: "Cover inset cannot be negative" };
     }
     const bottomSolidMm = tray.totalThicknessMm - tray.recessDepthMm;
     const maxLedDepth = bottomSolidMm - MIN_BOTTOM_FLOOR_MM;
@@ -51,13 +51,13 @@ export function validateTrayConfig(tray: TrayConfig): TrayValidationResult {
     if (nfc.recessDepthMm > maxNfcDepth) {
       return {
         valid: false,
-        message: `NFC 下沉深度过大（底面可用 ${bottomSolidMm.toFixed(1)} mm，请减小 NFC 或 LED 深度）`,
+        message: `NFC recess is too deep (available base thickness: ${bottomSolidMm.toFixed(1)} mm; reduce the NFC or LED depth)`,
       };
     }
     if (nfc.recessDepthMm + nfc.ledExtraRecessDepthMm > maxLedDepth) {
       return {
         valid: false,
-        message: "NFC 与 LED 合计下沉深度超过底面可用厚度",
+        message: "Combined NFC and LED depth exceeds the available base thickness",
       };
     }
   }
@@ -81,7 +81,7 @@ export function validateTrayFromAppConfig(
     if (!cavity) {
       return {
         valid: false,
-        message: "NFC 容纳腔过小，请减小「距打印内壁」或增大打印尺寸",
+        message: "The NFC recess is too small. Reduce Inset from print edge or increase the print size.",
       };
     }
   }
@@ -94,7 +94,7 @@ export function validateTrayFromAppConfig(
     if (!outline) {
       return {
         valid: false,
-        message: "盖片内缩过大，请减小内缩距离或增大打印尺寸",
+        message: "Cover inset is too large. Reduce the inset or increase the print size.",
       };
     }
   }

@@ -42,7 +42,7 @@ watch(trimmed, (name) => {
     error.value = ''
     return
   }
-  error.value = nameTaken.value ? '方案名称已存在，请换一个名字' : ''
+  error.value = nameTaken.value ? 'That preset name is already in use. Choose another name.' : ''
 })
 
 function close(): void {
@@ -64,11 +64,11 @@ function submit(): void {
   if (composing.value) return
   const name = trimmed.value
   if (!name) {
-    error.value = '请输入方案名称'
+    error.value = 'Enter a preset name'
     return
   }
   if (schemes.value.some((s) => s.name === name)) {
-    error.value = '方案名称已存在，请换一个名字'
+    error.value = 'That preset name is already in use. Choose another name.'
     return
   }
   try {
@@ -76,7 +76,7 @@ function submit(): void {
     emit('saved', scheme.name)
     close()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '保存失败'
+    error.value = err instanceof Error ? err.message : 'Could not save the preset'
   }
 }
 
@@ -99,11 +99,11 @@ function onKeydown(e: KeyboardEvent): void {
       >
         <div class="scheme-dialog__panel">
           <header class="scheme-dialog__header">
-            <h2 id="save-scheme-title" class="scheme-dialog__title">保存方案</h2>
+            <h2 id="save-scheme-title" class="scheme-dialog__title">Save preset</h2>
             <button
               type="button"
               class="scheme-dialog__close"
-              aria-label="关闭"
+              aria-label="Close"
               @click="close"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -112,9 +112,9 @@ function onKeydown(e: KeyboardEvent): void {
             </button>
           </header>
           <p class="scheme-dialog__hint">
-            保存底座尺寸、地形、轨迹、托盘等参数。不含地图取景、GPX 与 API Key。
+            Save size, terrain, trail, tray, and other settings. Map framing, GPX data, and your API key are excluded.
           </p>
-          <label class="scheme-dialog__label" for="save-scheme-name">方案名称</label>
+          <label class="scheme-dialog__label" for="save-scheme-name">Preset name</label>
           <input
             id="save-scheme-name"
             ref="inputEl"
@@ -122,7 +122,7 @@ function onKeydown(e: KeyboardEvent): void {
             type="text"
             class="scheme-dialog__input"
             :class="{ 'scheme-dialog__input--error': !!error }"
-            placeholder="例如：80mm 圆底座"
+            placeholder="e.g. 80mm circular base"
             maxlength="40"
             @compositionstart="onCompositionStart"
             @compositionend="onCompositionEnd"
@@ -131,7 +131,7 @@ function onKeydown(e: KeyboardEvent): void {
           <p v-if="error" class="scheme-dialog__error">{{ error }}</p>
           <footer class="scheme-dialog__footer">
             <button type="button" class="scheme-dialog__btn scheme-dialog__btn--ghost" @click="close">
-              取消
+              Cancel
             </button>
             <button
               type="button"
@@ -139,7 +139,7 @@ function onKeydown(e: KeyboardEvent): void {
               :disabled="!canClick"
               @click="submit"
             >
-              保存
+              Save
             </button>
           </footer>
         </div>

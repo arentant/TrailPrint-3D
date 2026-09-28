@@ -17,7 +17,7 @@ export function resolveOpenTopoApiKey(fromConfig: string): string {
   if (!key) {
     throw new IpcException(
       "DEM_API_KEY_REQUIRED",
-      "未配置 OpenTopography API Key，请在侧栏顶部填写",
+      "Enter your OpenTopography API key at the top of the sidebar",
     );
   }
   return key;
@@ -102,15 +102,15 @@ async function readCached(path: string): Promise<ArrayBuffer | null> {
 function parseOtErrorBody(text: string): string {
   const trimmed = text.trim().slice(0, 400);
   if (trimmed.includes("API_Key") || trimmed.includes("API key")) {
-    return "OpenTopography API Key 无效或未填写";
+    return "The OpenTopography API key is missing or invalid";
   }
   if (trimmed.includes("rate") || trimmed.includes("limit")) {
-    return "OpenTopography 请求受限，请稍后再试或更换 API Key";
+    return "OpenTopography request limit reached. Try again later or use another API key.";
   }
   if (trimmed.includes("area") || trimmed.includes("km")) {
-    return "请求区域过大，请缩小地图范围";
+    return "The requested area is too large. Select a smaller map area.";
   }
-  return trimmed || "OpenTopography 返回错误";
+  return trimmed || "OpenTopography returned an error";
 }
 
 async function downloadGeotiff(
@@ -158,8 +158,8 @@ async function downloadGeotiff(
     if (err instanceof IpcException) throw err;
     const msg =
       err instanceof Error && err.name === "AbortError"
-        ? "下载 OpenTopography 高程超时，请检查网络后重试"
-        : "无法连接 OpenTopography，请检查网络或代理";
+        ? "The elevation download timed out. Check your connection and try again."
+        : "Cannot connect to OpenTopography. Check your network or proxy settings.";
     throw new IpcException("DEM_FETCH_FAILED", msg);
   } finally {
     clearTimeout(timeout);
@@ -224,7 +224,7 @@ export async function sampleElevationsOpenTopography(
   if (validCount === 0) {
     throw new IpcException(
       "DEM_FETCH_FAILED",
-      "高程栅格在采样区域无有效值，请调整地图区域或更换 DEM 数据源",
+      "No valid elevation data was found in this area. Adjust the map area or choose another DEM source.",
     );
   }
 

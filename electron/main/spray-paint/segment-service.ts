@@ -139,7 +139,7 @@ export async function segmentSprayPaint(
     onProgress?.({ phase, progress, message });
   };
 
-  report("satellite", 0.05, "正在准备分色参数…");
+  report("satellite", 0.05, "Preparing color separation settings…");
   let config = await hydrateGpxConfig(req.config);
   if (!config.sprayPaint) {
     config = {
@@ -159,14 +159,14 @@ export async function segmentSprayPaint(
   const cols = preview.cols;
   const rows = preview.rows;
   if (preview.heights.length < cols * rows) {
-    throw new Error("高度场数据不完整，无法分色");
+    throw new Error("Heightfield data is incomplete. Cannot separate colors.");
   }
 
   let rgbSamples: Array<{ r: number; g: number; b: number }> | null = null;
   let satelliteUsed = false;
   let warning: string | undefined;
 
-  report("satellite", 0.15, "正在获取卫星影像…");
+  report("satellite", 0.15, "Fetching satellite imagery…");
   try {
     rgbSamples = await fetchGridSatelliteRgb(
       req.crop,
@@ -177,13 +177,13 @@ export async function segmentSprayPaint(
       req.viewportHeight,
     );
     satelliteUsed = true;
-    report("satellite", 0.55, "卫星影像已就绪");
+    report("satellite", 0.55, "Satellite imagery ready");
   } catch {
-    warning = "卫星图不可用，已使用地形规则分色";
+    warning = "Satellite imagery is unavailable. Using terrain-based colors.";
     report("satellite", 0.55, warning);
   }
 
-  report("segment", 0.65, "正在映射地表种类…");
+  report("segment", 0.65, "Classifying surface types…");
   const cellRegions = segmentCellsWithCrop(
     config,
     preview,
@@ -192,7 +192,7 @@ export async function segmentSprayPaint(
     rgbSamples,
   );
 
-  report("smooth", 0.9, "正在平滑分区…");
+  report("smooth", 0.9, "Smoothing color regions…");
 
   const plan: SprayPaintPlan = {
     colors: cloneDefaultColors(config.sprayPaint.colorCount),
@@ -205,6 +205,6 @@ export async function segmentSprayPaint(
     warning,
   };
 
-  report("done", 1, "分色完成");
+  report("done", 1, "Color separation complete");
   return { plan };
 }

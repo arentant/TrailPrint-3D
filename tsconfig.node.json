@@ -10,15 +10,21 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["shared/*"]
+      "@shared/*": [
+        "shared/*"
+      ]
     }
   },
   "include": [
     "electron.vite.config.*",
     "electron/**/*",
-    "shared/**/*"
+    "shared/**/*",
+    "vite.web.config.ts",
+    "api/**/*.ts"
   ]
 }

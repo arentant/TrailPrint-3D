@@ -91,7 +91,7 @@ const demLabel = computed(() => {
   const grid = r.heightPreview
     ? `${r.heightPreview.cols}×${r.heightPreview.rows}`
     : "";
-  return `3D 地形预览 · DEM ${grid} · ${r.generationMs}ms`;
+  return `3D terrain preview · DEM ${grid} · ${r.generationMs}ms`;
 });
 
 function applySprayColorsToTerrain(
@@ -278,7 +278,7 @@ async function rebuildScene(): Promise<void> {
 
   const token = ++rebuildToken;
   sceneBuilding.value = true;
-  reportScene("terrain", 0.05, "正在初始化 3D 场景…");
+  reportScene("terrain", 0.05, "Initializing 3D scene…");
   syncSceneLoading();
 
   disposeMeshGeometries(trayRoot);
@@ -304,26 +304,26 @@ async function rebuildScene(): Promise<void> {
 
   const preview = r.heightPreview;
   if (preview.heights.length < preview.cols * preview.rows) {
-    statusHint.value = "高度场数据不完整";
+    statusHint.value = "Heightfield data is incomplete";
     sceneBuilding.value = false;
     syncSceneLoading();
     return;
   }
 
-  reportScene("terrain", 0.2, "正在构建山体网格…");
+  reportScene("terrain", 0.2, "Building terrain mesh…");
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
   const terrainGeo = buildTerrainGeometryFromPreview(r.crop, preview);
   terrainGeo.computeVertexNormals();
   if (!terrainGeo.getIndex()?.count) {
-    statusHint.value = "山体网格为空";
+    statusHint.value = "Terrain mesh is empty";
     terrainGeo.dispose();
     sceneBuilding.value = false;
     syncSceneLoading();
     return;
   }
 
-  reportScene("terrain", 0.55, "正在应用山体材质…");
+  reportScene("terrain", 0.55, "Applying terrain materials…");
 
   const mat = ensureTerrainMaterial();
   mat.map = null;
@@ -353,7 +353,7 @@ async function rebuildScene(): Promise<void> {
 
   const tray = props.trayMesh;
   if (tray?.positions?.length && tray.indices?.length) {
-    reportScene("tray", 0.65, "正在加载托盘底座…");
+    reportScene("tray", 0.65, "Loading tray base…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const trayGeo = payloadToBufferGeometry(tray, { hardEdges: true });
     const trayObj = new THREE.Mesh(trayGeo, ensureTrayMaterial());
@@ -366,7 +366,7 @@ async function rebuildScene(): Promise<void> {
   const trailWidth = r.trailDisplayWidthMm ?? 4;
 
   if (polyline.length >= 2) {
-    reportScene("trail", 0.78, "正在绘制轨迹…");
+    reportScene("trail", 0.78, "Drawing trail…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const tubeSegs = trailPreviewTubeSegments(polyline.length, {
       meshQuality: config.value.terrain.meshQuality,
@@ -398,17 +398,17 @@ async function rebuildScene(): Promise<void> {
       overlayRoot.add(trail);
     }
   } else if (r.trailMesh?.positions?.length) {
-    statusHint.value = "轨迹折线为空，请检查 GPX 是否在白框内";
+    statusHint.value = "The trail is empty. Check that the GPX track is inside the white outline.";
   }
 
   const fitTargets: THREE.Object3D[] = [terrainMesh, overlayRoot];
   if (trayRoot.children.length > 0) fitTargets.unshift(trayRoot);
-  reportScene("camera", 0.92, "正在调整视角…");
+  reportScene("camera", 0.92, "Adjusting camera…");
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   fitCameraToTerrain(camera, controls, ...fitTargets);
 
   if (token === rebuildToken) {
-    reportScene("done", 1, "预览已就绪");
+    reportScene("done", 1, "Preview ready");
     sceneBuilding.value = false;
     syncSceneLoading();
   }
@@ -795,19 +795,19 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       v-if="!overlayLoading && imageryLoading"
       class="terrain-preview__badge terrain-preview__badge--load"
     >
-      正在加载卫星影像贴图…
+      Loading satellite texture…
     </div>
     <div
       v-else-if="!overlayLoading && sceneBuilding"
       class="terrain-preview__badge terrain-preview__badge--load"
     >
-      正在构建 3D 网格…
+      Building 3D mesh…
     </div>
     <div
       v-else-if="!overlayLoading && generating"
       class="terrain-preview__badge"
     >
-      正在生成山体 3D 模型…
+      Generating 3D terrain model…
     </div>
     <div
       v-else-if="!overlayLoading && error"
@@ -822,7 +822,7 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       {{ statusHint }}
     </div>
     <div v-else-if="!overlayLoading && !result" class="terrain-preview__badge">
-      导入 GPX 后打开 3D 预览，将显示真实地形模型
+      Import a GPX track, then open the 3D preview to see the terrain model.
     </div>
     <div
       v-else-if="
@@ -836,7 +836,7 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       class="terrain-preview__badge terrain-preview__badge--dim"
     >
       {{ demLabel }}
-      <span> · 含托盘底座 · 红=轨迹 · 拖动旋转</span>
+      <span> · Tray base included · Red = trail · Drag to rotate</span>
     </div>
   </div>
 </template>

@@ -60,7 +60,7 @@ function testFlatGrooveInCorridor(): void {
         assert.equal(
           grooved[row * cols + col],
           floorZ,
-          "走廊内应统一挖到 floorZ",
+          "The groove corridor must have a uniform floorZ",
         );
       }
     }

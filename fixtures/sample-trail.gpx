@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="TrailPrint-3D">
   <trk>
-    <name>示例: 成都龙泉山</name>
+    <name>Example: Longquan Mountain, Chengdu</name>
     <trkseg>
       <trkpt lat="30.5580" lon="104.2750"><ele>620</ele></trkpt>
       <trkpt lat="30.5588" lon="104.2765"><ele>635</ele></trkpt>

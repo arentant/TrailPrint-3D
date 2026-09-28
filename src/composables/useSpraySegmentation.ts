@@ -94,7 +94,7 @@ export function useSpraySegmentation() {
   ): boolean {
     config.sprayPaint.enabled = true;
     if (!plan.value && !initManualPaintPlan(config, result)) {
-      error.value = "地形数据未就绪，无法手涂";
+      error.value = "Terrain data is not ready for painting";
       return false;
     }
     paintMode.value = true;
@@ -109,14 +109,14 @@ export function useSpraySegmentation() {
     viewportHeight: number,
   ): Promise<SprayPaintPlan | null> {
     if (!result.heightPreview || !result.crop) {
-      error.value = "地形数据未就绪";
+      error.value = "Terrain data is not ready";
       return null;
     }
 
     segmenting.value = true;
     error.value = null;
     maskError.value = null;
-    progress.value = { phase: "satellite", progress: 0, message: "正在分色…" };
+    progress.value = { phase: "satellite", progress: 0, message: "Separating colors…" };
     attachProgressListener();
 
     try {
@@ -135,7 +135,7 @@ export function useSpraySegmentation() {
       error.value =
         err && typeof err === "object" && "message" in err
           ? String((err as { message: string }).message)
-          : "分色失败，请重试";
+          : "Color separation failed. Try again.";
       return null;
     } finally {
       segmenting.value = false;
@@ -148,13 +148,13 @@ export function useSpraySegmentation() {
     result: TerrainGenerateResponse,
   ): Promise<SprayGenerateMasksResponse | null> {
     if (!plan.value || !result.heightPreview || !result.crop) {
-      maskError.value = "请先规则分色或手涂分色";
+      maskError.value = "Use Auto-color or Paint by hand first";
       return null;
     }
 
     generatingMasks.value = true;
     maskError.value = null;
-    progress.value = { phase: "masks", progress: 0, message: "正在生成遮挡罩…" };
+    progress.value = { phase: "masks", progress: 0, message: "Generating paint masks…" };
     attachProgressListener();
 
     try {
@@ -171,7 +171,7 @@ export function useSpraySegmentation() {
       maskError.value =
         err && typeof err === "object" && "message" in err
           ? String((err as { message: string }).message)
-          : "遮挡罩生成失败，请重试";
+          : "Mask generation failed. Try again.";
       return null;
     } finally {
       generatingMasks.value = false;

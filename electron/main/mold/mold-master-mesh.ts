@@ -63,7 +63,7 @@ export function buildMoldSkirtMesh(
   zBottom: number,
 ): TerrainMeshPayload {
   if (outer.length < 3) {
-    throw new Error("裙边外轮廓无效");
+    throw new Error("Invalid skirt outline");
   }
   const positions: number[] = [];
   const indices: number[] = [];

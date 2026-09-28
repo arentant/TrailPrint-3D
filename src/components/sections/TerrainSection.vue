@@ -29,12 +29,12 @@ const { config } = storeToRefs(configStore);
 const { openSections } = storeToRefs(ui);
 
 const meshQualityOptions: { value: TerrainMeshQuality; label: string }[] = [
-  { value: "standard", label: "标准" },
-  { value: "high", label: "高精" },
-  { value: "ultra", label: "超高" },
-  { value: "extreme", label: "极致" },
-  { value: "studio", label: "制版" },
-  { value: "custom", label: "自定义" },
+  { value: "standard", label: "Standard" },
+  { value: "high", label: "High" },
+  { value: "ultra", label: "Ultra" },
+  { value: "extreme", label: "Extreme" },
+  { value: "studio", label: "Studio" },
+  { value: "custom", label: "Custom" },
 ];
 
 const meshQualityParams = computed(() => ({
@@ -64,27 +64,27 @@ const meshQualityPerfHint = computed(() => {
   const q = config.value.terrain.meshQuality;
   const sampleLabel =
     n >= 1_000_000
-      ? `约 ${(n / 1e6).toFixed(1)}M`
-      : `约 ${Math.round(n / 1000)}k`;
+      ? `Approx. ${(n / 1e6).toFixed(1)}M`
+      : `Approx. ${Math.round(n / 1000)}k`;
   if (q === "custom") {
     const heavy =
-      n >= 800_000 ? "；需约 8GB+ 可用内存（应用已自动放宽堆上限）" : "";
-    return `${sampleLabel} 高程采样${heavy}。修改上限后需重新生成地形；DEM 建议 COP30。`;
+      n >= 800_000 ? "; requires about 8 GB or more of available memory" : "";
+    return `${sampleLabel} elevation samples${heavy}. Regenerate terrain after changing the limit. COP30 is recommended.`;
   }
   if (q === "studio" && n >= 800_000) {
-    return `${sampleLabel} 高程采样；STL 可能很大，建议 16GB+ 内存。DEM 用 COP30，平滑用「原始」。`;
+    return `${sampleLabel} elevation samples; STL files may be large. Use 16 GB or more of RAM, COP30, and Raw smoothing.`;
   }
   if (q === "extreme") {
-    return `${sampleLabel} 采样；生成较慢。建议 DEM 用 COP30 (30m)，平滑用「原始/轻度」。`;
+    return `${sampleLabel} samples; generation may take longer. Use COP30 (30m) with Raw or Light smoothing.`;
   }
-  return "更高档位生成与导出更慢；源 DEM 分辨率（如 COP30 30m）决定地形细节上限。";
+  return "Higher quality takes longer to generate and export. The source DEM resolution (such as COP30 at 30m) limits terrain detail.";
 });
 
 const smoothingOptions: { value: TerrainSmoothing; label: string }[] = [
-  { value: "raw", label: "原始" },
-  { value: "light", label: "轻度" },
-  { value: "medium", label: "中度" },
-  { value: "heavy", label: "高度" },
+  { value: "raw", label: "Raw" },
+  { value: "light", label: "Light" },
+  { value: "medium", label: "Medium" },
+  { value: "heavy", label: "Heavy" },
 ];
 
 const demOptions = OPEN_TOPO_DEM_OPTIONS.map((o) => ({
@@ -103,13 +103,13 @@ const demHint = computed(() => {
 
 <template>
   <AccordionSection
-    title="2. 地形塑造"
+    title="2. Terrain"
     :open="openSections.terrain"
     @toggle="ui.toggleSection('terrain')"
   >
     <NumberField
       v-model="config.terrain.baseSolidThicknessMm"
-      label="模型基础厚度"
+      label="Base thickness"
       suffix="mm"
       :min="0.5"
       :max="20"
@@ -117,14 +117,14 @@ const demHint = computed(() => {
     />
     <RangeSlider
       v-model="config.terrain.zExaggeration"
-      label="Z轴山体倍数"
+      label="Elevation scale"
       :min="1"
       :max="5"
       :step="0.1"
       :format="(v) => `${v.toFixed(1)}x`"
     />
     <div class="field-group">
-      <span class="field-group__label">网格精度</span>
+      <span class="field-group__label">Mesh quality</span>
       <SegmentedControl
         v-model="config.terrain.meshQuality"
         :options="meshQualityOptions"
@@ -132,17 +132,17 @@ const demHint = computed(() => {
       <NumberField
         v-if="isCustomMeshQuality"
         v-model="customMaxGrid"
-        label="DEM 网格单边上限"
+        label="DEM grid limit per side"
         :min="CUSTOM_MESH_GRID_MIN"
         :max="CUSTOM_MESH_GRID_MAX"
         :step="32"
-        suffix="格"
+        suffix="cells"
       />
       <p class="field-hint">{{ meshQualityHint }}</p>
       <p class="field-hint">{{ meshQualityPerfHint }}</p>
     </div>
     <div class="field-group">
-      <span class="field-group__label">地形平滑度</span>
+      <span class="field-group__label">Terrain smoothing</span>
       <SegmentedControl
         v-model="config.terrain.smoothing"
         :options="smoothingOptions"
@@ -152,9 +152,9 @@ const demHint = computed(() => {
     <div class="field-group">
       <div class="field-group__label-row">
         <label class="field-group__label" for="dem-dataset"
-          >DEM 数据源（OpenTopography）</label
+          >DEM source (OpenTopography)</label
         >
-        <InfoTooltip aria-label="DEM 数据源说明" :content="demTooltipText" />
+        <InfoTooltip aria-label="About DEM sources" :content="demTooltipText" />
       </div>
       <select
         id="dem-dataset"

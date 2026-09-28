@@ -15,12 +15,12 @@ import type { SprayMaskViewMode } from "@shared/types/spray-paint";
 import type { TrayMeshPayload } from "@shared/types/tray";
 
 const PREVIEW_STEPS = [
-  { key: "prepare", label: "准备参数" },
-  { key: "crop", label: "计算裁剪范围" },
-  { key: "dem", label: "获取高程数据" },
-  { key: "process", label: "处理地形" },
-  { key: "trail", label: "计算轨迹" },
-  { key: "scene", label: "构建 3D 场景" },
+  { key: "prepare", label: "Prepare settings" },
+  { key: "crop", label: "Calculate crop area" },
+  { key: "dem", label: "Fetch elevation data" },
+  { key: "process", label: "Process terrain" },
+  { key: "trail", label: "Calculate trail" },
+  { key: "scene", label: "Build 3D scene" },
 ] as const;
 
 type PreviewStepKey = (typeof PREVIEW_STEPS)[number]["key"];
@@ -111,9 +111,9 @@ const {
 } = useSprayMaskPreview();
 
 const MASK_VIEW_MODES: { value: SprayMaskViewMode; label: string }[] = [
-  { value: "terrain-colors", label: "山体分色" },
-  { value: "terrain-plus-mask", label: "山体+罩" },
-  { value: "mask-only", label: "仅罩" },
+  { value: "terrain-colors", label: "Terrain colors" },
+  { value: "terrain-plus-mask", label: "Terrain + mask" },
+  { value: "mask-only", label: "Mask only" },
 ];
 
 const sprayEnabled = computed(() => config.value.sprayPaint.enabled);
@@ -136,20 +136,20 @@ const canGenerateMasks = computed(
 
 const sprayStatusMessage = computed(() => {
   if (segmenting.value) {
-    return sprayProgress.value?.message ?? "正在分色…";
+    return sprayProgress.value?.message ?? "Separating colors…";
   }
   if (generatingMasks.value) {
-    return sprayProgress.value?.message ?? "正在生成遮挡罩…";
+    return sprayProgress.value?.message ?? "Generating paint masks…";
   }
   if (sprayError.value) return sprayError.value;
   if (maskError.value) return maskError.value;
   if (sprayPlan.value?.warning) return sprayPlan.value.warning;
-  if (sprayMasks.value.length > 0) return "遮挡罩已生成，点击列表项套合预览";
+  if (sprayMasks.value.length > 0) return "Paint masks ready. Select a mask to preview its fit.";
   if (sprayPlan.value) {
-    if (paintMode.value) return "涂色模式：在 3D 山体上按住拖动涂抹";
-    return "可手涂分色，或规则分色后生成遮挡罩";
+    if (paintMode.value) return "Paint mode: click and drag across the 3D terrain.";
+    return "Paint by hand or use automatic colors, then generate masks.";
   }
-  return "点击「手涂分色」或「规则分色」开始";
+  return "Choose Paint by hand or Auto-color to begin.";
 });
 
 const colorCount = computed(() => config.value.sprayPaint.colorCount);
@@ -271,17 +271,17 @@ const loadingPercent = computed(() => {
 });
 
 const loadingTitle = computed(() =>
-  props.generating ? "正在生成 3D 模型" : "正在加载 3D 预览",
+  props.generating ? "Generating 3D model" : "Loading 3D preview",
 );
 
 const loadingHint = computed(() => {
   if (sceneLoading.value) {
-    return sceneProgress.value?.message ?? "正在构建 3D 场景…";
+    return sceneProgress.value?.message ?? "Building 3D scene…";
   }
   if (props.generating) {
-    return props.terrainProgress?.message ?? "正在连接主进程…";
+    return props.terrainProgress?.message ?? "Connecting to the desktop app…";
   }
-  return "请稍候…";
+  return "Please wait…";
 });
 
 function onSceneLoadingChange(loading: boolean): void {
@@ -353,18 +353,18 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
         <div class="terrain-modal__panel">
           <header class="terrain-modal__header">
             <h2 id="terrain-modal-title" class="terrain-modal__title">
-              3D 模型预览
+              3D model preview
             </h2>
             <div class="terrain-modal__actions">
               <button
                 type="button"
                 class="terrain-modal__spray-toggle"
                 :class="{ 'terrain-modal__spray-toggle--active': sprayPanelOpen }"
-                aria-label="喷漆分色面板"
-                title="喷漆分色"
+                aria-label="Paint mask panel"
+                title="Paint masks"
                 @click="sprayPanelOpen = !sprayPanelOpen"
               >
-                喷漆分色
+                Paint masks
               </button>
               <button
                 type="button"
@@ -403,12 +403,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                     stroke-linecap="round"
                   />
                 </svg>
-                {{ downloading ? "生成中…" : "下载" }}
+                {{ downloading ? "Generating…" : "Download" }}
               </button>
               <button
                 type="button"
                 class="terrain-modal__close"
-                aria-label="关闭"
+                aria-label="Close"
                 @click="open = false"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -472,7 +472,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   stroke-linecap="round"
                 />
               </svg>
-              <p class="terrain-modal__error-title">3D 模型生成失败</p>
+              <p class="terrain-modal__error-title">Could not generate the 3D model</p>
               <p class="terrain-modal__error-message">{{ error }}</p>
             </div>
 
@@ -502,7 +502,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             <aside
               v-if="sprayPanelOpen"
               class="terrain-modal__spray-panel"
-              aria-label="喷漆分色"
+              aria-label="Paint masks"
             >
               <div class="spray-panel__section">
                 <label class="spray-panel__toggle">
@@ -515,7 +515,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                       )
                     "
                   />
-                  <span>启用喷漆分色</span>
+                  <span>Enable paint masks</span>
                 </label>
               </div>
 
@@ -526,7 +526,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   :disabled="!canSegment"
                   @click="onStartManualPaint"
                 >
-                  手涂分色
+                  Paint by hand
                 </button>
                 <button
                   type="button"
@@ -534,7 +534,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   :disabled="!canSegment"
                   @click="onRunSegmentation"
                 >
-                  {{ segmenting ? "分色中…" : "规则分色（离线）" }}
+                  {{ segmenting ? "Separating…" : "Auto-color" }}
                 </button>
                 <button
                   type="button"
@@ -542,7 +542,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   :disabled="!canSegment || !sprayPlan"
                   @click="onRunSegmentation"
                 >
-                  重新分区
+                  Reset regions
                 </button>
                 <button
                   type="button"
@@ -550,7 +550,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   :disabled="!canGenerateMasks"
                   @click="onGenerateMasks"
                 >
-                  {{ generatingMasks ? "生成中…" : "生成遮挡罩" }}
+                  {{ generatingMasks ? "Generating…" : "Generate masks" }}
                 </button>
               </div>
 
@@ -580,14 +580,14 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
               <div v-if="sprayPlan" class="spray-panel__colors">
                 <div class="spray-panel__colors-header">
                   <p class="spray-panel__colors-title">
-                    色板（{{ sprayPlan.colors.length }} 色）
+                    Palette ({{ sprayPlan.colors.length }} colors)
                   </p>
                   <div class="spray-panel__color-actions">
                     <button
                       type="button"
                       class="spray-panel__icon-btn"
                       :disabled="!canRemoveColor || !sprayEnabled"
-                      title="减少颜色"
+                      title="Remove color"
                       @click="removeColorSlot(config)"
                     >
                       −
@@ -596,7 +596,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                       type="button"
                       class="spray-panel__icon-btn"
                       :disabled="!canAddColor || !sprayEnabled"
-                      title="添加颜色"
+                      title="Add color"
                       @click="addColorSlot(config)"
                     >
                       +
@@ -612,10 +612,10 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                     :disabled="!sprayEnabled"
                     @click="setPaintMode(!paintMode)"
                   >
-                    {{ paintMode ? "涂色中…" : "涂抹工具" }}
+                    {{ paintMode ? "Painting…" : "Paint tool" }}
                   </button>
                   <label v-if="paintMode" class="spray-panel__brush">
-                    <span>笔刷</span>
+                    <span>Brush</span>
                     <input
                       v-model.number="paintBrushRadius"
                       type="range"
@@ -628,7 +628,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 </div>
 
                 <p v-if="paintMode" class="spray-panel__paint-hint">
-                  选中色块后在 3D 山体上按住拖动涂抹；双击色块可改色
+                  Select a swatch, then click and drag to paint the terrain. Double-click a swatch to change its color.
                 </p>
                 <div class="spray-panel__swatches">
                   <button
@@ -642,7 +642,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                     }"
                     :style="{ backgroundColor: slot.hex }"
                     :disabled="!sprayEnabled"
-                    :title="`颜色 ${String(slot.index).padStart(2, '0')} · 双击改色`"
+                    :title="`Color ${String(slot.index).padStart(2, '0')} · Double-click to change color`"
                     @click="onSelectColorSlot(slot)"
                     @dblclick.prevent="openColorPicker(slot.regionId)"
                   >
@@ -667,21 +667,21 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
               <div v-if="sprayMasks.length" class="spray-panel__masks">
                 <div class="spray-panel__masks-header">
-                  <p class="spray-panel__colors-title">遮挡罩套合</p>
+                  <p class="spray-panel__colors-title">Mask fit preview</p>
                   <div class="spray-panel__masks-actions">
                     <button
                       type="button"
                       class="spray-panel__link-btn"
                       @click="showAllMasksToggle"
                     >
-                      显示全部
+                      Show all
                     </button>
                     <button
                       type="button"
                       class="spray-panel__link-btn"
                       @click="hideAllMasks"
                     >
-                      隐藏全部
+                      Hide all
                     </button>
                   </div>
                 </div>
@@ -689,7 +689,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 <div
                   class="spray-panel__view-modes"
                   role="tablist"
-                  aria-label="预览视图模式"
+                  aria-label="Preview mode"
                 >
                   <button
                     v-for="mode in MASK_VIEW_MODES"
@@ -727,7 +727,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                     v-if="sprayUiState.fitMaskIndex === mask.colorIndex"
                     class="spray-panel__mask-badge"
                   >
-                    套合中
+                    Fitted
                   </span>
                 </button>
               </div>
@@ -736,7 +736,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 v-else-if="sprayPlan && !generatingMasks"
                 class="spray-panel__empty"
               >
-                生成遮挡罩后，可套合检查：本区开窗漏出，其他区遮挡（每次只用一块罩喷漆）
+                Generate masks to check their fit. Each mask exposes one color region and covers the rest. Use one mask at a time when spraying.
               </p>
             </aside>
           </div>

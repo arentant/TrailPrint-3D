@@ -24,7 +24,7 @@ export function useStlExport() {
 
   async function generateAndSave(): Promise<void> {
     if (!configStore.config.gpx.imported) {
-      statusMessage.value = "请先导入 GPX 轨迹文件";
+      statusMessage.value = "Import a GPX track first";
       return;
     }
     const check = validateModelGeneration(configStore.config, {
@@ -32,12 +32,12 @@ export function useStlExport() {
       viewportHeight: Math.round(ui.previewViewport.h),
     });
     if (!check.valid) {
-      statusMessage.value = check.message ?? "请修正参数后重试";
+      statusMessage.value = check.message ?? "Check the settings and try again";
       return;
     }
     generating.value = true;
     ui.exportProgress = 0;
-    statusMessage.value = "准备生成…";
+    statusMessage.value = "Preparing export…";
     ui.runPrepareExport();
     const { w, h } = ui.previewViewport;
     const vw = Math.round(w);
@@ -62,7 +62,7 @@ export function useStlExport() {
       circleCount: exportConfig.assembly.magnet.circleCount,
       holeCount: exportHoles.length,
       holes: exportHoles,
-      note: "渲染进程导出前快照；请与终端主进程 TrailPrint:Magnet 日志对照",
+      note: "Renderer snapshot before export; compare with the main-process TrailPrint:Magnet log",
     });
 
     try {
@@ -77,16 +77,16 @@ export function useStlExport() {
       });
       if (res.cancelled) {
         statusMessage.value =
-          "未生成文件：已在保存对话框中取消。再次点击下载并选择保存位置即可。";
+          "Export canceled. Choose Download again and select a save location.";
       } else if (res.savedPath) {
         ui.lastExportZipPath = res.savedPath;
         const name = exportFileName(res.savedPath);
         const foot = physicalFootprintMm(configStore.config.mapCrop);
         const sizeHint =
           configStore.config.mapCrop.shape === "circle"
-            ? `直径 ${(foot.radiusMm ?? 0) * 2}mm`
+            ? `Diameter ${(foot.radiusMm ?? 0) * 2}mm`
             : `${foot.widthMm}×${foot.heightMm}mm`;
-        statusMessage.value = `已保存 ${name}（打印区域 ${sizeHint}，${Math.round(res.generationMs / 1000)} 秒）`;
+        statusMessage.value = `${window.trailPrint.runtime === "browser" ? "Download ready:" : "Saved"} ${name} (print area ${sizeHint}, ${Math.round(res.generationMs / 1000)} seconds)`;
       }
     } catch (err) {
       statusMessage.value = formatIpcError(err);

@@ -23,66 +23,66 @@ export const OPEN_TOPO_DEM_OPTIONS: ReadonlyArray<OpenTopoDemOption> = [
   {
     value: "COP30",
     label: "COP30 (30m)",
-    hint: "默认推荐 · 全球 30m，细节与速度平衡最好",
-    resolution: "约 30 m",
+    hint: "Recommended · Global 30m data with balanced detail and speed",
+    resolution: "Approx. 30 m",
     summary:
-      "欧空局 Copernicus 全球 30 m 地形产品（GLO-30）。覆盖范围广、现势性较好，是多数 3D 打印地形的首选。",
-    bestFor: "一般纪念模型、需要较细山脊与河谷时优先选此项。",
+      "The Copernicus global 30m elevation model (GLO-30) offers broad coverage and is a good default for most 3D terrain prints.",
+    bestFor: "General terrain keepsakes with detailed ridges and valleys.",
   },
   {
     value: "COP90",
     label: "COP90 (90m)",
-    hint: "下载更快 · 细节较少",
-    resolution: "约 90 m",
+    hint: "Faster downloads · Less detail",
+    resolution: "Approx. 90 m",
     summary:
-      "Copernicus 全球 90 m 版本。每个网格点代表更大范围的海拔平均，山体更「钝」、小细节会被抹平。",
-    bestFor: "只关心大致山势、想缩短 DEM 下载与生成时间时。",
+      "The Copernicus global 90m model averages elevation over larger areas, producing smoother terrain with less fine detail.",
+    bestFor: "Broad terrain shapes with shorter download and generation times.",
   },
   {
     value: "NASADEM",
     label: "NASADEM (30m)",
-    hint: "NASA 重处理 SRTM · 空洞修补较好",
-    resolution: "约 30 m",
+    hint: "NASA reprocessed SRTM · Improved gap filling",
+    resolution: "Approx. 30 m",
     summary:
-      "基于 SRTM 的 NASA 再处理产品，对原始 SRTM 的空洞、噪声做了改进，高程与 SRTM 接近但通常更干净。",
-    bestFor: "COP30 不可用或想对比另一套 30 m 数据源时。",
+      "NASA reprocessed the SRTM data to reduce gaps and noise. Elevations are similar to SRTM, with generally cleaner results.",
+    bestFor: "An alternative 30m source when COP30 is unavailable or for comparison.",
   },
   {
     value: "SRTMGL1",
     label: "SRTM 30m",
-    hint: "经典全球 30 m · 部分山区可能有数据空洞",
-    resolution: "约 30 m（1 角秒）",
+    hint: "Established global 30m data · Some mountain areas may have gaps",
+    resolution: "Approx. 30m (1 arc-second)",
     summary:
-      "航天飞机雷达测高的经典全球 DEM，使用广泛。陡峭植被区历史上偶有空洞，OpenTopography 会按区域返回拼接结果。",
-    bestFor: "熟悉 SRTM、或需要与其它 SRTM 流程对齐时。",
+      "A widely used elevation model from the Shuttle Radar Topography Mission. Steep, vegetated areas can contain gaps. OpenTopography combines tiles for the selected area.",
+    bestFor: "Matching an existing SRTM workflow or dataset.",
   },
   {
     value: "SRTMGL3",
     label: "SRTM 90m",
-    hint: "低分辨率 · 仅适合大体轮廓",
-    resolution: "约 90 m（3 角秒）",
-    summary: "SRTM 的粗分辨率版本，与 COP90 类似，难以表现细微地形起伏。",
-    bestFor: "快速试看、对细节要求很低时。",
+    hint: "Low resolution · Best for broad shapes",
+    resolution: "Approx. 90m (3 arc-seconds)",
+    summary: "A lower-resolution SRTM model. Like COP90, it captures broad shapes rather than fine terrain detail.",
+    bestFor: "Quick previews where fine detail is not needed.",
   },
 ] as const;
 
 /** DEM 数据源说明（侧边栏 tooltip 全文） */
 export function openTopoDemTooltipText(): string {
   const lines = [
-    "数字高程模型 (DEM) 决定山体的高度数据。本应用通过 OpenTopography 按地图范围下载栅格，再采样到 3D 网格。",
+    "A digital elevation model (DEM) provides terrain heights. The app downloads elevation rasters for the selected map area from OpenTopography and samples them into a 3D mesh.",
     "",
-    "主要差别：",
-    "· 分辨率（30 m vs 90 m）：数值越小，山脊、沟壑越细腻；90 m 更平滑、更快。",
-    "· 数据来源与修补：不同卫星/算法，在山区、海岸的空洞与噪声处理不同。",
-    "· 与「网格精度」的关系：DEM 是原料精度；网格精度再高，也无法超过 DEM 本身（例如 90 m DEM 无法变出 30 m 细节）。",
+    "Key differences:",
+    "· Resolution (30m vs 90m): smaller values capture finer ridges and valleys; 90m is smoother and faster.",
+    "· Source and processing: datasets differ in how they fill gaps and reduce noise in mountains and coastal areas.",
+    "· Mesh quality: a denser mesh cannot add detail absent from the source DEM. A 90m DEM cannot produce true 30m detail.",
     "",
     ...OPEN_TOPO_DEM_OPTIONS.flatMap((o) => [
-      `【${o.label}】${o.resolution}`,
+      `[${o.label}]${o.resolution}`,
       o.summary,
-      `适合：${o.bestFor}`,
+      `Best for: ${o.bestFor}`,
       "",
     ]),
-    "建议：打印纪念模型优先 COP30；侧边栏「网格精度」选高精/超高。",
+    "For terrain keepsakes, start with COP30 and High or Ultra mesh quality.",
   ];
   return lines.join("\n").trim();
 }

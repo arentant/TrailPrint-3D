@@ -12,9 +12,9 @@ const gpx = computed(() => config.value.gpx)
     {{ gpx.lastImportError }}
   </div>
   <div v-else-if="gpx.imported" class="gpx-summary">
-    <p class="gpx-summary__title">{{ gpx.trackName || gpx.fileName || '已导入轨迹' }}</p>
+    <p class="gpx-summary__title">{{ gpx.trackName || gpx.fileName || 'Imported trail' }}</p>
     <p class="gpx-summary__meta">
-      {{ gpx.pointCount }} 个点 · 约 {{ gpx.distanceKm.toFixed(2) }} km
+      {{ gpx.pointCount }} points · approx. {{ gpx.distanceKm.toFixed(2) }} km
       <template v-if="gpx.bounds">
         · {{ gpx.bounds.minLat.toFixed(2) }}°–{{ gpx.bounds.maxLat.toFixed(2) }}°
       </template>

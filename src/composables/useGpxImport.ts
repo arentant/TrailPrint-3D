@@ -13,13 +13,13 @@ export function useGpxImport() {
 
   async function importFromFile(file: File): Promise<boolean> {
     if (!file.name.toLowerCase().endsWith('.gpx')) {
-      configStore.setGpxImportError('请选择 .gpx 格式的文件')
-      ui.statusMessage = '请选择 .gpx 格式的文件'
+      configStore.setGpxImportError('Select a .gpx file')
+      ui.statusMessage = 'Select a .gpx file'
       return false
     }
 
     importing.value = true
-    ui.statusMessage = '正在解析 GPX…'
+    ui.statusMessage = 'Reading GPX…'
     configStore.config.gpx.lastImportError = undefined
 
     try {
@@ -27,7 +27,7 @@ export function useGpxImport() {
       const { result } = await ipcParseGpx(req)
       configStore.applyGpxImport(result, file.name, (file as ElectronFile).path)
       ui.requestGpxMapFit()
-      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · 已在卫星地图上显示红色轨迹`
+      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown in red on the satellite map`
       return true
     } catch (err) {
       const msg = formatIpcError(err)
@@ -41,12 +41,12 @@ export function useGpxImport() {
 
   async function importFromPath(filePath: string, fileName?: string): Promise<boolean> {
     importing.value = true
-    ui.statusMessage = '正在解析 GPX…'
+    ui.statusMessage = 'Reading GPX…'
     try {
       const { result } = await ipcParseGpx({ filePath, fileName })
       configStore.applyGpxImport(result, fileName, filePath)
       ui.requestGpxMapFit()
-      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · 已在卫星地图上显示红色轨迹`
+      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown in red on the satellite map`
       return true
     } catch (err) {
       const msg = formatIpcError(err)
@@ -75,6 +75,6 @@ function formatImportSummary(
   pointCount: number,
   distanceKm: number
 ): string {
-  const name = trackName ? `「${trackName}」` : '轨迹'
-  return `已导入 ${name}：${pointCount} 个点，约 ${distanceKm.toFixed(2)} km`
+  const name = trackName ? `“${trackName}”` : 'Trail'
+  return `Imported ${name}: ${pointCount} points, approximately ${distanceKm.toFixed(2)} km`
 }

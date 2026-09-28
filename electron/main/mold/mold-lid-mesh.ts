@@ -177,7 +177,7 @@ function buildAxisAlignedBoxMesh(
 export function buildMoldLidMesh(config: AppConfig): TerrainMeshPayload {
   const outer = computeMoldLidOuter(config).verts;
   if (outer.length < 3) {
-    throw new Error("盖板外轮廓无效，请检查翻模套件外扩与间隙参数");
+    throw new Error("Invalid lid outline. Check the mold kit extension and clearance settings.");
   }
 
   const plateH = config.moldKit.lidHeightMm;

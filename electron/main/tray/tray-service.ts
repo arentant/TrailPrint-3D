@@ -24,7 +24,7 @@ export async function generateTrayBase(
   const started = Date.now();
   const { config } = req;
   if (!config) {
-    throw new IpcException("INVALID_REQUEST", "缺少 config 快照");
+    throw new IpcException("INVALID_REQUEST", "A configuration snapshot is required");
   }
 
   const viewportWidth = req.viewportWidth ?? DEFAULT_VIEWPORT.w;
@@ -38,7 +38,7 @@ export async function generateTrayBase(
   if (!validation.valid) {
     throw new IpcException(
       "TRAY_INVALID",
-      validation.message ?? "托盘参数无效",
+      validation.message ?? "Invalid tray settings",
     );
   }
 
@@ -54,7 +54,7 @@ export async function generateTrayBase(
     circleCount: config.assembly.magnet.circleCount,
     note:
       config.mapCrop.shape !== footprint.shape
-        ? "警告：mapCrop.shape 与 footprint.shape 不一致"
+        ? "Warning: mapCrop.shape and footprint.shape do not match"
         : undefined,
   });
 
@@ -77,7 +77,7 @@ export async function generateTrayBase(
     if (!nfcLayout.cavity) {
       throw new IpcException(
         "TRAY_NFC_INVALID",
-        "NFC 容纳腔过小，请减小距内壁距离或增大打印尺寸",
+        "The NFC recess is too small. Reduce its inset or increase the print size.",
       );
     }
     const floorZ =
@@ -136,7 +136,7 @@ export async function generateTrayBase(
     ) {
       throw new IpcException(
         "MAGNET_LAYOUT",
-        `多边形托盘磁铁孔数量异常（期望 ${footprint.outer.length}，实际 ${magnetHoles.length}）`,
+        `Unexpected magnet hole count in polygon tray (expected ${footprint.outer.length}, actual ${magnetHoles.length})`,
       );
     }
   }

@@ -22,7 +22,7 @@ const advancedOpen = computed({
 
 const validationError = computed(() => {
   const r = validateMoldKitSection(config.value);
-  return r.valid ? null : (r.message ?? "翻模套件参数无效");
+  return r.valid ? null : (r.message ?? "Invalid mold kit settings");
 });
 
 watch(
@@ -56,32 +56,32 @@ function onSkirtWidth(v: number): void {
 
 <template>
   <AccordionSection
-    title="7. 翻模套件"
-    badge="可选"
+    title="7. Mold kit"
+    badge="Optional"
     :open="openSections.moldKit"
     @toggle="ui.toggleSection('moldKit')"
   >
     <p class="hint">
-      启用后导出 ZIP 将额外包含
-      <code>Mold_Master.stl</code>（山体+裙边）与
-      <code>Mold_Lid.stl</code>（浇注盖板），用于硅胶翻模与滴胶压平。不影响原有三件套。
+      When enabled, the exported ZIP also includes
+      <code>Mold_Master.stl</code> (terrain and skirt) and
+      <code>Mold_Lid.stl</code> (casting lid) for silicone molds and resin casting. The original three model parts are included as usual.
     </p>
 
     <div class="toggle-row">
-      <span>启用翻模套件</span>
+      <span>Enable mold kit</span>
       <IosToggle v-model="config.moldKit.enabled" />
     </div>
 
     <template v-if="config.moldKit.enabled">
       <p class="hint">
-        滴胶浇至原基础底面台阶；裙边为实心底板，外圈用于容纳飞边。盖板顶面带双凸台，便于拿取与压重。
+        Pour resin up to the original base step. The solid skirt catches overflow. Two raised grips on the lid make it easier to handle and weigh down.
       </p>
 
-      <p class="subhead">裙边溢料层</p>
+      <p class="subhead">Overflow skirt</p>
       <div class="row">
         <NumberField
           :model-value="config.moldKit.skirtHeightMm"
-          label="裙边高度"
+          label="Skirt height"
           suffix="mm"
           :min="0.2"
           :max="20"
@@ -90,7 +90,7 @@ function onSkirtWidth(v: number): void {
         />
         <NumberField
           :model-value="config.moldKit.skirtWidthMm"
-          label="裙边外扩"
+          label="Skirt extension"
           suffix="mm"
           :min="0.2"
           :max="30"
@@ -99,15 +99,15 @@ function onSkirtWidth(v: number): void {
         />
       </div>
 
-      <p class="subhead">浇注盖板</p>
+      <p class="subhead">Casting lid</p>
       <div class="toggle-row toggle-row--compact">
-        <span>与裙边同步</span>
+        <span>Match skirt dimensions</span>
         <IosToggle v-model="config.moldKit.lidSyncWithSkirt" />
       </div>
       <div class="row">
         <NumberField
           v-model="config.moldKit.lidHeightMm"
-          label="盖板高度"
+          label="Lid height"
           suffix="mm"
           :min="1"
           :max="20"
@@ -116,7 +116,7 @@ function onSkirtWidth(v: number): void {
         />
         <NumberField
           v-model="config.moldKit.lidWidthMm"
-          label="盖板外扩"
+          label="Lid extension"
           suffix="mm"
           :min="0.2"
           :max="30"
@@ -130,12 +130,12 @@ function onSkirtWidth(v: number): void {
         class="advanced-toggle"
         @click="advancedOpen = !advancedOpen"
       >
-        {{ advancedOpen ? "收起高级" : "高级：配合间隙" }}
+        {{ advancedOpen ? "Hide advanced settings" : "Advanced: fit clearance" }}
       </button>
       <NumberField
         v-if="advancedOpen"
         v-model="config.moldKit.lidClearanceMm"
-        label="盖板配合间隙"
+        label="Lid fit clearance"
         suffix="mm"
         :min="0"
         :max="2"

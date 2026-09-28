@@ -16,24 +16,24 @@ export function validateMoldKitConfig(
   }
 
   if (!(moldKit.skirtHeightMm > 0)) {
-    return { valid: false, message: "裙边高度必须大于 0" };
+    return { valid: false, message: "Skirt height must be greater than 0" };
   }
   if (!(moldKit.skirtWidthMm > 0)) {
-    return { valid: false, message: "裙边外扩宽度必须大于 0" };
+    return { valid: false, message: "Skirt extension must be greater than 0" };
   }
   if (moldKit.lidHeightMm < MOLD_LID_MIN_HEIGHT_MM) {
     return {
       valid: false,
-      message: `盖板过薄易翘曲，高度建议至少 ${MOLD_LID_MIN_HEIGHT_MM} mm`,
+      message: `The lid may warp if it is too thin. Recommended minimum height: ${MOLD_LID_MIN_HEIGHT_MM} mm`,
     };
   }
   if (moldKit.lidClearanceMm < 0) {
-    return { valid: false, message: "盖板配合间隙不能为负" };
+    return { valid: false, message: "Lid fit clearance cannot be negative" };
   }
   if (!(moldKit.lidWidthMm > moldKit.lidClearanceMm)) {
     return {
       valid: false,
-      message: "盖板外扩须大于配合间隙，否则盖板外廓无效",
+      message: "Lid extension must exceed the fit clearance to create a valid outline",
     };
   }
 

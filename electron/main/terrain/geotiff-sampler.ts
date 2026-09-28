@@ -1,5 +1,5 @@
 import { fromArrayBuffer } from "geotiff";
-import { IpcException } from "@shared/ipc/types";
+import { IpcException } from "../../../shared/ipc/types";
 
 const NODATA_CANDIDATES = new Set([-32768, -9999, -99999]);
 
@@ -17,7 +17,7 @@ export async function createGeotiffSampler(
   } catch {
     throw new IpcException(
       "DEM_INVALID_FILE",
-      "高程 GeoTIFF 无法解析，请检查 API Key 或缩小地图区域后重试",
+      "Could not read the elevation GeoTIFF. Check your API key or select a smaller map area.",
     );
   }
 
@@ -25,7 +25,10 @@ export async function createGeotiffSampler(
   const width = image.getWidth();
   const height = image.getHeight();
   if (width < 2 || height < 2) {
-    throw new IpcException("DEM_INVALID_FILE", "高程栅格尺寸过小");
+    throw new IpcException("DEM_INVALID_FILE", "The elevation raster is too small");
+  }
+  if (width * height > 16_000_000 || image.getSamplesPerPixel() !== 1) {
+    throw new IpcException("DEM_INVALID_FILE", "The elevation raster is too large or unsupported. Select a smaller area.");
   }
 
   const bbox = image.getBoundingBox();
@@ -40,7 +43,7 @@ export async function createGeotiffSampler(
   ) {
     throw new IpcException(
       "DEM_INVALID_FILE",
-      "高程 GeoTIFF 缺少有效地理范围",
+      "The elevation GeoTIFF has invalid geographic bounds",
     );
   }
 

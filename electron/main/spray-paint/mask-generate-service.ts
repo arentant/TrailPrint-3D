@@ -20,7 +20,7 @@ function maskFileName(colorIndex: number): string {
 }
 
 function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 export async function generateSprayMasks(
@@ -34,17 +34,17 @@ export async function generateSprayMasks(
     onProgress?.({ phase: "masks", progress, message });
   };
 
-  report(0.05, "正在准备遮挡罩参数…");
+  report(0.05, "Preparing mask settings…");
   let config = await hydrateGpxConfig(req.config);
   if (!config.sprayPaint) {
-    throw new Error("缺少喷漆分色配置");
+    throw new Error("Paint mask settings are missing");
   }
 
   const { plan, heightPreview, crop } = req;
   const cols = plan.gridCols;
   const rows = plan.gridRows;
   if (plan.cellRegions.length < cols * rows) {
-    throw new Error("分区数据不完整，无法生成遮挡罩");
+    throw new Error("Region data is incomplete. Cannot generate masks.");
   }
 
   const heights = heightPreview.heights;
@@ -57,7 +57,7 @@ export async function generateSprayMasks(
 
   const warnings: string[] = [];
   if (computeSteepBoundaryWarning(crop, heights, cols, rows, plan.cellRegions)) {
-    warnings.push("部分陡崖边界可能溢色，可调大 maskFitToleranceMm");
+    warnings.push("Paint may bleed at steep edges. Try increasing the mask fit clearance.");
   }
 
   const masks: SprayMaskMeshPayload[] = [];
@@ -70,7 +70,7 @@ export async function generateSprayMasks(
     const slot = plan.colors[i]!;
     report(
       0.1 + (0.85 * i) / colorCount,
-      `正在生成 ${maskFileName(slot.index)}…`,
+      `Generating ${maskFileName(slot.index)}…`,
     );
     await yieldToEventLoop();
 
@@ -100,6 +100,6 @@ export async function generateSprayMasks(
     await yieldToEventLoop();
   }
 
-  report(1, "遮挡罩生成完成");
+  report(1, "Paint masks ready");
   return { masks, warnings };
 }

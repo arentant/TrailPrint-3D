@@ -14,27 +14,27 @@ const { openSections } = storeToRefs(ui);
 
 <template>
   <AccordionSection
-    title="6. 喷漆分色"
-    badge="高级"
+    title="6. Paint masks"
+    badge="Advanced"
     :open="openSections.sprayPaint"
     @toggle="ui.toggleSection('sprayPaint')"
   >
     <p class="hint">
-      启用后导出 ZIP 将额外包含遮挡罩 STL 与
-      <code>spray_paint_manifest.json</code>。在 3D 预览中可先做规则分色与套合检查。
+      When enabled, the ZIP also includes paint mask STLs and
+      <code>spray_paint_manifest.json</code>. Use the 3D preview to assign colors and check mask fit.
     </p>
 
     <div class="toggle-row">
-      <span>启用喷漆分色</span>
+      <span>Enable paint masks</span>
       <IosToggle v-model="config.sprayPaint.enabled" />
     </div>
 
     <template v-if="config.sprayPaint.enabled">
-      <p class="hint">以下参数影响遮挡罩几何与导出结果。</p>
+      <p class="hint">These settings control the shape and fit of exported masks.</p>
       <div class="row">
         <NumberField
           v-model="config.sprayPaint.maskShellThicknessMm"
-          label="罩体厚度"
+          label="Mask thickness"
           suffix="mm"
           :min="0.4"
           :max="3"
@@ -42,7 +42,7 @@ const { openSections } = storeToRefs(ui);
         />
         <NumberField
           v-model="config.sprayPaint.maskFitToleranceMm"
-          label="套合间隙"
+          label="Fit clearance"
           suffix="mm"
           :min="0"
           :max="1"
@@ -51,7 +51,7 @@ const { openSections } = storeToRefs(ui);
       </div>
       <NumberField
         v-model="config.sprayPaint.bleedMarginMm"
-        label="边界过渡宽度"
+        label="Edge overlap"
         suffix="mm"
         :min="0"
         :max="2"

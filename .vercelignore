@@ -1,0 +1,17 @@
+.env*
+.git
+.claude
+node_modules
+out
+dist
+release
+fixtures
+scripts
+docs
+nfc
+*.pen
+*.tsbuildinfo
+tests
+test-results
+playwright-report
+playwright.config.ts

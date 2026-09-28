@@ -14,25 +14,25 @@ export function validateMaskMesh(
 
   if (a.triangles < 4) {
     throw new Error(
-      `${fileName} 三角面过少（${a.triangles}），该颜色分区可能无遮挡区域`,
+      `${fileName} has too few triangles (${a.triangles}). This color region may have no area to mask.`,
     );
   }
 
   if (a.boundaryEdges > 0) {
     warnings.push(
-      `${fileName} 含 ${a.boundaryEdges} 条开放边，切片前请目视检查`,
+      `${fileName} contains ${a.boundaryEdges} open edges. Inspect the model before slicing.`,
     );
   }
 
   if (a.nonManifoldEdges > 0) {
     warnings.push(
-      `${fileName} 含 ${a.nonManifoldEdges} 条非流形边（同色多块独立区域属正常，一般可打印）`,
+      `${fileName} contains ${a.nonManifoldEdges} non-manifold edges. Separate regions of the same color are expected and are usually printable.`,
     );
   }
 
   if (a.degenerateTriangles > 0) {
     warnings.push(
-      `${fileName} 含 ${a.degenerateTriangles} 个退化三角面，已忽略`,
+      `${fileName} contains ${a.degenerateTriangles} degenerate triangles, which were ignored`,
     );
   }
 

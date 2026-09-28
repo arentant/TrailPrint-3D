@@ -61,7 +61,7 @@ export function registerIpcHandlers(): void {
     wrapHandler((req: PingRequest = {}): PingResponse => {
       const message = req.message?.trim() || 'TrailPrint 3D'
       return {
-        reply: `主进程已收到: ${message}`,
+        reply: `Main process received: ${message}`,
         process: 'main',
         timestamp: Date.now()
       }
@@ -72,7 +72,7 @@ export function registerIpcHandlers(): void {
     IpcChannels.TASK_ENQUEUE,
     wrapHandler((req: TaskEnqueueRequest): TaskEnqueueResponse => {
       if (!req?.kind) {
-        throw new IpcException('INVALID_REQUEST', '缺少任务类型 kind')
+        throw new IpcException('INVALID_REQUEST', 'Task kind is required')
       }
       const record = enqueueTask(req.kind, req.payload)
       return { taskId: record.id }
@@ -103,7 +103,7 @@ export function registerIpcHandlers(): void {
     ): Promise<TerrainGenerateResponse> => {
       try {
         if (!req?.config) {
-          throw new IpcException('INVALID_REQUEST', '缺少 config 快照')
+          throw new IpcException('INVALID_REQUEST', 'A configuration snapshot is required')
         }
         return await generateTerrainMain(req, (progress) => {
           event.sender.send(IpcChannels.TERRAIN_PROGRESS, progress)
@@ -125,7 +125,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(
       async (req: TrayGenerateRequest): Promise<TrayGenerateResponse> => {
         if (!req?.config) {
-          throw new IpcException('INVALID_REQUEST', '缺少 config 快照')
+          throw new IpcException('INVALID_REQUEST', 'A configuration snapshot is required')
         }
         return generateTrayBase(req)
       }
@@ -136,7 +136,7 @@ export function registerIpcHandlers(): void {
     IpcChannels.EXPORT_REVEAL,
     wrapHandler((zipPath: string): { ok: true } => {
       if (typeof zipPath !== 'string' || !zipPath.trim()) {
-        throw new IpcException('INVALID_PATH', '文件路径无效')
+        throw new IpcException('INVALID_PATH', 'Invalid file path')
       }
       revealExportZip(zipPath)
       return { ok: true }
@@ -151,7 +151,7 @@ export function registerIpcHandlers(): void {
     ): Promise<ExportGenerateResponse> => {
       try {
         if (!req?.config) {
-          throw new IpcException('INVALID_REQUEST', '缺少 config 快照')
+          throw new IpcException('INVALID_REQUEST', 'A configuration snapshot is required')
         }
         const win = BrowserWindow.fromWebContents(event.sender)
         return await generateModelsZip(
@@ -178,7 +178,7 @@ export function registerIpcHandlers(): void {
     ): Promise<SpraySegmentResponse> => {
       try {
         if (!req?.config || !req.heightPreview || !req.crop) {
-          throw new IpcException('INVALID_REQUEST', '缺少分色参数')
+          throw new IpcException('INVALID_REQUEST', 'Color separation settings are missing')
         }
         return await segmentSprayPaint(req, (progress) => {
           event.sender.send(IpcChannels.SPRAY_PROGRESS, progress)
@@ -203,7 +203,7 @@ export function registerIpcHandlers(): void {
     ): Promise<SprayGenerateMasksResponse> => {
       try {
         if (!req?.config || !req.plan || !req.heightPreview || !req.crop) {
-          throw new IpcException('INVALID_REQUEST', '缺少遮挡罩参数')
+          throw new IpcException('INVALID_REQUEST', 'Mask settings are missing')
         }
         return await generateSprayMasks(req, (progress) => {
           event.sender.send(IpcChannels.SPRAY_PROGRESS, progress)

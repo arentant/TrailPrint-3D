@@ -21,12 +21,12 @@ const magnetHoleCountHint = computed(() => {
   const footprint = trayFootprint.value
   const n = trayMagnetHoleCount(config.value, footprint)
   if (footprint.shape === 'circle') {
-    return `圆形托盘底面将均匀分布 ${n} 个磁铁孔。`
+    return `The circular tray will have ${n} evenly spaced magnet holes on its underside.`
   }
   if (footprint.shape === 'polygon') {
-    return `正 ${footprint.outer.length} 边形托盘底面将在各顶点各打 1 孔（共 ${n} 个）。`
+    return `The ${footprint.outer.length}-sided tray will have one hole at each corner on its underside (${n} total).`
   }
-  return '矩形托盘底面在四角各打 1 孔（共 4 个）。'
+  return 'The rectangular tray will have one magnet hole at each corner on its underside (4 total).'
 })
 
 const showCircleMagnetCount = computed(
@@ -43,18 +43,18 @@ const assemblyError = computed(() => {
 
 <template>
   <AccordionSection
-    title="5. 装配与磁铁"
-    badge="高级"
+    title="5. Assembly & magnets"
+    badge="Advanced"
     :open="openSections.assembly"
     @toggle="ui.toggleSection('assembly')"
   >
     <p class="hint">
-      轨迹槽公差仅加宽主模型凹槽，便于嵌入轨迹件；导出的轨迹宽度仍与「轨迹设置」中的宽度一致。
+      Groove clearance widens the terrain groove for easier fitting. The exported trail keeps the width set in Trail settings.
     </p>
     <div class="row">
       <NumberField
         v-model="config.assembly.trailToleranceMm"
-        label="轨迹槽公差"
+        label="Trail groove clearance"
         suffix="mm"
         :min="0"
         :max="1"
@@ -62,7 +62,7 @@ const assemblyError = computed(() => {
       />
       <NumberField
         v-model="config.assembly.trayToleranceMm"
-        label="底座槽公差"
+        label="Base recess clearance"
         suffix="mm"
         :min="0"
         :max="1"
@@ -71,18 +71,18 @@ const assemblyError = computed(() => {
     </div>
 
     <div class="toggle-row">
-      <span>底部磁铁孔</span>
+      <span>Underside magnet holes</span>
       <IosToggle v-model="config.assembly.magnet.enabled" />
     </div>
 
     <template v-if="config.assembly.magnet.enabled">
       <p class="hint">
-        开启后在托盘底面生成正六边形磁铁孔；孔公差仅扩大孔径与孔深，便于嵌入与取出，不改变孔位。
+        Add hexagonal magnet holes to the underside of the tray. Clearance increases hole width and depth for easier insertion and removal without moving the holes.
       </p>
       <div class="row">
         <NumberField
           v-model="config.assembly.magnet.diameterMm"
-          label="磁铁直径"
+          label="Magnet diameter"
           suffix="mm"
           :min="2"
           :max="20"
@@ -90,7 +90,7 @@ const assemblyError = computed(() => {
         />
         <NumberField
           v-model="config.assembly.magnet.thicknessMm"
-          label="磁铁厚度"
+          label="Magnet thickness"
           suffix="mm"
           :min="0.5"
           :max="10"
@@ -99,7 +99,7 @@ const assemblyError = computed(() => {
       </div>
       <NumberField
         v-model="config.assembly.magnet.toleranceMm"
-        label="磁铁孔公差"
+        label="Magnet hole clearance"
         suffix="mm"
         :min="0"
         :max="0.5"
@@ -108,7 +108,7 @@ const assemblyError = computed(() => {
       <NumberField
         v-if="showCircleMagnetCount"
         v-model="config.assembly.magnet.circleCount"
-        label="磁铁孔数"
+        label="Magnet hole count"
         :min="2"
         :max="12"
         :step="1"

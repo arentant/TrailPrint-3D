@@ -76,6 +76,10 @@ After printing, assemble the terrain, trail, and tray parts into the finished ph
 
 This project is an **Electron + Vue 3** desktop app managed with npm.
 
+A browser edition is also available: run `npm run dev:web` locally or deploy the
+repository to Vercel. See [Browser app and Vercel deployment](docs/vercel-deployment.md)
+for setup, data handling, and validation commands.
+
 ### Requirements
 
 - [Node.js](https://nodejs.org/) 18 or later

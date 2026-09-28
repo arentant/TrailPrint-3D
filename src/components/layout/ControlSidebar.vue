@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const isBrowser = window.trailPrint.runtime === 'browser'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -73,7 +74,7 @@ async function onGpxSelected(e: Event): Promise<void> {
 
 function openPreviewModal(): void {
   if (!configStore.config.gpx.imported) {
-    statusMessage.value = '请先导入 GPX 轨迹文件'
+    statusMessage.value = 'Import a GPX track first'
     return
   }
   const check = validateModelGeneration(configStore.config, {
@@ -81,7 +82,7 @@ function openPreviewModal(): void {
     viewportHeight: ui.previewViewport.h,
   })
   if (!check.valid) {
-    statusMessage.value = check.message ?? '请修正参数后重试'
+    statusMessage.value = check.message ?? 'Check the settings and try again'
     return
   }
   ui.runPrepareExport()
@@ -96,8 +97,8 @@ function openPreviewModal(): void {
       <div class="sidebar__brand">
         <TrailPrintLogo :size="36" />
         <div class="sidebar__brand-text">
-          <h1 class="sidebar__title">印迹</h1>
-          <p class="sidebar__subtitle">TrailPrint 3D</p>
+          <h1 class="sidebar__title">TrailPrint</h1>
+          <p class="sidebar__subtitle">3D Terrain Studio</p>
         </div>
       </div>
       <div class="sidebar__header-actions">
@@ -112,12 +113,12 @@ function openPreviewModal(): void {
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          {{ importing ? '解析中…' : '导入 GPX' }}
+          {{ importing ? 'Reading…' : 'Import GPX' }}
         </button>
         <button
           type="button"
           class="sidebar__scheme"
-          title="应用已保存的配置方案"
+          title="Apply a saved preset"
           @click="loadSchemeOpen = true"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -126,7 +127,7 @@ function openPreviewModal(): void {
             <line x1="9" y1="13" x2="15" y2="13" />
             <line x1="9" y1="17" x2="15" y2="17" />
           </svg>
-          应用方案
+          Presets
           <span v-if="schemes.length" class="sidebar__scheme-count">{{ schemes.length }}</span>
         </button>
       </div>
@@ -163,7 +164,7 @@ function openPreviewModal(): void {
           :aria-expanded="exportDoneOpen"
           @click="exportDoneOpen = !exportDoneOpen"
         >
-          <span class="sidebar__export-label">上次导出</span>
+          <span class="sidebar__export-label">Last export</span>
           <span class="sidebar__export-path" :title="lastExportZipPath">
             {{ exportFileName(lastExportZipPath) }}
           </span>
@@ -188,7 +189,7 @@ function openPreviewModal(): void {
             class="sidebar__reveal"
             @click="revealLastExport"
           >
-            在 Finder 中显示
+            {{ isBrowser ? 'Download again' : 'Show in folder' }}
           </button>
         </div>
       </div>
@@ -205,7 +206,7 @@ function openPreviewModal(): void {
           :disabled="generating || importing"
           @click="saveSchemeOpen = true"
         >
-          保存方案
+          Save preset
         </button>
         <button
           type="button"
@@ -213,7 +214,7 @@ function openPreviewModal(): void {
           :disabled="generating || importing"
           @click="openPreviewModal"
         >
-          预览并下载 STL
+          Preview & export STL
         </button>
       </div>
     </footer>
@@ -240,6 +241,7 @@ function openPreviewModal(): void {
 
 .sidebar__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;

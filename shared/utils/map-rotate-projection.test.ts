@@ -31,7 +31,7 @@ function assertLayerContainerRoundTrip(bearingDeg: number): void {
   );
   assert.ok(
     Math.hypot(back.x - layer.x, back.y - layer.y) < 0.02,
-    `bearing=${bearingDeg} layer↔container 误差过大`,
+    `bearing=${bearingDeg} layer-to-container error is too large`,
   );
 }
 
@@ -70,7 +70,7 @@ function assertTrailMatchesLeafletChain(
     const expectedY = (scale.cy - container.y) * scale.scaleY;
     assert.ok(
       Math.hypot(mm.x - expectedX, mm.y - expectedY) < 0.5,
-      `bearing=${bearingDeg} 点 ${i} 轨迹 mm 与 leaflet 链路不一致`,
+      `bearing=${bearingDeg} point ${i} trail millimeters do not match the Leaflet projection`,
     );
   }
 }
@@ -107,7 +107,7 @@ function assertGeoRoundTrip(bearingDeg: number, points: GpxPoint[]): void {
         111320 *
         Math.cos((src.lat * Math.PI) / 180),
     );
-    assert.ok(errM < 8, `bearing=${bearingDeg} 点 ${i} 误差 ${errM.toFixed(1)}m`);
+    assert.ok(errM < 8, `bearing=${bearingDeg} point ${i} error ${errM.toFixed(1)}m`);
   }
 }
 

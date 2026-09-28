@@ -41,7 +41,7 @@ watch(open, (v) => {
 
 function formatTime(ts: number): string {
   try {
-    return new Intl.DateTimeFormat('zh-CN', {
+    return new Intl.DateTimeFormat('en', {
       month: 'numeric',
       day: 'numeric',
       hour: '2-digit',
@@ -94,7 +94,7 @@ function commitEdit(): void {
   if (!id) return
   const name = editName.value.trim()
   if (!name) {
-    editError.value = '名称不能为空'
+    editError.value = 'Enter a name'
     return
   }
   const current = schemes.value.find((s) => s.id === id)
@@ -103,18 +103,18 @@ function commitEdit(): void {
     return
   }
   if (schemes.value.some((s) => s.id !== id && s.name === name)) {
-    editError.value = '方案名称已存在'
+    editError.value = 'That preset name is already in use'
     return
   }
   try {
     if (!configStore.renameScheme(id, name)) {
-      editError.value = '重命名失败'
+      editError.value = 'Could not rename the preset'
       return
     }
     emit('renamed', name)
     cancelEdit()
   } catch (err) {
-    editError.value = err instanceof Error ? err.message : '重命名失败'
+    editError.value = err instanceof Error ? err.message : 'Could not rename the preset'
   }
 }
 
@@ -161,11 +161,11 @@ function onDialogKeydown(e: KeyboardEvent): void {
       >
         <div class="scheme-dialog__panel">
           <header class="scheme-dialog__header">
-            <h2 id="load-scheme-title" class="scheme-dialog__title">应用配置方案</h2>
+            <h2 id="load-scheme-title" class="scheme-dialog__title">Apply preset</h2>
             <button
               type="button"
               class="scheme-dialog__close"
-              aria-label="关闭"
+              aria-label="Close"
               @click="close"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -174,7 +174,7 @@ function onDialogKeydown(e: KeyboardEvent): void {
             </button>
           </header>
           <p class="scheme-dialog__hint">
-            先选择一个方案，再点「应用」；也可编辑名称或删除。
+            Select a preset and choose Apply. You can also rename or delete presets.
           </p>
 
           <ul v-if="sortedSchemes.length" class="scheme-dialog__list">
@@ -207,14 +207,14 @@ function onDialogKeydown(e: KeyboardEvent): void {
                     class="scheme-dialog__mini scheme-dialog__mini--accent"
                     @click="commitEdit"
                   >
-                    完成
+                    Done
                   </button>
                   <button
                     type="button"
                     class="scheme-dialog__mini"
                     @click="cancelEdit"
                   >
-                    取消
+                    Cancel
                   </button>
                 </div>
               </template>
@@ -234,14 +234,14 @@ function onDialogKeydown(e: KeyboardEvent): void {
                       class="scheme-dialog__mini scheme-dialog__mini--danger"
                       @click="confirmDelete(scheme.id)"
                     >
-                      确认删除
+                      Confirm delete
                     </button>
                     <button
                       type="button"
                       class="scheme-dialog__mini"
                       @click="confirmDeleteId = null"
                     >
-                      取消
+                      Cancel
                     </button>
                   </template>
                   <template v-else>
@@ -250,25 +250,25 @@ function onDialogKeydown(e: KeyboardEvent): void {
                       class="scheme-dialog__mini"
                       @click="startEdit(scheme.id)"
                     >
-                      编辑
+                      Rename
                     </button>
                     <button
                       type="button"
                       class="scheme-dialog__mini"
                       @click="requestDelete(scheme.id)"
                     >
-                      删除
+                      Delete
                     </button>
                   </template>
                 </div>
               </template>
             </li>
           </ul>
-          <p v-else class="scheme-dialog__empty">暂无已存方案，可先在底部「保存方案」</p>
+          <p v-else class="scheme-dialog__empty">No presets yet. Use Save preset to create one.</p>
 
           <footer class="scheme-dialog__footer">
             <button type="button" class="scheme-dialog__btn scheme-dialog__btn--ghost" @click="close">
-              关闭
+              Close
             </button>
             <button
               type="button"
@@ -276,7 +276,7 @@ function onDialogKeydown(e: KeyboardEvent): void {
               :disabled="!canApply"
               @click="applySelected"
             >
-              应用
+              Apply
             </button>
           </footer>
         </div>

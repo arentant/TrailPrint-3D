@@ -28,7 +28,7 @@ const handlers: Partial<Record<TaskKind, TaskHandler>> = {
   'terrain-generate': async (_task, payload) => {
     const req = payload as TerrainGenerateRequest | undefined
     if (!req?.config) {
-      throw new Error('terrain-generate 需要 payload.config')
+      throw new Error('terrain-generate requires payload.config')
     }
     const result = await generateTerrainMain(req)
     terrainResults.set(_task.id, result)
@@ -46,7 +46,7 @@ const handlers: Partial<Record<TaskKind, TaskHandler>> = {
       viewportHeight?: number
     } | undefined
     if (!p?.config) {
-      throw new Error('zip-pack 需要 payload.config')
+      throw new Error('zip-pack requires payload.config')
     }
     await generateModelsZip(
       {
@@ -117,7 +117,7 @@ async function runTask(task: TaskRecord): Promise<void> {
   const payload = taskPayloads.get(task.id)
   try {
     if (!handler) {
-      throw new Error(`未注册的任务类型: ${task.kind}`)
+      throw new Error(`Unknown task type: ${task.kind}`)
     }
     await handler(task, payload)
     task.status = 'done'

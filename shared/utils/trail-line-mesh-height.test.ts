@@ -42,7 +42,7 @@ function testFlatGrooveTrailLine(): void {
     sampleStepMm: 2,
   });
 
-  assert.ok(mesh, "应生成轨迹网格");
+  assert.ok(mesh, "A trail mesh should be generated");
 
   const pos = mesh.positions;
   let minZ = Infinity;
@@ -55,11 +55,11 @@ function testFlatGrooveTrailLine(): void {
 
   assert.ok(
     Math.abs(minZ - floorZ) < 0.05,
-    `底面应贴合 floorZ=${floorZ}，实际 minZ=${minZ}`,
+    `The bottom should align with floorZ=${floorZ}, actual minZ=${minZ}`,
   );
   assert.ok(
     Math.abs(maxZ - (10 + heightAboveMm)) < 0.05,
-    `顶面应约为地表+高出量，实际 maxZ=${maxZ}`,
+    `The top should follow the terrain plus raised height; actual maxZ=${maxZ}`,
   );
 }
 

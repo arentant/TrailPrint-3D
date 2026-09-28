@@ -56,7 +56,7 @@ export function useTerrainGeneration(
       viewportHeight: h,
     });
     if (!validation.valid) {
-      error.value = validation.message ?? "参数冲突，请检查左侧设置";
+      error.value = validation.message ?? "Check the settings in the sidebar";
       mesh.value = null;
       trailMesh.value = null;
       lastResult.value = null;
@@ -70,7 +70,7 @@ export function useTerrainGeneration(
     progress.value = {
       phase: "prepare",
       progress: 0,
-      message: "正在准备生成 3D 模型…",
+      message: "Preparing 3D model…",
     };
 
     try {
@@ -86,7 +86,7 @@ export function useTerrainGeneration(
       progress.value = {
         phase: "done",
         progress: 1,
-        message: "地形数据已就绪",
+        message: "Terrain data ready",
       };
     } catch (err) {
       if (id !== requestId) return;

@@ -17,7 +17,7 @@ function testMagnetDepthConflict(): void {
 
   const result = validateMagnetAssembly(config);
   assert.equal(result.valid, false);
-  assert.match(result.message ?? "", /磁铁孔深/);
+  assert.match(result.message ?? "", /Magnet hole depth/);
 }
 
 function testTrailOutsidePrintArea(): void {
@@ -33,7 +33,7 @@ function testTrailOutsidePrintArea(): void {
 
   const result = validateTrailInPrintArea(config, 800, 600);
   assert.equal(result.valid, false);
-  assert.match(result.message ?? "", /打印区域/);
+  assert.match(result.message ?? "", /print area/);
 }
 
 function testModelGenerationRequiresGpx(): void {

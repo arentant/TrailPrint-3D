@@ -49,7 +49,7 @@ const previewError = computed(() => {
     viewportWidth: viewport.value.w,
     viewportHeight: viewport.value.h,
   });
-  if (!live.valid) return live.message ?? "参数冲突，请检查左侧设置";
+  if (!live.valid) return live.message ?? "Check the settings in the sidebar";
   return terrainError.value ?? trayError.value;
 });
 
@@ -160,21 +160,21 @@ async function onDownloadStl(): Promise<void> {
           <path d="M16 6v16" />
         </svg>
         <p class="preview__title">
-          {{ dragOver ? "松开以导入 GPX" : "拖入 GPX 开始构图" }}
+          {{ dragOver ? "Drop to import GPX" : "Drop a GPX track to get started" }}
         </p>
         <p class="preview__hint">
           {{
             importing
-              ? "正在解析轨迹…"
-              : "卫星底图应已显示；拖动 GPX 到此处，或点击左侧「导入 GPX」"
+              ? "Reading track…"
+              : "Drop a GPX file here or choose Import GPX in the sidebar."
           }}
         </p>
       </div>
 
       <div v-if="config.gpx.imported" class="preview__hint-bar">
         <span
-          >拖动平移 · 滚轮缩放 · 白框=山体 · 黄框=托盘外缘 ·
-          右上角可重置视图</span
+          >Drag to pan · Scroll to zoom · White = terrain · Yellow = tray ·
+          Reset the view at the top right</span
         >
       </div>
 
@@ -182,8 +182,8 @@ async function onDownloadStl(): Promise<void> {
         <button
           type="button"
           class="preview__reset-btn"
-          aria-label="重置地图位置"
-          title="重置地图位置"
+          aria-label="Reset map view"
+          title="Reset map view"
           @click="resetMapView"
         >
           <svg
@@ -286,7 +286,9 @@ async function onDownloadStl(): Promise<void> {
   color: var(--tp-text-secondary);
   z-index: 4;
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.45;
+  width: max-content;
   max-width: 90%;
   text-align: center;
 }

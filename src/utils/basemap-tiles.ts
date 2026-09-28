@@ -26,7 +26,7 @@ export const ESRI_BASEMAP: BasemapSpec = {
 export const GAODE_BASEMAP: BasemapSpec = {
   kind: "gaode",
   url: "https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
-  attribution: '&copy; <a href="https://www.amap.com/">高德地图</a>',
+  attribution: '&copy; <a href="https://www.amap.com/">AMap</a>',
   maxZoom: 18,
   subdomains: "1234",
   usesGcj02: true,

@@ -37,7 +37,7 @@ export function useTrayGeneration() {
       requireGpx: true,
     });
     if (!validation.valid) {
-      error.value = validation.message ?? "参数冲突，请检查左侧设置";
+      error.value = validation.message ?? "Check the settings in the sidebar";
       mesh.value = null;
       return;
     }

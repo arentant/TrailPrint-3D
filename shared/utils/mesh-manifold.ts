@@ -139,7 +139,7 @@ export function assertWatertightMesh(
   const a = analyzeMesh(mesh);
   if (a.boundaryEdges > 0 || a.nonManifoldEdges > 0) {
     throw new Error(
-      `${label} 不是封闭水密网格（开放边 ${a.boundaryEdges}，非流形边 ${a.nonManifoldEdges}）`,
+      `${label} is not watertight (open edges ${a.boundaryEdges}, non-manifold edges ${a.nonManifoldEdges})`,
     );
   }
 }
@@ -151,6 +151,6 @@ export function assertTrailLineMesh(
 ): void {
   const a = analyzeMesh(mesh);
   if (a.triangles < 4) {
-    throw new Error(`${label} 三角面过少（${a.triangles}），无法导出`);
+    throw new Error(`${label} has too few triangles (${a.triangles}) and cannot be exported`);
   }
 }

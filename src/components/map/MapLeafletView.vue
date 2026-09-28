@@ -325,12 +325,12 @@ function attachBasemap(map: L.Map, spec: BasemapSpec): void {
   const layer = L.tileLayer(spec.url, {
     attribution: spec.attribution,
     maxZoom: spec.maxZoom,
-    subdomains: spec.subdomains,
+    subdomains: spec.subdomains ?? "abc",
   });
   layer.addTo(map);
   tileLayer.value = layer;
   basemapStatus.value =
-    spec.kind === "gaode" ? "底图：高德卫星（Esri 不可用时自动切换）" : null;
+    spec.kind === "gaode" ? "Basemap: AMap satellite (fallback when Esri is unavailable)" : null;
 }
 
 async function initMap(): Promise<void> {
@@ -342,7 +342,7 @@ async function initMap(): Promise<void> {
   const wgsLat = mapCenterLat || 30;
   const wgsLon = mapCenterLon || 105;
 
-  basemapStatus.value = "正在检测底图…";
+  basemapStatus.value = "Checking basemap…";
   const spec = await resolveBasemap();
 
   // 异步探测期间组件可能已卸载
@@ -524,8 +524,8 @@ defineExpose({
         />
       </svg>
       <div class="mask-legend">
-        <span class="mask-legend__item mask-legend__item--terrain">白框 · 山体范围</span>
-        <span class="mask-legend__item mask-legend__item--tray">黄框 · 托盘外缘</span>
+        <span class="mask-legend__item mask-legend__item--terrain">White · Terrain</span>
+        <span class="mask-legend__item mask-legend__item--tray">Yellow · Tray edge</span>
       </div>
     </div>
   </div>

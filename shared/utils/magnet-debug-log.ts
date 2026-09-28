@@ -32,5 +32,5 @@ export function magnetDebugSummary(payload: MagnetDebugInfo): string {
   const shape = payload.footprintShape ?? payload.mapCropShape ?? "?";
   const n = payload.holeCount ?? 0;
   const verts = payload.outerVertCount ?? "?";
-  return `磁铁孔 ${n} 个（托盘 ${shape}，外轮廓 ${verts} 顶点）`;
+  return `Magnet holes: ${n} (tray ${shape}, outline ${verts} vertices)`;
 }

@@ -9,7 +9,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
 </script>
 
 <template>
-  <div class="segmented" role="group">
+  <div class="segmented" :class="{ 'segmented--many': options.length > 4 }" role="group">
     <button
       v-for="opt in options"
       :key="opt.value"
@@ -29,20 +29,28 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
 <style scoped>
 .segmented {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   padding: 3px;
   background: var(--tp-bg-segment);
   border-radius: var(--tp-radius-control);
-  height: 36px;
+  min-height: 36px;
 }
 
 .segmented__item {
-  flex: 1;
+  flex: 1 1 64px;
   min-width: 0;
+  min-height: 30px;
+  padding: 0 6px;
   border-radius: 8px;
   font-size: 12px;
   color: var(--tp-text-secondary);
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.segmented--many {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .segmented__item--active {

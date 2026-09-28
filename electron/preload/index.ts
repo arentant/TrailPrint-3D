@@ -36,7 +36,7 @@ function invokeErrorMessage(err: unknown): string {
       '',
     )
     if (stripped === '[object Object]') {
-      return '操作失败，请重试'
+      return 'The operation failed. Try again.'
     }
     if (stripped.startsWith('{')) {
       try {

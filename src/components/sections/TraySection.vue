@@ -24,13 +24,13 @@ const trayError = computed(() => {
 
 <template>
   <AccordionSection
-    title="4. 托盘底座"
+    title="4. Tray base"
     :open="openSections.tray"
     @toggle="ui.toggleSection('tray')"
   >
     <NumberField
       v-model="config.tray.totalThicknessMm"
-      label="总厚度"
+      label="Total thickness"
       suffix="mm"
       :min="1"
       :max="50"
@@ -38,7 +38,7 @@ const trayError = computed(() => {
     />
     <NumberField
       v-model="config.tray.recessDepthMm"
-      label="下陷深度"
+      label="Recess depth"
       suffix="mm"
       :min="0"
       :max="49"
@@ -46,7 +46,7 @@ const trayError = computed(() => {
     />
     <NumberField
       v-model="config.tray.rimWidthMm"
-      label="边框宽度"
+      label="Rim width"
       suffix="mm"
       :min="1"
       :max="30"
@@ -56,46 +56,46 @@ const trayError = computed(() => {
     <div class="subsection">
       <div class="toggle-row">
         <div class="toggle-copy">
-          <span class="toggle-label">NFC 与 LED 指示</span>
-          <span class="toggle-desc">在托盘凹槽顶面预留芯片槽与指示灯位</span>
+          <span class="toggle-label">NFC & LED indicators</span>
+          <span class="toggle-desc">Add recesses for an NFC chip and LED indicators</span>
         </div>
         <IosToggle v-model="config.tray.nfc.enabled" />
       </div>
 
       <template v-if="config.tray.nfc.enabled">
-        <p class="group-title">NFC 芯片槽</p>
+        <p class="group-title">NFC chip recess</p>
         <p class="field-hint">
-          在凹槽顶面（与打印轮廓同形、同圆心）铣出浅槽，用于嵌入 NFC 芯片。
+          Add a shallow recess for an NFC chip. It follows the print outline and shares its center.
         </p>
         <NumberField
           v-model="config.tray.nfc.wallClearanceMm"
-          label="距打印内壁"
+          label="Inset from print edge"
           suffix="mm"
           :min="0"
           :max="10"
           :step="0.1"
         />
         <p class="field-hint">
-          NFC 槽相对打印外轮廓向内缩的距离。例如六边形边长 45mm、填 1mm，则槽边距 45mm 轮廓内壁 1mm。
+          Distance from the print outline to the NFC recess. For example, a 1mm inset places the recess 1mm inside the outline of a hexagon with 45mm sides.
         </p>
         <NumberField
           v-model="config.tray.nfc.recessDepthMm"
-          label="NFC 槽深度"
+          label="NFC recess depth"
           suffix="mm"
           :min="0.1"
           :max="5"
           :step="0.1"
         />
-        <p class="field-hint">从凹槽顶面向下挖入的深度，用于容纳 NFC 芯片厚度。</p>
+        <p class="field-hint">Depth below the recess surface to accommodate the NFC chip.</p>
 
-        <p class="group-title">LED 指示位</p>
+        <p class="group-title">LED positions</p>
         <p class="field-hint">
-          在轨迹起点与终点各铣一个矩形槽，用于安装 0805 贴片 LED（起终点指示）。
+          Add rectangular pockets at the trail start and end for 0805 surface-mount LED indicators.
         </p>
         <div class="row">
           <NumberField
             v-model="config.tray.nfc.ledPocketLengthMm"
-            label="LED 槽长度"
+            label="LED pocket length"
             suffix="mm"
             :min="0.5"
             :max="20"
@@ -103,7 +103,7 @@ const trayError = computed(() => {
           />
           <NumberField
             v-model="config.tray.nfc.ledPocketWidthMm"
-            label="LED 槽宽度"
+            label="LED pocket width"
             suffix="mm"
             :min="0.5"
             :max="20"
@@ -111,45 +111,45 @@ const trayError = computed(() => {
           />
         </div>
         <p class="field-hint">
-          矩形槽尺寸（长边沿轨迹方向）。0805 封装约 2.0 × 1.25mm，默认放大以便焊接与透光。
+          The long edge follows the trail. An 0805 LED is about 2.0 × 1.25mm; the default pocket allows extra room for soldering and light.
         </p>
         <NumberField
           v-model="config.tray.nfc.ledExtraRecessDepthMm"
-          label="LED 额外深度"
+          label="Extra LED depth"
           suffix="mm"
           :min="0"
           :max="3"
           :step="0.1"
         />
         <p class="field-hint">
-          在 NFC 槽深度之上，LED 位再向下加深，确保灯珠低于顶面、可正常发光。
+          Additional depth below the NFC recess to keep the LED below the surface while allowing light through.
         </p>
 
-        <p class="group-title">装配盖片</p>
+        <p class="group-title">Assembly cover</p>
         <p class="field-hint">
-          装入 NFC 与 LED 后，将盖片压在凹槽顶面：外轮廓与山体打印区一致，仅轨迹起终点开孔漏光。
+          Fit the cover over the NFC chip and LEDs. It follows the terrain outline, with light openings at the trail start and end.
         </p>
         <NumberField
           v-model="config.tray.nfc.coverThicknessMm"
-          label="盖片厚度"
+          label="Cover thickness"
           suffix="mm"
           :min="0.1"
           :max="3"
           :step="0.05"
         />
         <p class="field-hint">
-          导出 ZIP 时附带 Tray_Cover.stl。默认 0.2mm，可按打印机精度微调。
+          Includes Tray_Cover.stl in the ZIP. The default is 0.2mm; adjust for your printer.
         </p>
         <NumberField
           v-model="config.tray.nfc.coverInsetMm"
-          label="盖片内缩"
+          label="Cover inset"
           suffix="mm"
           :min="0"
           :max="5"
           :step="0.1"
         />
         <p class="field-hint">
-          盖片外轮廓相对山体打印区向内缩的距离（同形、同圆心），默认 0.2mm，便于嵌入凹槽顶面。
+          Inset from the terrain outline, keeping the same shape and center. The default 0.2mm helps the cover fit into the recess.
         </p>
       </template>
     </div>

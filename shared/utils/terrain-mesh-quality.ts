@@ -191,8 +191,8 @@ export function meshQualitySummary(
     custom,
   );
   const label =
-    quality === "custom" ? `自定义上限 ${spec.maxGrid}` : `上限 ${spec.maxGrid}`;
-  return `DEM ${cols}×${rows}（${label}），卫星贴图 ${spec.texturePx}px，预览与导出一致`;
+    quality === "custom" ? `Custom limit ${spec.maxGrid}` : `Limit ${spec.maxGrid}`;
+  return `DEM ${cols}×${rows} (${label}), satellite texture ${spec.texturePx}px; matching preview and export quality`;
 }
 
 /** 3D 预览红色轨迹圆管分段数 */

@@ -12,7 +12,7 @@ import {
 import {
   countBottomHoleOpenings,
   countBottomPlateOverHole,
-} from "./tray-magnet-diagnostics";
+} from "./tray-magnet-pockets";
 
 /**
  * 托盘底面磁铁盲孔：在完整封闭托盘实体上做圆柱体布尔差集。
@@ -55,7 +55,7 @@ export function applyTrayMagnetHoles(
     cutDepthMm: depth,
     triCountBefore: triBefore,
     triCountAfter: result.indices.length / 3,
-    note: `圆柱差集移除 ${removed} 三角；底面孔洞开口 ${openings}/${holes.length}，孔口被底板遮挡 ${covered}/${holes.length}`,
+    note: `Cylinder subtraction removed ${removed} triangles; underside openings ${openings}/${holes.length}, openings blocked by base ${covered}/${holes.length}`,
   });
 
   return result;

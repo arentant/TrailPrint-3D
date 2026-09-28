@@ -26,7 +26,7 @@ export interface GridRgbSample {
 async function fetchTileBuffer(url: string): Promise<Buffer> {
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
-    throw new Error(`卫星瓦片请求失败 (${res.status})`);
+    throw new Error(`Satellite tile request failed (${res.status})`);
   }
   return Buffer.from(await res.arrayBuffer());
 }

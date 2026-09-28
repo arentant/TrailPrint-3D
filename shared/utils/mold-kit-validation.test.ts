@@ -24,7 +24,7 @@ function testSkirtHeightMustBePositive(): void {
   mk.skirtHeightMm = 0;
   const r = validateMoldKitConfig(mk);
   assert.equal(r.valid, false);
-  assert.match(r.message ?? "", /裙边高度/);
+  assert.match(r.message ?? "", /Skirt height/);
 }
 
 function testLidClearance(): void {
@@ -34,7 +34,7 @@ function testLidClearance(): void {
   mk.lidClearanceMm = 0.2;
   const r = validateMoldKitConfig(mk);
   assert.equal(r.valid, false);
-  assert.match(r.message ?? "", /配合间隙/);
+  assert.match(r.message ?? "", /fit clearance/);
 }
 
 function testLidMinHeight(): void {
@@ -43,7 +43,7 @@ function testLidMinHeight(): void {
   mk.lidHeightMm = MOLD_LID_MIN_HEIGHT_MM - 0.1;
   const r = validateMoldKitConfig(mk);
   assert.equal(r.valid, false);
-  assert.match(r.message ?? "", /盖板/);
+  assert.match(r.message ?? "", /lid/i);
 }
 
 function testOutsetCircle(): void {

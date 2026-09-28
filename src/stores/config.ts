@@ -214,6 +214,7 @@ function purgeTestSchemes(existing: ConfigScheme[]): ConfigScheme[] {
 
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig>(createDefaultConfig());
+  if (window.trailPrint.runtime === "browser") config.value.terrain.meshQuality = "high";
   applyOpenTopoApiKey(config.value);
   ensureTrailConfigDefaults(config.value);
   ensureMagnetConfigDefaults(config.value);
@@ -241,6 +242,7 @@ export const useConfigStore = defineStore("config", () => {
 
   function resetConfig(): void {
     config.value = createDefaultConfig();
+    if (window.trailPrint.runtime === "browser") config.value.terrain.meshQuality = "high";
     applyOpenTopoApiKey(config.value);
     ensureTrailConfigDefaults(config.value);
     ensureMagnetConfigDefaults(config.value);
@@ -311,10 +313,10 @@ export const useConfigStore = defineStore("config", () => {
   function saveScheme(name: string): ConfigScheme {
     const trimmed = name.trim();
     if (!trimmed) {
-      throw new Error("方案名称不能为空");
+      throw new Error("Enter a preset name");
     }
     if (schemes.value.some((s) => s.name === trimmed)) {
-      throw new Error("方案名称已存在，请换一个名字");
+      throw new Error("That preset name is already in use. Choose another name.");
     }
     const now = Date.now();
     const scheme: ConfigScheme = {
@@ -375,7 +377,7 @@ export const useConfigStore = defineStore("config", () => {
     if (
       schemes.value.some((s) => s.id !== id && s.name === trimmed)
     ) {
-      throw new Error("已存在同名方案");
+      throw new Error("A preset with that name already exists");
     }
     target.name = trimmed;
     target.updatedAt = Date.now();
