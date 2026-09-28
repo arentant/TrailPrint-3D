@@ -1,6 +1,6 @@
 # 🏔️ TrailPrint 3D
 
-**English | [中文](README.md)**
+**[Main README](README.md)**
 
 **Turn hiking GPX tracks into 3D-printable terrain models · GPX to STL**
 
