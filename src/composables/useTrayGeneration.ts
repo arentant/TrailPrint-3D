@@ -1,4 +1,4 @@
-import { ref, watch } from "vue";
+import { onScopeDispose, ref, shallowRef, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useConfigStore } from "@/stores/config";
 import { useUiStore } from "@/stores/ui";
@@ -19,12 +19,19 @@ export function useTrayGeneration() {
 
   const generating = ref(false);
   const error = ref<string | null>(null);
-  const mesh = ref<TrayMeshPayload | null>(null);
+  const mesh = shallowRef<TrayMeshPayload | null>(null);
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let requestId = 0;
 
+  onScopeDispose(() => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    requestId++;
+  });
+
   async function runGeneration(): Promise<void> {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
     if (!config.value.gpx.imported) {
       mesh.value = null;
       error.value = null;

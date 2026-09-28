@@ -36,9 +36,35 @@ export function useTerrainGeneration(
   const unsubscribeProgress = ipcOnTerrainProgress((p) => {
     if (generating.value) progress.value = p;
   });
-  onScopeDispose(() => unsubscribeProgress());
+  function clearScheduledGeneration(): void {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+
+  function invalidateGeneration(): void {
+    clearScheduledGeneration();
+    requestId++;
+    generating.value = false;
+    progress.value = null;
+    lastResult.value = null;
+    mesh.value = null;
+    trailMesh.value = null;
+  }
+
+  if (enabled) {
+    watch(enabled, (isEnabled) => {
+      if (!isEnabled) invalidateGeneration();
+    });
+  }
+
+  onScopeDispose(() => {
+    invalidateGeneration();
+    unsubscribeProgress();
+  });
 
   async function runGeneration(): Promise<void> {
+    invalidateGeneration();
+    if (enabled && !enabled.value) return;
     const { w, h } = viewport.value;
     if (w < 64 || h < 64) return;
 
@@ -64,7 +90,7 @@ export function useTerrainGeneration(
       return;
     }
 
-    const id = ++requestId;
+    const id = requestId;
     generating.value = true;
     error.value = null;
     progress.value = {
@@ -109,7 +135,6 @@ export function useTerrainGeneration(
 
   watch(
     () => [
-      enabled?.value ?? true,
       config.value.terrain.baseSolidThicknessMm,
       config.value.terrain.zExaggeration,
       config.value.terrain.meshQuality,

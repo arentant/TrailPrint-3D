@@ -274,9 +274,12 @@ async function rebuildMaskMeshesAsync(assemblyOffsetZ: number): Promise<void> {
 }
 
 async function rebuildScene(): Promise<void> {
+  // Invalidate any build that is waiting for an animation frame, including
+  // when new terrain data is still being generated.
+  const token = ++rebuildToken;
+  if (props.generating) return;
   if (!trayRoot || !terrainRoot || !maskRoot || !overlayRoot || !camera || !controls) return;
 
-  const token = ++rebuildToken;
   sceneBuilding.value = true;
   reportScene("terrain", 0.05, "Initializing 3D scene…");
   syncSceneLoading();
@@ -312,6 +315,7 @@ async function rebuildScene(): Promise<void> {
 
   reportScene("terrain", 0.2, "Building terrain mesh…");
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  if (token !== rebuildToken) return;
 
   const terrainGeo = buildTerrainGeometryFromPreview(r.crop, preview);
   terrainGeo.computeVertexNormals();
@@ -355,6 +359,7 @@ async function rebuildScene(): Promise<void> {
   if (tray?.positions?.length && tray.indices?.length) {
     reportScene("tray", 0.65, "Loading tray base…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (token !== rebuildToken) return;
     const trayGeo = payloadToBufferGeometry(tray, { hardEdges: true });
     const trayObj = new THREE.Mesh(trayGeo, ensureTrayMaterial());
     trayObj.frustumCulled = false;
@@ -368,6 +373,7 @@ async function rebuildScene(): Promise<void> {
   if (polyline.length >= 2) {
     reportScene("trail", 0.78, "Drawing trail…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (token !== rebuildToken) return;
     const tubeSegs = trailPreviewTubeSegments(polyline.length, {
       meshQuality: config.value.terrain.meshQuality,
       meshQualityCustom: config.value.terrain.meshQualityCustom,
@@ -405,6 +411,7 @@ async function rebuildScene(): Promise<void> {
   if (trayRoot.children.length > 0) fitTargets.unshift(trayRoot);
   reportScene("camera", 0.92, "Adjusting camera…");
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  if (token !== rebuildToken) return;
   fitCameraToTerrain(camera, controls, ...fitTargets);
 
   if (token === rebuildToken) {
@@ -629,6 +636,7 @@ function disposeThree(): void {
   cancelAnimationFrame(animationId);
   animationId = 0;
   rebuildToken++;
+  maskRebuildToken++;
   resizeObserver?.disconnect();
   resizeObserver = null;
   controls?.dispose();
@@ -736,16 +744,10 @@ watch(
 );
 
 watch(
-  () => props.result,
-  () => {
-    void rebuildScene();
-  },
-  { deep: true },
-);
-
-watch(
   () => [
+    props.result,
     props.trayMesh,
+    props.generating,
     config.value.tray.totalThicknessMm,
     config.value.tray.recessDepthMm,
     config.value.terrain.baseSolidThicknessMm,
@@ -753,7 +755,6 @@ watch(
   () => {
     void rebuildScene();
   },
-  { deep: true },
 );
 
 onMounted(() => {
