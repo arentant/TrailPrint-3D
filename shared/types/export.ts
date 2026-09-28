@@ -1,5 +1,5 @@
-import type { AppConfig } from "./config";
-import type { SprayPaintPlan } from "./spray-paint";
+import type { AppConfig } from "./config.js";
+import type { SprayPaintPlan } from "./spray-paint.js";
 
 export const STL_FILE_NAMES = {
   terrainMain: "Terrain_Main.stl",

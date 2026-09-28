@@ -1,5 +1,5 @@
-import type { AppConfig } from "./config";
-import type { TerrainMeshPayload } from "./terrain";
+import type { AppConfig } from "./config.js";
+import type { TerrainMeshPayload } from "./terrain.js";
 
 /** Tray_Base 轻量网格（与 TerrainMeshPayload 同构） */
 export type TrayMeshPayload = TerrainMeshPayload;

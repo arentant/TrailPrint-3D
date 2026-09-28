@@ -1,7 +1,7 @@
-import type { MapCropConfig } from "../types/config";
-import type { TerrainCropRegion } from "../types/terrain";
-import { regularPolygonCircumradiusMm, regularPolygonVertexAngleRad } from "./footprint";
-import type { Vec2 } from "./mesh-clip";
+import type { MapCropConfig } from "../types/config.js";
+import type { TerrainCropRegion } from "../types/terrain.js";
+import { regularPolygonCircumradiusMm, regularPolygonVertexAngleRad } from "./footprint.js";
+import type { Vec2 } from "./mesh-clip.js";
 
 /** 矩形 / 正多边形允许的最大 R 角 (mm) */
 export function maxCornerRadiusMm(mapCrop: MapCropConfig): number {

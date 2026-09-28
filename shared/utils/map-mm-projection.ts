@@ -1,7 +1,7 @@
-import type { MapCropConfig } from "../types/config";
-import type { TerrainCropRegion } from "../types/terrain";
-import { containerPointToLatLng } from "./leaflet-projection";
-import { buildMaskGeometry } from "./mask-geometry";
+import type { MapCropConfig } from "../types/config.js";
+import type { TerrainCropRegion } from "../types/terrain.js";
+import { containerPointToLatLng } from "./leaflet-projection.js";
+import { buildMaskGeometry } from "./mask-geometry.js";
 
 export interface MaskMmScale {
   scaleX: number;

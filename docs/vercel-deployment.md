@@ -78,6 +78,7 @@ may require a smaller crop.
 npm run typecheck
 npm run build
 npm run build:web
+npm run test:api
 npm run test:web
 ```
 
@@ -87,3 +88,9 @@ install Playwright Chromium with `npx playwright install chromium` and run
 elevation data for the full GPX → preview → ZIP workflow, checks binary STL
 contents and repeat downloads, and tests invalid GPX and elevation API requests.
 Live OpenTopography access requires a valid user key and provider availability.
+
+The API uses Node ESM imports with explicit `.js` extensions, including imports
+between shared TypeScript modules. Vite accepts extensionless imports locally,
+but deployed Node functions do not. `tsconfig.api.json` checks Node's resolution
+rules, and `test:api` compiles and starts the endpoint in plain Node to catch
+deployment-only module-loading failures.

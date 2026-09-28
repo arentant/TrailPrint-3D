@@ -1,9 +1,9 @@
-import type { GpxPoint } from "../types";
-import type { MapCropConfig } from "../types/config";
-import type { TerrainCropRegion } from "../types/terrain";
-import { clipPolylineToFootprint } from "./footprint";
-import { latLngToContainerPoint } from "./leaflet-projection";
-import { maskMmScale } from "./map-mm-projection";
+import type { GpxPoint } from "../types/index.js";
+import type { MapCropConfig } from "../types/config.js";
+import type { TerrainCropRegion } from "../types/terrain.js";
+import { clipPolylineToFootprint } from "./footprint.js";
+import { latLngToContainerPoint } from "./leaflet-projection.js";
+import { maskMmScale } from "./map-mm-projection.js";
 
 export interface TrailPointMm {
   x: number;

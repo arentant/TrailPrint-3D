@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { gzipSync } from 'node:zlib'
-import type { MapCropConfig } from '../shared/types/config'
-import type { TerrainCropRegion } from '../shared/types/terrain'
-import { OPEN_TOPO_DEM_OPTIONS } from '../shared/types/dem'
-import { heightfieldSampleGeo } from '../shared/utils/map-mm-projection'
-import { createGeotiffSampler } from '../electron/main/terrain/geotiff-sampler'
+import type { MapCropConfig } from '../shared/types/config.js'
+import type { TerrainCropRegion } from '../shared/types/terrain.js'
+import { OPEN_TOPO_DEM_OPTIONS } from '../shared/types/dem.js'
+import { heightfieldSampleGeo } from '../shared/utils/map-mm-projection.js'
+import { createGeotiffSampler } from '../electron/main/terrain/geotiff-sampler.js'
 
 const MAX_DOWNLOAD_BYTES = 32 * 1024 * 1024
 const MAX_BODY_BYTES = 16 * 1024

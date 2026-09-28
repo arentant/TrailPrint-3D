@@ -1,5 +1,5 @@
 import { fromArrayBuffer } from "geotiff";
-import { IpcException } from "../../../shared/ipc/types";
+import { IpcException } from "../../../shared/ipc/types.js";
 
 const NODATA_CANDIDATES = new Set([-32768, -9999, -99999]);
 

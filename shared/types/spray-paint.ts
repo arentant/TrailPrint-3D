@@ -1,5 +1,5 @@
-import type { AppConfig } from "./config";
-import type { TerrainCropRegion, TerrainHeightPreview, TerrainMeshPayload } from "./terrain";
+import type { AppConfig } from "./config.js";
+import type { TerrainCropRegion, TerrainHeightPreview, TerrainMeshPayload } from "./terrain.js";
 
 export type SprayPaintSource = "rules" | "manual";
 

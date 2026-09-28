@@ -1,4 +1,4 @@
-import type { GpxBounds, GpxPoint } from './config'
+import type { GpxBounds, GpxPoint } from './config.js'
 
 /** 主进程 GPX 解析结果（任务-01 数据契约） */
 export interface GpxImportResult {

@@ -12,11 +12,12 @@
     "build": "electron-vite build",
     "preview": "NODE_OPTIONS=--max-old-space-size=8192 electron-vite preview",
     "package": "npm run build && electron-builder",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p tsconfig.node.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.api.json",
     "dev:web": "vite --config vite.web.config.ts",
     "build:web": "vite build --config vite.web.config.ts",
     "preview:web": "vite preview --config vite.web.config.ts",
-    "test:web": "playwright test"
+    "test:web": "playwright test",
+    "test:api": "node --test tests/runtime/*.test.mjs"
   },
   "dependencies": {
     "archiver": "^7.0.1",

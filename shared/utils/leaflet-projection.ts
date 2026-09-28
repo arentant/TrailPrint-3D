@@ -1,4 +1,4 @@
-import type { MapCropConfig } from "../types/config";
+import type { MapCropConfig } from "../types/config.js";
 import {
   computeRotatePanePos,
   containerPointToLayerPoint,
@@ -6,7 +6,7 @@ import {
   rotateAroundOrigin,
   rotateFrom,
   type MapPaneState,
-} from "./map-rotate-projection";
+} from "./map-rotate-projection.js";
 
 const EARTH_RADIUS = 6378137;
 const MAX_MERCATOR_LAT = 85.0511287798;

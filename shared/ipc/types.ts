@@ -75,21 +75,21 @@ export interface TaskStatusResponse {
   tasks: TaskRecord[]
 }
 
-export type { GpxParseRequest, GpxParseResponse } from '@shared/types/gpx'
+export type { GpxParseRequest, GpxParseResponse } from '../types/gpx.js'
 export type {
   TerrainGenerateRequest,
   TerrainGenerateResponse,
   TerrainGenerateProgress
-} from '@shared/types/terrain'
+} from '../types/terrain.js'
 export type {
   TrayGenerateRequest,
   TrayGenerateResponse
-} from '@shared/types/tray'
+} from '../types/tray.js'
 export type {
   ExportGenerateRequest,
   ExportGenerateResponse,
   ExportProgress
-} from '@shared/types/export'
+} from '../types/export.js'
 export type {
   SpraySegmentRequest,
   SpraySegmentResponse,
@@ -97,4 +97,4 @@ export type {
   SprayGenerateMasksRequest,
   SprayGenerateMasksResponse,
   SprayMaskMeshPayload
-} from '@shared/types/spray-paint'
+} from '../types/spray-paint.js'

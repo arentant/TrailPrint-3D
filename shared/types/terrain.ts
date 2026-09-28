@@ -1,4 +1,4 @@
-import type { AppConfig, BaseShape, TerrainSmoothing } from "./config";
+import type { AppConfig, BaseShape, TerrainSmoothing } from "./config.js";
 
 /** 地理裁剪范围（供主进程 DEM 采样） */
 export interface TerrainCropRegion {

@@ -1,12 +1,12 @@
-import type { AppConfig, TrailConfig } from "../types/config";
-import type { TerrainCropRegion } from "../types/terrain";
+import type { AppConfig, TrailConfig } from "../types/config.js";
+import type { TerrainCropRegion } from "../types/terrain.js";
 import {
   cornerRadiusFromCrop,
   pointInRoundedRectangle,
   roundedRectanglePolygon,
   roundedRegularPolygon,
-} from "./rounded-footprint";
-import type { TrailPointMm } from "./trail-coords";
+} from "./rounded-footprint.js";
+import type { TrailPointMm } from "./trail-coords.js";
 
 function pointInPolygon(
   x: number,

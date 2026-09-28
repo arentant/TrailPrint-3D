@@ -1,9 +1,9 @@
-import type { MapCropConfig } from "../types/config";
+import type { MapCropConfig } from "../types/config.js";
 import {
   clampCornerRadiusMm,
   roundedRectanglePolygon,
   roundedRegularPolygon,
-} from "./rounded-footprint";
+} from "./rounded-footprint.js";
 
 /**
  * 地图中心遮罩约占视窗短边的比例（屏幕像素，与打印 mm 无关）。

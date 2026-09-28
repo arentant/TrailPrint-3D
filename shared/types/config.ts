@@ -3,7 +3,7 @@
  * 渲染进程负责读写展示；重度计算在主进程读取同构快照。
  */
 
-import type { OpenTopoDemType } from "./dem";
+import type { OpenTopoDemType } from "./dem.js";
 
 // ─── 模块一：地图选取与尺寸 ─────────────────────────────────────────
 
