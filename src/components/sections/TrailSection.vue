@@ -6,11 +6,13 @@ import { useUiStore } from '@/stores/ui'
 import AccordionSection from '@/components/ui/AccordionSection.vue'
 import IosToggle from '@/components/ui/IosToggle.vue'
 import NumberField from '@/components/ui/NumberField.vue'
+import { useStlExport } from '@/composables/useStlExport'
 
 const configStore = useConfigStore()
 const ui = useUiStore()
 const { config } = storeToRefs(configStore)
 const { openSections } = storeToRefs(ui)
+const { downloadTrail, generating } = useStlExport()
 
 /** 兼容旧版 assembly.trailProtrusionMm */
 const trailHeightAboveMain = computed({
@@ -66,6 +68,15 @@ const trailHeightAboveMain = computed({
     <p class="hint">
       Raise the trail above the terrain by this amount so it remains slightly visible when fitted into the groove.
     </p>
+    <button
+      type="button"
+      class="trail-download"
+      :disabled="!config.gpx.imported || generating"
+      @click="downloadTrail"
+    >
+      Download trail STL
+    </button>
+    <p class="hint">Save just the trail using the current map framing and terrain height.</p>
   </AccordionSection>
 </template>
 
@@ -86,5 +97,32 @@ const trailHeightAboveMain = computed({
   font-size: 12px;
   line-height: 1.45;
   color: var(--color-text-secondary, #888);
+}
+
+.trail-download {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--tp-border-strong);
+  border-radius: 8px;
+  background: var(--tp-bg-panel);
+  color: var(--tp-text-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trail-download:hover:not(:disabled) {
+  background: var(--tp-bg-input);
+}
+
+.trail-download:focus-visible {
+  outline: 2px solid var(--tp-text-accent);
+  outline-offset: 3px;
+}
+
+.trail-download:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

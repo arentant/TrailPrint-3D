@@ -6,6 +6,7 @@ import { generateModelFiles, defaultZipName } from '../../electron/main/export/g
 import { segmentSprayPaint } from '../../electron/main/spray-paint/segment-service'
 import { generateSprayMasks } from '../../electron/main/spray-paint/mask-generate-service'
 import { parseGpxXml } from '@shared/utils/gpx-parser'
+import { STL_FILE_NAMES } from '@shared/types/export'
 import { IpcException } from '@shared/ipc/types'
 import type { BrowserExport, ProgressEvent, WorkerReply, WorkerRequest } from './protocol'
 
@@ -35,11 +36,18 @@ async function execute(task: WorkerRequest): Promise<void> {
           if (name.includes('/') || name.includes('\\')) throw new Error('Invalid export filename')
           files[name] = data
         })
-        progress('export')({ phase: 'zip', progress: 0.9, message: 'Creating ZIP download…' })
-        const archive = zipSync(files, { level: 6 })
-        result = { archive, fileName: defaultZipName(), cancelled: false, generationMs: Date.now() - started } satisfies BrowserExport
+        const trailOnly = task.request.target === 'trail'
+        if (!trailOnly) progress('export')({ phase: 'zip', progress: 0.9, message: 'Creating ZIP download…' })
+        const data = trailOnly ? files[STL_FILE_NAMES.trailLine]! : zipSync(files, { level: 6 })
+        result = {
+          data,
+          fileName: trailOnly ? STL_FILE_NAMES.trailLine : defaultZipName(),
+          mimeType: trailOnly ? 'model/stl' : 'application/zip',
+          cancelled: false,
+          generationMs: Date.now() - started,
+        } satisfies BrowserExport
         progress('export')({ phase: 'done', progress: 1, message: 'Download ready' })
-        scope.postMessage({ id: task.id, result } satisfies WorkerReply, [archive.buffer])
+        scope.postMessage({ id: task.id, result } satisfies WorkerReply, [data.buffer])
         return
       }
     }

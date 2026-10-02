@@ -119,6 +119,7 @@ export async function generateTerrainMain(
   const modelCheck = validateModelGeneration(config, {
     viewportWidth,
     viewportHeight,
+    trailOnly: req.trailOnly,
   });
   if (!modelCheck.valid) {
     throw new IpcException(
@@ -152,7 +153,8 @@ export async function generateTerrainMain(
     meshQualityCustom,
   );
   const qualitySpec = terrainMeshQualitySpec(meshQuality, meshQualityCustom);
-  const buildExportMesh = Boolean(req.stlExport);
+  const buildTrailMesh = Boolean(req.stlExport || req.trailOnly);
+  const buildExportMesh = Boolean(req.stlExport && !req.trailOnly);
 
   reportProgress(
     onProgress,
@@ -196,7 +198,7 @@ export async function generateTerrainMain(
   let grooveFloorZ: number | undefined;
   let exportGroove: ReturnType<typeof buildTrailGrooveSpec> = undefined;
 
-  if (buildExportMesh) {
+  if (buildTrailMesh) {
     exportGroove = buildTrailGrooveSpec(
       config,
       crop,
@@ -206,7 +208,9 @@ export async function generateTerrainMain(
     if (exportGroove) {
       grooveFloorZ = computeGrooveFloorZMm(exportGroove.depthMm);
       exportGroove.floorZMm = grooveFloorZ;
-      applyGrooveToHeightField(heightMm, cols, rows, crop, exportGroove);
+      if (buildExportMesh) {
+        applyGrooveToHeightField(heightMm, cols, rows, crop, exportGroove);
+      }
     }
   }
 
@@ -245,7 +249,7 @@ export async function generateTerrainMain(
   const trailPolylineMm = exportGroove?.polylineMm ?? polylineMm;
   const printWidth = req.trailLineWidthMm ?? trailLineWidthMmForPrint(config);
   let trailMesh: TerrainMeshPayload | null = null;
-  if (buildExportMesh && trailPolylineMm.length >= 2) {
+  if (buildTrailMesh && trailPolylineMm.length >= 2) {
     trailMesh = buildTrailLineMesh({
       polylineMm: trailPolylineMm,
       widthMm: printWidth,

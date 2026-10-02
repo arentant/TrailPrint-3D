@@ -104,7 +104,7 @@ export function createBrowserApi(): TrailPrintApi & { runtime: 'browser' } {
     generateSprayMasks: (request) => invoke('generateSprayMasks', request),
     generateExport: async (request) => {
       const result = await invoke('generateExport', request) as BrowserExport
-      const blob = new Blob([result.archive], { type: 'application/zip' })
+      const blob = new Blob([result.data], { type: result.mimeType })
       if (download) URL.revokeObjectURL(download.url)
       download = { url: URL.createObjectURL(blob), name: result.fileName }
       triggerDownload()

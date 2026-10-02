@@ -46,11 +46,15 @@ Launch the app and upload the `.gpx` file from the previous step.
 
 Choose a base shape (circle, rectangle, or regular polygon), then pan and zoom the map to position your track. Hold **Alt / Option** and drag to rotate map bearing. Use the sidebar to set print dimensions, corner radius, elevation exaggeration, surface smoothing, tray base, and assembly tolerances.
 
+Use **Grid on/off** above the map for positioning guides. **Save preset** can also save the map coordinates, zoom, and rotation; leave **Save map coordinates and framing** unchecked to reuse only the print settings. Presets are stored locally on this device and do not include GPX data or your API key.
+
 ![Frame and tune parameters](docs/images/readme/02-compose-framing.webp)
 
 ### 3. Preview and export
 
 Check the terrain, trail, and tray in the 3D preview, then generate and download the model archive.
+
+To export the trail separately, choose **Download trail STL** in Trail settings or the 3D preview. This saves `Trail_Line.stl` directly, with the same terrain height and assembly coordinates as the trail in the full archive.
 
 ![Export model](docs/images/readme/03-export-model.webp)
 

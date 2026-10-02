@@ -66,6 +66,8 @@ export interface TerrainGenerateRequest {
   highQualityPreview?: boolean;
   /** STL 导出：与预览同密度 DEM，并执行轨迹挖槽 */
   stlExport?: boolean;
+  /** Build only the printable trail, using the same elevation and assembly geometry. */
+  trailOnly?: boolean;
   /** 可选：任务-04 传入时执行挖槽（当前为占位直通） */
   trailGroove?: TrailGrooveSpec;
   /**

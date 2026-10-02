@@ -69,6 +69,7 @@ export async function generateModelFiles(
   const modelCheck = validateModelGeneration(config, {
     viewportWidth,
     viewportHeight,
+    trailOnly: req.target === "trail",
   });
   if (!modelCheck.valid) {
     throw new IpcException(
@@ -91,7 +92,7 @@ export async function generateModelFiles(
   onProgress({
     phase: "terrain",
     progress: 0.1,
-    message: "Generating terrain and trail models…",
+    message: req.target === "trail" ? "Generating trail model…" : "Generating terrain and trail models…",
   });
 
   const terrainWithGroove = await generateTerrainMain({
@@ -99,8 +100,19 @@ export async function generateModelFiles(
     viewportWidth,
     viewportHeight,
     stlExport: true,
+    trailOnly: req.target === "trail",
     trailLineWidthMm: trailLineWidthMmForPrint(config),
   });
+
+  if (req.target === "trail") {
+    if (!terrainWithGroove.trailMesh) {
+      throw new IpcException("TRAIL_EMPTY", "Cannot generate the trail model. Move the trail inside the white outline or increase its width, then try again.");
+    }
+    onProgress({ phase: "stl", progress: 0.75, message: "Writing trail STL…" });
+    assertTrailLineMesh(terrainWithGroove.trailMesh, "Trail_Line");
+    await writeBinaryStl(STL_FILE_NAMES.trailLine, terrainWithGroove.trailMesh, "Trail_Line");
+    return names;
+  }
 
   onProgress({
     phase: "tray",

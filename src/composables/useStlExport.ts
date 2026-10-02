@@ -10,6 +10,7 @@ import { ensureMapZoomFitsTrail } from "@shared/utils/trail-fit";
 import { computeTrayBottomMagnetHoles } from "@shared/utils/magnet-hole-layout";
 import { logMagnetDebug } from "@shared/utils/magnet-debug-log";
 import { computeTrayFootprint } from "@shared/utils/tray-footprint";
+import type { ExportTarget } from "@shared/types/export";
 
 function exportFileName(path: string): string {
   const parts = path.split(/[/\\]/);
@@ -22,7 +23,9 @@ export function useStlExport() {
   const { generating, statusMessage } = storeToRefs(ui);
   const { plan: sprayPlan } = useSpraySegmentation();
 
-  async function generateAndSave(): Promise<void> {
+  async function generateAndSave(target: ExportTarget = "all"): Promise<void> {
+    if (generating.value) return;
+    ui.runPrepareExport();
     if (!configStore.config.gpx.imported) {
       statusMessage.value = "Import a GPX track first";
       return;
@@ -30,6 +33,7 @@ export function useStlExport() {
     const check = validateModelGeneration(configStore.config, {
       viewportWidth: Math.round(ui.previewViewport.w),
       viewportHeight: Math.round(ui.previewViewport.h),
+      trailOnly: target === "trail",
     });
     if (!check.valid) {
       statusMessage.value = check.message ?? "Check the settings and try again";
@@ -38,7 +42,6 @@ export function useStlExport() {
     generating.value = true;
     ui.exportProgress = 0;
     statusMessage.value = "Preparing export…";
-    ui.runPrepareExport();
     const { w, h } = ui.previewViewport;
     const vw = Math.round(w);
     const vh = Math.round(h);
@@ -50,28 +53,31 @@ export function useStlExport() {
       configStore.config.mapCrop.mapZoom = exportConfig.mapCrop.mapZoom;
     }
 
-    const exportFootprint = computeTrayFootprint(exportConfig);
-    const exportHoles = computeTrayBottomMagnetHoles(exportConfig, exportFootprint);
-    logMagnetDebug({
-      phase: "renderer-export",
-      mapCropShape: exportConfig.mapCrop.shape,
-      polygonSides: exportConfig.mapCrop.polygonSides,
-      footprintShape: exportFootprint.shape,
-      outerVertCount: exportFootprint.outer.length,
-      magnetEnabled: exportConfig.assembly.magnet.enabled,
-      circleCount: exportConfig.assembly.magnet.circleCount,
-      holeCount: exportHoles.length,
-      holes: exportHoles,
-      note: "Renderer snapshot before export; compare with the main-process TrailPrint:Magnet log",
-    });
+    if (target === "all") {
+      const exportFootprint = computeTrayFootprint(exportConfig);
+      const exportHoles = computeTrayBottomMagnetHoles(exportConfig, exportFootprint);
+      logMagnetDebug({
+        phase: "renderer-export",
+        mapCropShape: exportConfig.mapCrop.shape,
+        polygonSides: exportConfig.mapCrop.polygonSides,
+        footprintShape: exportFootprint.shape,
+        outerVertCount: exportFootprint.outer.length,
+        magnetEnabled: exportConfig.assembly.magnet.enabled,
+        circleCount: exportConfig.assembly.magnet.circleCount,
+        holeCount: exportHoles.length,
+        holes: exportHoles,
+        note: "Renderer snapshot before export; compare with the main-process TrailPrint:Magnet log",
+      });
+    }
 
     try {
       const res = await ipcGenerateExport({
         config: exportConfig,
         viewportWidth: vw,
         viewportHeight: vh,
+        target,
         sprayPaintPlan:
-          exportConfig.sprayPaint.enabled && sprayPlan.value
+          target === "all" && exportConfig.sprayPaint.enabled && sprayPlan.value
             ? serializeSprayPlan(sprayPlan.value)
             : undefined,
       });
@@ -79,7 +85,7 @@ export function useStlExport() {
         statusMessage.value =
           "Export canceled. Choose Download again and select a save location.";
       } else if (res.savedPath) {
-        ui.lastExportZipPath = res.savedPath;
+        ui.lastExportPath = res.savedPath;
         const name = exportFileName(res.savedPath);
         const foot = physicalFootprintMm(configStore.config.mapCrop);
         const sizeHint =
@@ -96,5 +102,6 @@ export function useStlExport() {
     }
   }
 
-  return { generateAndSave, generating };
+  const downloadTrail = () => generateAndSave("trail");
+  return { generateAndSave, downloadTrail, generating };
 }

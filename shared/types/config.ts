@@ -199,10 +199,11 @@ export interface AppConfig {
 
 /**
  * 可持久化的参数方案切片。
- * 不含：GPX、API Key、地图取景（中心/缩放/旋转）；加载时沿用当前取景与 GPX/Key。
+ * 不含 GPX 与 API Key。地图取景可选；旧方案加载时沿用当前取景。
  */
 export interface ConfigSchemePayload {
   mapCrop: MapCropConfig;
+  mapView?: Pick<MapCropConfig, "mapCenterLat" | "mapCenterLon" | "mapZoom" | "mapBearingDeg">;
   terrain: Omit<TerrainConfig, "openTopographyApiKey">;
   trail: TrailConfig;
   tray: TrayConfig;

@@ -20,10 +20,14 @@ export type ExportPhase =
   | "save"
   | "done";
 
+export type ExportTarget = "all" | "trail";
+
 export interface ExportGenerateRequest {
   config: AppConfig;
   viewportWidth: number;
   viewportHeight: number;
+  /** Defaults to the complete ZIP; trail downloads a standalone STL. */
+  target?: ExportTarget;
   /** 预览已分色时传入，避免导出时重复分色 */
   sprayPaintPlan?: SprayPaintPlan | null;
 }

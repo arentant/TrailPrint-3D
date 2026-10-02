@@ -18,10 +18,11 @@ export const useUiStore = defineStore("ui", () => {
   /** 每次成功导入 GPX 后递增，驱动 2D 地图自动居中并缩放到遮罩内 */
   const gpxMapFitNonce = ref(0);
   const exportProgress = ref(0);
-  /** 最近一次成功导出的 ZIP 绝对路径 */
-  const lastExportZipPath = ref<string | null>(null);
+  /** 最近一次成功导出的 ZIP 或独立 STL 路径 */
+  const lastExportPath = ref<string | null>(null);
   /** 3D 模型预览弹窗 */
   const terrainPreviewOpen = ref(false);
+  const mapGridVisible = ref(false);
 
   const prepareExportHooks: Array<() => void> = [];
 
@@ -54,8 +55,9 @@ export const useUiStore = defineStore("ui", () => {
     gpxMapFitNonce,
     requestGpxMapFit,
     exportProgress,
-    lastExportZipPath,
+    lastExportPath,
     terrainPreviewOpen,
+    mapGridVisible,
     registerPrepareExportHook,
     runPrepareExport,
     toggleSection,

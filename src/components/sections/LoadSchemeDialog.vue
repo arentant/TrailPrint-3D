@@ -225,6 +225,9 @@ function onDialogKeydown(e: KeyboardEvent): void {
                   @click="selectScheme(scheme.id)"
                 >
                   <span class="scheme-dialog__name">{{ scheme.name }}</span>
+                  <span v-if="scheme.payload.mapView" class="scheme-dialog__time">
+                    {{ scheme.payload.mapView.mapCenterLat.toFixed(5) }}, {{ scheme.payload.mapView.mapCenterLon.toFixed(5) }} · Saved map view
+                  </span>
                   <span class="scheme-dialog__time">{{ formatTime(scheme.updatedAt) }}</span>
                 </button>
                 <div class="scheme-dialog__item-actions">

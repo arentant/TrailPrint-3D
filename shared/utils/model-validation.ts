@@ -35,6 +35,8 @@ export interface ModelValidationOptions {
   viewportHeight?: number;
   /** 未导入 GPX 时是否视为错误（侧栏托盘区可设为 false） */
   requireGpx?: boolean;
+  /** A standalone trail does not require valid tray, magnet, NFC, or mold settings. */
+  trailOnly?: boolean;
 }
 
 function fail(
@@ -239,24 +241,26 @@ export function validateModelGeneration(
     return fail("viewport", "The preview is too small. Enlarge the window and try again.");
   }
 
-  const trayCheck = validateTrayFromAppConfig(config);
-  if (!trayCheck.valid) {
-    return { ...trayCheck, scope: "tray" };
-  }
+  if (!options.trailOnly) {
+    const trayCheck = validateTrayFromAppConfig(config);
+    if (!trayCheck.valid) {
+      return { ...trayCheck, scope: "tray" };
+    }
 
-  const magnetCheck = validateMagnetAssembly(config);
-  if (!magnetCheck.valid) return magnetCheck;
+    const magnetCheck = validateMagnetAssembly(config);
+    if (!magnetCheck.valid) return magnetCheck;
 
-  const moldCheck = validateMoldKitFromAppConfig(config);
-  if (!moldCheck.valid) {
-    return { ...moldCheck, scope: "moldKit" };
+    const moldCheck = validateMoldKitFromAppConfig(config);
+    if (!moldCheck.valid) {
+      return { ...moldCheck, scope: "moldKit" };
+    }
   }
 
   if (requireGpx && hasViewport) {
     const trailCheck = validateTrailInPrintArea(config, vw, vh);
     if (!trailCheck.valid) return trailCheck;
 
-    if (config.tray.nfc.enabled) {
+    if (!options.trailOnly && config.tray.nfc.enabled) {
       const nfcCheck = validateTrayNfcLayout(config, vw, vh);
       if (!nfcCheck.valid) return nfcCheck;
     }

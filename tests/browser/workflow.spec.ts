@@ -48,11 +48,25 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   }
   expect(elevationRequests).toBeGreaterThan(0)
   expect(errors).toEqual([])
+  await expect(downloadButton).toBeEnabled()
+  await expect(page.locator('.terrain-modal__loading')).toBeHidden()
   await page.screenshot({ path: 'test-results/browser-export.png', fullPage: true })
   // The browser adapter retains the ZIP for a repeat download, without recomputing.
   const again = page.waitForEvent('download')
   await page.evaluate(() => window.trailPrint.revealExport('last-export'))
   expect((await again).suggestedFilename()).toBe(download.suggestedFilename())
+
+  // A direct trail STL must preserve the assembly coordinates of the ZIP part.
+  const trailEvent = page.waitForEvent('download', { timeout: 90_000 })
+  await page.getByRole('dialog').getByRole('button', { name: 'Download trail STL' }).click()
+  const trail = await trailEvent
+  expect(trail.suggestedFilename()).toBe('Trail_Line.stl')
+  expect(await readFile((await trail.path())!)).toEqual(Buffer.from(files['Trail_Line.stl']!))
+  await expect(downloadButton).toBeEnabled()
+  const repeatTrail = page.waitForEvent('download')
+  await page.evaluate(() => window.trailPrint.revealExport('last-export'))
+  expect((await repeatTrail).suggestedFilename()).toBe('Trail_Line.stl')
+  expect(errors).toEqual([])
 })
 
 test('invalid GPX and missing API key give actionable errors', async ({ page }) => {

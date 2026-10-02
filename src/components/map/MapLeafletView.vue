@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, useId, watch } from "vue";
 import L from "leaflet";
 import "leaflet-rotate";
 import { storeToRefs } from "pinia";
@@ -8,6 +8,7 @@ import { useTrailPoints } from "@/composables/useTrailPoints";
 import {
   buildMaskGeometry,
   maskEvenOddPath,
+  maskHoleOutlinePath,
   maskPolygonPoints,
   type MaskScreenGeometry,
 } from "@/utils/map-mask-geometry";
@@ -40,6 +41,29 @@ const tileLayer = shallowRef<L.TileLayer | null>(null);
 /** 当前底图；GCJ 瓦片时地图交互坐标需转换 */
 const activeBasemap = shallowRef<BasemapSpec | null>(null);
 const basemapStatus = ref<string | null>(null);
+const gridClipId = useId();
+let applyingMapView = false;
+
+const gridClipPath = computed(() =>
+  maskHoleOutlinePath(config.value.mapCrop, maskW.value, maskH.value),
+);
+
+const gridLines = computed(() => {
+  const m = maskGeom.value;
+  if (!m) return { vertical: [], horizontal: [] };
+  const hw = m.hw ?? m.r ?? Math.max(...(m.vertices ?? []).map((v) => Math.abs(v.x - m.cx)), 0);
+  const hh = m.hh ?? m.r ?? Math.max(...(m.vertices ?? []).map((v) => Math.abs(v.y - m.cy)), 0);
+  const spacing = Math.max(24, Math.min(hw, hh) / 4);
+  const vertical: number[] = [];
+  const horizontal: number[] = [];
+  for (let x = spacing; x < hw; x += spacing) {
+    vertical.push(m.cx - x, m.cx + x);
+  }
+  for (let y = spacing; y < hh; y += spacing) {
+    horizontal.push(m.cy - y, m.cy + y);
+  }
+  return { vertical, horizontal };
+});
 
 /** 滚轮每变化一级缩放所需像素；Leaflet 默认 60，越大单次缩放越平缓 */
 const WHEEL_PX_PER_ZOOM_LEVEL = 5;
@@ -170,7 +194,7 @@ function fromMapLatLng(lat: number, lng: number): { lat: number; lon: number } {
 
 function syncStoreFromMap(): void {
   const map = mapInstance.value;
-  if (!map) return;
+  if (!map || applyingMapView) return;
   const c = map.getCenter();
   const wgs = fromMapLatLng(c.lat, c.lng);
   config.value.mapCrop.mapCenterLat = wgs.lat;
@@ -337,16 +361,18 @@ async function initMap(): Promise<void> {
   const el = mapRoot.value;
   if (!el || mapInstance.value) return;
 
-  const { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg } =
-    config.value.mapCrop;
-  const wgsLat = mapCenterLat || 30;
-  const wgsLon = mapCenterLon || 105;
-
   basemapStatus.value = "Checking basemap…";
   const spec = await resolveBasemap();
 
   // 异步探测期间组件可能已卸载
   if (!mapRoot.value || mapInstance.value) return;
+
+  // A preset or GPX import can change the view while the basemap is loading.
+  const { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg } = config.value.mapCrop;
+  const savedView = configStore.schemes.find((s) => s.id === configStore.activeSchemeId)?.payload.mapView;
+  const useInitialCenter = !config.value.gpx.imported && !savedView && mapCenterLat === 0 && mapCenterLon === 0;
+  const wgsLat = useInitialCenter ? 30 : mapCenterLat;
+  const wgsLon = useInitialCenter ? 105 : mapCenterLon;
 
   const center = spec.usesGcj02
     ? (() => {
@@ -381,6 +407,7 @@ async function initMap(): Promise<void> {
   teardownAltRotate = setupAltDragRotate(map, el);
 
   mapInstance.value = map;
+  syncStoreFromMap();
   updateMaskLayout();
   map.invalidateSize({ animate: false });
   updateTrackLayer();
@@ -470,13 +497,29 @@ watch(
 );
 
 watch(
-  () => config.value.mapCrop.mapBearingDeg,
-  (deg) => {
+  () => [
+    config.value.mapCrop.mapCenterLat,
+    config.value.mapCrop.mapCenterLon,
+    config.value.mapCrop.mapZoom,
+    config.value.mapCrop.mapBearingDeg,
+  ] as const,
+  ([lat, lon, zoom, bearing]) => {
     const map = mapInstance.value;
-    if (!map || typeof map.getBearing !== "function") return;
-    const current = map.getBearing();
-    if (Math.abs(current - deg) > 0.05) {
-      map.setBearing(deg);
+    if (!map) return;
+    const center = toMapLatLng(lat, lon);
+    const current = map.getCenter();
+    applyingMapView = true;
+    try {
+      if (typeof map.getBearing === "function" && Math.abs(map.getBearing() - bearing) > 0.05) {
+        map.setBearing(bearing);
+      }
+      if (Math.abs(current.lat - center.lat) > 1e-8 ||
+          Math.abs(current.lng - center.lng) > 1e-8 ||
+          Math.abs(map.getZoom() - zoom) > 1e-8) {
+        map.setView(center, zoom, { animate: false });
+      }
+    } finally {
+      applyingMapView = false;
     }
   },
 );
@@ -494,6 +537,26 @@ defineExpose({
     <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
     <!-- 遮罩固定于屏幕；圆形/矩形用 CSS 避免 SVG 非等比拉伸导致虚线变形 -->
     <div v-if="maskGeom" class="map-mask">
+      <svg
+        v-if="ui.mapGridVisible"
+        class="map-grid"
+        :viewBox="`0 0 ${maskW} ${maskH}`"
+        aria-hidden="true"
+      >
+        <defs>
+          <clipPath :id="gridClipId"><path :d="gridClipPath" /></clipPath>
+        </defs>
+        <g :clip-path="`url(#${gridClipId})`">
+          <g class="map-grid__lines">
+            <line v-for="x in gridLines.vertical" :key="`x-${x}`" :x1="x" :x2="x" y1="0" :y2="maskH" />
+            <line v-for="y in gridLines.horizontal" :key="`y-${y}`" x1="0" :x2="maskW" :y1="y" :y2="y" />
+          </g>
+          <g class="map-grid__center">
+            <line :x1="maskGeom.cx" :x2="maskGeom.cx" y1="0" :y2="maskH" />
+            <line x1="0" :x2="maskW" :y1="maskGeom.cy" :y2="maskGeom.cy" />
+          </g>
+        </g>
+      </svg>
       <div v-if="maskHoleStyle" class="mask-hole" :style="maskHoleStyle" />
       <div
         v-if="trayOuterStyle"
@@ -568,6 +631,27 @@ defineExpose({
   height: 100%;
   pointer-events: none;
   overflow: hidden;
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.65));
+}
+
+.map-grid__lines {
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1;
+}
+
+.map-grid__center {
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
 }
 
 .mask-hole {

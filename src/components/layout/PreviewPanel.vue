@@ -23,7 +23,7 @@ const viewport = ref({ w: 800, h: 600 });
 
 const { terrainPreviewOpen } = storeToRefs(ui);
 const modalViewport = ref({ w: 960, h: 640 });
-const { generateAndSave, generating: exporting } = useStlExport();
+const { generateAndSave, downloadTrail, generating: exporting } = useStlExport();
 
 function syncViewportToStore(): void {
   ui.previewViewport = { ...viewport.value };
@@ -181,6 +181,20 @@ async function onDownloadStl(): Promise<void> {
       <div v-if="config.gpx.imported" class="preview__top-actions">
         <button
           type="button"
+          class="preview__grid-btn"
+          :class="{ 'preview__grid-btn--active': ui.mapGridVisible }"
+          :aria-pressed="ui.mapGridVisible"
+          title="Toggle positioning grid"
+          @click="ui.mapGridVisible = !ui.mapGridVisible"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+          </svg>
+          Grid {{ ui.mapGridVisible ? 'on' : 'off' }}
+        </button>
+        <button
+          type="button"
           class="preview__reset-btn"
           aria-label="Reset map view"
           title="Reset map view"
@@ -216,6 +230,7 @@ async function onDownloadStl(): Promise<void> {
       :error="previewError"
       @opened="onTerrainModalOpened"
       @download="onDownloadStl"
+      @download-trail="downloadTrail"
     />
   </section>
 </template>
@@ -303,6 +318,7 @@ async function onDownloadStl(): Promise<void> {
   gap: 8px;
 }
 
+.preview__grid-btn,
 .preview__reset-btn {
   display: inline-flex;
   align-items: center;
@@ -321,6 +337,25 @@ async function onDownloadStl(): Promise<void> {
   transition:
     background 0.15s,
     box-shadow 0.15s;
+}
+
+.preview__grid-btn {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.preview__grid-btn--active {
+  border-color: var(--tp-text-accent);
+  color: var(--tp-text-accent);
+}
+
+.preview__grid-btn:focus-visible,
+.preview__reset-btn:focus-visible {
+  outline: 2px solid var(--tp-text-accent);
+  outline-offset: 3px;
 }
 
 .preview__reset-btn:hover {

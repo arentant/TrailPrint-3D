@@ -125,10 +125,18 @@ function extractMapCropForScheme(mapCrop: AppConfig["mapCrop"]): AppConfig["mapC
   };
 }
 
-function extractSchemePayload(cfg: AppConfig): ConfigSchemePayload {
+function extractSchemePayload(cfg: AppConfig, includeMapView = false): ConfigSchemePayload {
   const { openTopographyApiKey: _key, ...terrainRest } = cfg.terrain;
   return deepClone({
     mapCrop: extractMapCropForScheme(cfg.mapCrop),
+    ...(includeMapView ? {
+      mapView: {
+        mapCenterLat: cfg.mapCrop.mapCenterLat,
+        mapCenterLon: cfg.mapCrop.mapCenterLon,
+        mapZoom: cfg.mapCrop.mapZoom,
+        mapBearingDeg: cfg.mapCrop.mapBearingDeg,
+      },
+    } : {}),
     terrain: terrainRest,
     trail: cfg.trail,
     tray: cfg.tray,
@@ -151,7 +159,9 @@ function applySchemePayload(cfg: AppConfig, payload: ConfigSchemePayload): void 
   };
 
   const nextMap = extractMapCropForScheme(payload.mapCrop);
-  cfg.mapCrop = { ...nextMap, ...framing };
+  cfg.mapCrop = payload.mapView
+    ? { ...nextMap, ...deepClone(payload.mapView), mapPaneX: 0, mapPaneY: 0 }
+    : { ...nextMap, ...framing };
   cfg.terrain = {
     ...deepClone(payload.terrain),
     openTopographyApiKey: apiKey,
@@ -310,7 +320,7 @@ export const useConfigStore = defineStore("config", () => {
   }
 
   /** 将当前参数保存为命名方案（名称必须唯一） */
-  function saveScheme(name: string): ConfigScheme {
+  function saveScheme(name: string, includeMapView = false): ConfigScheme {
     const trimmed = name.trim();
     if (!trimmed) {
       throw new Error("Enter a preset name");
@@ -324,7 +334,7 @@ export const useConfigStore = defineStore("config", () => {
       name: trimmed,
       createdAt: now,
       updatedAt: now,
-      payload: extractSchemePayload(config.value),
+      payload: extractSchemePayload(config.value, includeMapView),
     };
     schemes.value = [scheme, ...schemes.value];
     persistSchemes(schemes.value);
@@ -344,7 +354,7 @@ export const useConfigStore = defineStore("config", () => {
   function updateScheme(id: string): ConfigScheme | null {
     const target = schemes.value.find((s) => s.id === id);
     if (!target) return null;
-    target.payload = extractSchemePayload(config.value);
+    target.payload = extractSchemePayload(config.value, !!target.payload.mapView);
     target.updatedAt = Date.now();
     schemes.value = [...schemes.value];
     persistSchemes(schemes.value);

@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConfigStore } from '@/stores/config'
+import { useUiStore } from '@/stores/ui'
 
 const open = defineModel<boolean>('open', { default: false })
 
@@ -10,12 +11,14 @@ const emit = defineEmits<{
 }>()
 
 const configStore = useConfigStore()
+const ui = useUiStore()
 const { schemes } = storeToRefs(configStore)
 
 const nameInput = ref('')
 const error = ref('')
 const inputEl = ref<HTMLInputElement | null>(null)
 const composing = ref(false)
+const includeMapView = ref(true)
 
 const trimmed = computed(() => nameInput.value.trim())
 
@@ -33,6 +36,7 @@ watch(open, async (v) => {
   nameInput.value = ''
   error.value = ''
   composing.value = false
+  includeMapView.value = true
   await nextTick()
   inputEl.value?.focus()
 })
@@ -72,7 +76,8 @@ function submit(): void {
     return
   }
   try {
-    const scheme = configStore.saveScheme(name)
+    ui.runPrepareExport()
+    const scheme = configStore.saveScheme(name, includeMapView.value)
     emit('saved', scheme.name)
     close()
   } catch (err) {
@@ -112,7 +117,7 @@ function onKeydown(e: KeyboardEvent): void {
             </button>
           </header>
           <p class="scheme-dialog__hint">
-            Save size, terrain, trail, tray, and other settings. Map framing, GPX data, and your API key are excluded.
+            Save size, terrain, trail, tray, and other settings. GPX data and your API key are excluded.
           </p>
           <label class="scheme-dialog__label" for="save-scheme-name">Preset name</label>
           <input
@@ -129,6 +134,13 @@ function onKeydown(e: KeyboardEvent): void {
             @keydown.enter.prevent="submit"
           />
           <p v-if="error" class="scheme-dialog__error">{{ error }}</p>
+          <label class="scheme-dialog__option">
+            <input v-model="includeMapView" type="checkbox" />
+            <span>Save map coordinates and framing</span>
+          </label>
+          <p class="scheme-dialog__option-hint">
+            Restore this location, zoom, and rotation when you apply the preset.
+          </p>
           <footer class="scheme-dialog__footer">
             <button type="button" class="scheme-dialog__btn scheme-dialog__btn--ghost" @click="close">
               Cancel
@@ -244,6 +256,28 @@ function onKeydown(e: KeyboardEvent): void {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+}
+
+.scheme-dialog__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.scheme-dialog__option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--tp-text-accent);
+}
+
+.scheme-dialog__option-hint {
+  margin: 6px 0 0 24px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--tp-text-secondary);
 }
 
 .scheme-dialog__btn {

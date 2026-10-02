@@ -22,7 +22,7 @@ import MoldKitSection from '@/components/sections/MoldKitSection.vue'
 
 const ui = useUiStore()
 const configStore = useConfigStore()
-const { generating, statusMessage, exportProgress, lastExportZipPath } = storeToRefs(ui)
+const { generating, statusMessage, exportProgress, lastExportPath } = storeToRefs(ui)
 const { schemes } = storeToRefs(configStore)
 
 function exportFileName(path: string): string {
@@ -31,7 +31,7 @@ function exportFileName(path: string): string {
 }
 
 async function revealLastExport(): Promise<void> {
-  const path = lastExportZipPath.value
+  const path = lastExportPath.value
   if (!path) return
   try {
     await ipcRevealExport(path)
@@ -155,7 +155,7 @@ function openPreviewModal(): void {
 
     <footer class="sidebar__footer">
       <div
-        v-if="lastExportZipPath && !generating"
+        v-if="lastExportPath && !generating"
         class="sidebar__export-done"
       >
         <button
@@ -165,8 +165,8 @@ function openPreviewModal(): void {
           @click="exportDoneOpen = !exportDoneOpen"
         >
           <span class="sidebar__export-label">Last export</span>
-          <span class="sidebar__export-path" :title="lastExportZipPath">
-            {{ exportFileName(lastExportZipPath) }}
+          <span class="sidebar__export-path" :title="lastExportPath">
+            {{ exportFileName(lastExportPath) }}
           </span>
           <svg
             class="sidebar__export-chevron"
@@ -183,7 +183,7 @@ function openPreviewModal(): void {
           </svg>
         </button>
         <div v-show="exportDoneOpen" class="sidebar__export-details">
-          <p class="sidebar__export-hint">{{ lastExportZipPath }}</p>
+          <p class="sidebar__export-hint">{{ lastExportPath }}</p>
           <button
             type="button"
             class="sidebar__reveal"

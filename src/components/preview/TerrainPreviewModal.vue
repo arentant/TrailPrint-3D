@@ -64,6 +64,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   opened: [];
   download: [];
+  downloadTrail: [];
 }>();
 
 const configStore = useConfigStore();
@@ -365,6 +366,14 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 @click="sprayPanelOpen = !sprayPanelOpen"
               >
                 Paint masks
+              </button>
+              <button
+                type="button"
+                class="terrain-modal__trail-download"
+                :disabled="!canDownload"
+                @click="emit('downloadTrail')"
+              >
+                Download trail STL
               </button>
               <button
                 type="button"
@@ -826,6 +835,32 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
+}
+
+.terrain-modal__trail-download {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--tp-border-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--tp-text-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.terrain-modal__trail-download:hover:not(:disabled) {
+  background: var(--tp-bg-input);
+}
+
+.terrain-modal__trail-download:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.terrain-modal__trail-download:focus-visible {
+  outline: 2px solid var(--tp-text-accent);
+  outline-offset: 3px;
 }
 
 .terrain-modal__download:hover:not(:disabled) {
