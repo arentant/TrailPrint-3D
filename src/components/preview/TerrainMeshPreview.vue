@@ -50,6 +50,13 @@ const containerRef = ref<HTMLDivElement | null>(null);
 const statusHint = ref<string | null>(null);
 const imageryLoading = ref(false);
 const sceneBuilding = ref(false);
+const dimensions = ref<{ terrain: string; withTray: string | null } | null>(null);
+
+function formatDimensions(size: THREE.Vector3): string {
+  return [size.x, size.y, size.z]
+    .map((value) => Number(value.toFixed(1)))
+    .join(" × ") + " mm";
+}
 
 function syncSceneLoading(): void {
   emit("scene-loading-change", sceneBuilding.value || imageryLoading.value);
@@ -297,6 +304,7 @@ async function rebuildScene(): Promise<void> {
   maskRoot.position.z = 0;
   overlayRoot.position.z = 0;
   statusHint.value = null;
+  dimensions.value = null;
 
   const r = props.result;
   if (!r?.heightPreview || !r.crop) {
@@ -415,6 +423,16 @@ async function rebuildScene(): Promise<void> {
   fitCameraToTerrain(camera, controls, ...fitTargets);
 
   if (token === rebuildToken) {
+    terrainRoot.updateWorldMatrix(true, true);
+    const terrainBounds = new THREE.Box3().setFromObject(terrainRoot);
+    const terrainSize = formatDimensions(terrainBounds.getSize(new THREE.Vector3()));
+    let withTray: string | null = null;
+    if (trayRoot.children.length > 0) {
+      trayRoot.updateWorldMatrix(true, true);
+      const assemblyBounds = terrainBounds.clone().expandByObject(trayRoot);
+      withTray = formatDimensions(assemblyBounds.getSize(new THREE.Vector3()));
+    }
+    dimensions.value = { terrain: terrainSize, withTray };
     reportScene("done", 1, "Preview ready");
     sceneBuilding.value = false;
     syncSceneLoading();
@@ -793,6 +811,21 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
   >
     <div ref="containerRef" class="terrain-preview__viewport" />
     <div
+      v-if="dimensions && !sceneBuilding && !imageryLoading && !generating && !error"
+      class="terrain-preview__dimensions"
+    >
+      <p class="terrain-preview__dimensions-title">Print dimensions</p>
+      <p class="terrain-preview__dimensions-hint">Width × depth × height</p>
+      <dl class="terrain-preview__dimensions-values">
+        <dt>Terrain</dt>
+        <dd>{{ dimensions.terrain }}</dd>
+        <template v-if="dimensions.withTray">
+          <dt>With tray</dt>
+          <dd>{{ dimensions.withTray }}</dd>
+        </template>
+      </dl>
+    </div>
+    <div
       v-if="!overlayLoading && imageryLoading"
       class="terrain-preview__badge terrain-preview__badge--load"
     >
@@ -866,6 +899,49 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+.terrain-preview__dimensions {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 3;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--tp-text-primary);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.terrain-preview__dimensions-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.terrain-preview__dimensions-hint {
+  margin: 3px 0 10px;
+  color: var(--tp-text-secondary);
+  font-size: 11px;
+}
+
+.terrain-preview__dimensions-values {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.terrain-preview__dimensions-values dt {
+  color: var(--tp-text-secondary);
+}
+
+.terrain-preview__dimensions-values dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .terrain-preview__badge {

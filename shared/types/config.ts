@@ -232,7 +232,7 @@ export function createDefaultConfig(): AppConfig {
     },
     mapCrop: {
       shape: "circle",
-      radiusMm: 80,
+      radiusMm: 60,
       lengthMm: 120,
       widthMm: 80,
       polygonSides: 6,
