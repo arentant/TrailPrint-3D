@@ -2,29 +2,27 @@ import { copyFile, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 import { dialog, shell, type BrowserWindow } from "electron";
-import { STL_FILE_NAMES, type ExportGenerateRequest, type ExportGenerateResponse } from "@shared/types/export";
+import type { ExportGenerateRequest, ExportGenerateResponse, ExportProgressCallback } from "@shared/types/export";
 import { IpcException } from "@shared/ipc/types";
 import { packZip } from "./zip-packager";
-import { generateModelFiles, defaultZipName, type ExportProgressCallback } from "./generate-model-files";
-export type { ExportProgressCallback } from "./generate-model-files";
+import { generateExportBundle } from "./generate-model-files";
+export type { ExportProgressCallback } from "@shared/types/export";
 
 export function revealExportZip(zipPath: string): void {
   if (!zipPath.trim()) throw new IpcException("INVALID_PATH", "Invalid file path");
   shell.showItemInFolder(zipPath);
 }
 
-export async function generateModelsZip(req: ExportGenerateRequest, onProgress: ExportProgressCallback, browserWindow?: BrowserWindow | null): Promise<ExportGenerateResponse> {
+export async function generateModelExport(req: ExportGenerateRequest, onProgress: ExportProgressCallback, browserWindow?: BrowserWindow | null): Promise<ExportGenerateResponse> {
   const started = Date.now();
-  const trailOnly = req.target === "trail";
   const workDir = await mkdtemp(join(tmpdir(), "trailprint-export-"));
   const zipTempPath = join(workDir, "bundle.zip");
   try {
-    const names = await generateModelFiles(req, onProgress, async (name, data) => {
-      if (basename(name) !== name || name.includes("\\")) throw new Error("Invalid export filename");
+    const { artifact, fileNames } = await generateExportBundle(req, onProgress, async (name, data) => {
       await writeFile(join(workDir, name), data);
     });
-    if (!trailOnly) {
-      const zipEntries = names.map((name) => ({ name, filePath: join(workDir, name) }));
+    if (artifact.kind === "zip") {
+      const zipEntries = fileNames.map((name) => ({ name, filePath: join(workDir, name) }));
       onProgress({
         phase: "zip",
         progress: 0.78,
@@ -40,11 +38,9 @@ export async function generateModelsZip(req: ExportGenerateRequest, onProgress: 
     });
 
     const saveOptions = {
-      title: trailOnly ? "Save trail STL" : "Save TrailPrint STL archive",
-      defaultPath: trailOnly ? STL_FILE_NAMES.trailLine : defaultZipName(),
-      filters: trailOnly
-        ? [{ name: "STL model", extensions: ["stl"] }]
-        : [{ name: "ZIP archive", extensions: ["zip"] }],
+      title: artifact.saveDialogTitle,
+      defaultPath: artifact.fileName,
+      filters: [{ name: `${artifact.extension.toUpperCase()} ${artifact.kind === "zip" ? "archive" : "model"}`, extensions: [artifact.extension] }],
     };
     const { canceled, filePath } = browserWindow
       ? await dialog.showSaveDialog(browserWindow, saveOptions)
@@ -62,9 +58,9 @@ export async function generateModelsZip(req: ExportGenerateRequest, onProgress: 
       };
     }
 
-    const extension = trailOnly ? ".stl" : ".zip";
+    const extension = `.${artifact.extension}`;
     const dest = filePath.toLowerCase().endsWith(extension) ? filePath : `${filePath}${extension}`;
-    await copyFile(trailOnly ? join(workDir, STL_FILE_NAMES.trailLine) : zipTempPath, dest);
+    await copyFile(artifact.kind === "file" ? join(workDir, artifact.fileName) : zipTempPath, dest);
 
     shell.showItemInFolder(dest);
 

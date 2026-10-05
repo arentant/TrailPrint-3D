@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto'
 import type { IpcError, TaskEnqueueRequest, TaskKind, TaskRecord, TaskStatus } from '@shared/ipc/types'
 import type { TerrainGenerateRequest } from '@shared/types/terrain'
 import { generateTerrainMain } from './terrain/terrain-main-service'
-import { generateModelsZip } from './export/export-service'
+import { generateModelExport } from './export/export-service'
 import type { AppConfig } from '@shared/types'
 
 type TaskHandler = (task: TaskRecord, payload?: Record<string, unknown>) => Promise<void>
@@ -48,7 +48,7 @@ const handlers: Partial<Record<TaskKind, TaskHandler>> = {
     if (!p?.config) {
       throw new Error('zip-pack requires payload.config')
     }
-    await generateModelsZip(
+    await generateModelExport(
       {
         config: p.config,
         viewportWidth: p.viewportWidth ?? 800,

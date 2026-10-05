@@ -2,11 +2,10 @@
 import { zipSync } from 'fflate'
 import { generateTerrainMain } from '../../electron/main/terrain/terrain-main-service'
 import { generateTrayBase } from '../../electron/main/tray/tray-service'
-import { generateModelFiles, defaultZipName } from '../../electron/main/export/generate-model-files'
+import { generateExportBundle } from '../../electron/main/export/generate-model-files'
 import { segmentSprayPaint } from '../../electron/main/spray-paint/segment-service'
 import { generateSprayMasks } from '../../electron/main/spray-paint/mask-generate-service'
 import { parseGpxXml } from '@shared/utils/gpx-parser'
-import { STL_FILE_NAMES } from '@shared/types/export'
 import { IpcException } from '@shared/ipc/types'
 import type { BrowserExport, ProgressEvent, WorkerReply, WorkerRequest } from './protocol'
 
@@ -32,17 +31,15 @@ async function execute(task: WorkerRequest): Promise<void> {
       case 'generateExport': {
         const started = Date.now()
         const files: Record<string, Uint8Array> = Object.create(null)
-        await generateModelFiles(task.request, progress('export'), (name, data) => {
-          if (name.includes('/') || name.includes('\\')) throw new Error('Invalid export filename')
+        const { artifact } = await generateExportBundle(task.request, progress('export'), (name, data) => {
           files[name] = data
         })
-        const trailOnly = task.request.target === 'trail'
-        if (!trailOnly) progress('export')({ phase: 'zip', progress: 0.9, message: 'Creating ZIP download…' })
-        const data = trailOnly ? files[STL_FILE_NAMES.trailLine]! : zipSync(files, { level: 6 })
+        if (artifact.kind === 'zip') progress('export')({ phase: 'zip', progress: 0.9, message: 'Creating ZIP download…' })
+        const data = artifact.kind === 'file' ? files[artifact.fileName]! : zipSync(files, { level: 6 })
         result = {
           data,
-          fileName: trailOnly ? STL_FILE_NAMES.trailLine : defaultZipName(),
-          mimeType: trailOnly ? 'model/stl' : 'application/zip',
+          fileName: artifact.fileName,
+          mimeType: artifact.mimeType,
           cancelled: false,
           generationMs: Date.now() - started,
         } satisfies BrowserExport

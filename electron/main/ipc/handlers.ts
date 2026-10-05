@@ -28,7 +28,7 @@ import type {
   ExportGenerateResponse
 } from '@shared/types/export'
 import { generateTrayBase } from '../tray/tray-service'
-import { generateModelsZip, revealExportZip } from '../export/export-service'
+import { generateModelExport, revealExportZip } from '../export/export-service'
 import { segmentSprayPaint } from '../spray-paint/segment-service'
 import { generateSprayMasks } from '../spray-paint/mask-generate-service'
 import type {
@@ -154,7 +154,7 @@ export function registerIpcHandlers(): void {
           throw new IpcException('INVALID_REQUEST', 'A configuration snapshot is required')
         }
         const win = BrowserWindow.fromWebContents(event.sender)
-        return await generateModelsZip(
+        return await generateModelExport(
           req,
           (progress) => {
             event.sender.send(IpcChannels.EXPORT_PROGRESS, progress)

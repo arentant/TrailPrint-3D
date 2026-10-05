@@ -186,9 +186,13 @@ export interface MoldKitConfig {
 
 // ─── 应用全局配置 ───────────────────────────────────────────────────────
 
-export interface AppConfig {
-  gpx: GpxState;
+/** Settings shared by map-based model flows. No GPX or terrain requirements. */
+export interface MapModelConfig {
   mapCrop: MapCropConfig;
+}
+
+export interface MountainTrailConfig extends MapModelConfig {
+  gpx: GpxState;
   terrain: TerrainConfig;
   trail: TrailConfig;
   tray: TrayConfig;
@@ -196,6 +200,9 @@ export interface AppConfig {
   sprayPaint: SprayPaintConfig;
   moldKit: MoldKitConfig;
 }
+
+/** Compatibility name for the existing mountain workspace and saved presets. */
+export type AppConfig = MountainTrailConfig;
 
 /**
  * 可持久化的参数方案切片。

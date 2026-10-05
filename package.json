@@ -17,6 +17,7 @@
     "build:web": "vite build --config vite.web.config.ts",
     "preview:web": "vite preview --config vite.web.config.ts",
     "test:web": "playwright test",
+    "test:export": "node --test tests/export/*.test.mjs",
     "test:api": "node --test tests/runtime/*.test.mjs"
   },
   "dependencies": {

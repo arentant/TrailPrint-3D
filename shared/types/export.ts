@@ -1,4 +1,4 @@
-import type { AppConfig } from "./config.js";
+import type { MapModelConfig, MountainTrailConfig } from "./config.js";
 import type { SprayPaintPlan } from "./spray-paint.js";
 
 export const STL_FILE_NAMES = {
@@ -12,6 +12,7 @@ export const STL_FILE_NAMES = {
 
 export type ExportPhase =
   | "validate"
+  | "model"
   | "terrain"
   | "tray"
   | "stl"
@@ -22,14 +23,50 @@ export type ExportPhase =
 
 export type ExportTarget = "all" | "trail";
 
-export interface ExportGenerateRequest {
-  config: AppConfig;
+export interface MapModelExportRequest<Config extends MapModelConfig> {
+  config: Config;
   viewportWidth: number;
   viewportHeight: number;
+}
+
+export interface MountainTrailExportRequest extends MapModelExportRequest<MountainTrailConfig> {
+  /** Omitted by older callers; resolves to the mountain trail flow. */
+  flow?: "mountain-trail";
   /** Defaults to the complete ZIP; trail downloads a standalone STL. */
   target?: ExportTarget;
   /** 预览已分色时传入，避免导出时重复分色 */
   sprayPaintPlan?: SprayPaintPlan | null;
+}
+
+/** Add each implemented flow's request here to extend IPC and worker typing. */
+export interface ExportRequestMap {
+  "mountain-trail": MountainTrailExportRequest;
+}
+
+export type ModelFlowId = keyof ExportRequestMap;
+export const DEFAULT_MODEL_FLOW: ModelFlowId = "mountain-trail";
+export type ExportGenerateRequest = ExportRequestMap[ModelFlowId];
+
+export type ExportProgressCallback = (progress: ExportProgress) => void;
+export type ExportFileSink = (name: string, data: Uint8Array) => Promise<void> | void;
+
+/** Delivery metadata belongs to a flow, not to a browser or desktop adapter. */
+export interface ExportArtifact {
+  kind: "file" | "zip";
+  fileName: string;
+  extension: string;
+  mimeType: string;
+  saveDialogTitle: string;
+}
+
+export interface ExportBundle {
+  artifact: ExportArtifact;
+  fileNames: string[];
+}
+
+export interface ModelExportFlow<Request> {
+  describeArtifact(request: Request): ExportArtifact;
+  generateFiles(request: Request, onProgress: ExportProgressCallback, onFile: ExportFileSink): Promise<void>;
 }
 
 export interface ExportProgress {
