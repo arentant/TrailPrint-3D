@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TrailPrint fixture" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>City fixture run</name>
+<trkseg>
+<trkpt lat="40.17640676" lon="44.50529693"></trkpt>
+<trkpt lat="40.18359324" lon="44.51470307"></trkpt>
+<trkpt lat="40.18359324" lon="44.50529693"></trkpt>
+<trkpt lat="40.17640676" lon="44.51470307"></trkpt>
+</trkseg>
+<trkseg>
+<trkpt lat="40.17910169" lon="44.50858908"></trkpt>
+<trkpt lat="40.17910169" lon="44.50905939"></trkpt>
+<trkpt lat="40.17946101" lon="44.50905939"></trkpt>
+<trkpt lat="40.17946101" lon="44.50858908"></trkpt>
+<trkpt lat="40.17910169" lon="44.50858908"></trkpt>
+</trkseg>
+</trk></gpx>

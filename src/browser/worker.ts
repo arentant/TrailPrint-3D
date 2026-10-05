@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { generateCityModel } from '../../electron/main/city/city-model-service'
 import { zipSync } from 'fflate'
 import { generateTerrainMain } from '../../electron/main/terrain/terrain-main-service'
 import { generateTrayBase } from '../../electron/main/tray/tray-service'
@@ -21,9 +22,10 @@ async function execute(task: WorkerRequest): Promise<void> {
         const xml = task.request.content
         if (!xml) throw new Error('Select a GPX file from your device')
         if (new TextEncoder().encode(xml).length > 10 * 1024 * 1024) throw new Error('Choose a GPX file smaller than 10 MB')
-        result = { result: parseGpxXml(xml, task.request.fileName) }
+        result = { result: { ...parseGpxXml(xml, task.request.fileName), importId: task.request.importId ?? crypto.randomUUID() } }
         break
       }
+      case 'generateCityModel': result = await generateCityModel(task.request, progress('city')); break
       case 'generateTerrain': result = await generateTerrainMain(task.request, progress('terrain')); break
       case 'generateTray': result = await generateTrayBase(task.request); break
       case 'segmentSprayPaint': result = await segmentSprayPaint(task.request, progress('spray')); break

@@ -15,6 +15,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
       :key="opt.value"
       type="button"
       class="segmented__item"
+      :aria-pressed="modelValue === opt.value"
       :class="{
         'segmented__item--active': modelValue === opt.value,
         'segmented__item--dark': darkActive && modelValue === opt.value

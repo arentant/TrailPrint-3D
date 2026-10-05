@@ -149,3 +149,22 @@ between shared TypeScript modules. Vite accepts extensionless imports locally,
 but deployed Node functions do not. `tsconfig.api.json` checks Node's resolution
 rules, and `test:api` compiles and starts the endpoint in plain Node to catch
 deployment-only module-loading failures.
+
+## City map provider
+
+City uses the authenticated `/api/city` endpoint. The request contains crop bounds
+and building/road layer switches; it does not contain GPX tracks, API keys or
+meshes. The endpoint queries Overpass, caches successful map responses in bounded
+server memory and returns compressed OSM JSON for local conversion and solid
+model generation. Responses remain `private, no-store`.
+
+Optionally configure the server-only `CITY_OVERPASS_URL` to an Overpass interpreter
+endpoint operated for your deployment. The default is
+`https://overpass-api.de/api/interpreter`. The local Vite API and Electron main
+process also read this setting. Do not use a `VITE_` prefix or let clients choose
+the provider URL. `/api/city` has a 120-second function budget in `vercel.json`.
+
+City Flat mode needs no elevation key and does not request elevation. Real terrain
+uses the existing `/api/elevation` endpoint and persisted user key. City generation
+bounds downloads and solid operations, including a 512 × 512 DEM grid limit.
+See [model export flows](model-export-flows.md) for defaults, limits and print notes.

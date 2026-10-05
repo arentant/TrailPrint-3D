@@ -1,3 +1,5 @@
+import { generateCityModel } from '../city/city-model-service'
+import type { CityGenerateRequest } from '@shared/types/city'
 import { BrowserWindow, ipcMain } from 'electron'
 import { IpcChannels } from '@shared/ipc/channels'
 import { IpcException, type IpcError } from '@shared/ipc/types'
@@ -56,6 +58,10 @@ function wrapHandler<Req, Res>(fn: (req: Req) => Res | Promise<Res>) {
 }
 
 export function registerIpcHandlers(): void {
+  ipcMain.handle(IpcChannels.CITY_GENERATE, async (event, req: CityGenerateRequest) => {
+    try { return await generateCityModel(req, (p) => { if (!event.sender.isDestroyed()) event.sender.send(IpcChannels.CITY_PROGRESS, p) }) }
+    catch (error) { throw new Error(error instanceof Error ? error.message : String(error)) }
+  })
   ipcMain.handle(
     IpcChannels.APP_PING,
     wrapHandler((req: PingRequest = {}): PingResponse => {

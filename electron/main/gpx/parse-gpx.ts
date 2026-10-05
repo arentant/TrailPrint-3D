@@ -19,5 +19,5 @@ export async function parseGpxFile(req: GpxParseRequest): Promise<GpxImportResul
     throw new IpcException('INVALID_REQUEST', 'A file path or file content is required')
   }
 
-  return parseGpxXml(xml, fileName)
+  return { ...parseGpxXml(xml, fileName), importId: req.importId ?? crypto.randomUUID() }
 }

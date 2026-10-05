@@ -275,6 +275,8 @@ export const useConfigStore = defineStore("config", () => {
     const raw = clonePoints(result.points);
     config.value.gpx = {
       imported: true,
+      importId: result.importId,
+      segments: result.segments,
       fileName,
       filePath,
       trackName: result.trackName,

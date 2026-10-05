@@ -5,6 +5,8 @@
  */
 export const IpcChannels = {
   /** 健康检查 / 示例调用 */
+  CITY_GENERATE: 'city:generate',
+  CITY_PROGRESS: 'city:progress',
   APP_PING: 'app:ping',
   /** 将重度计算任务提交到主进程队列 */
   TASK_ENQUEUE: 'task:enqueue',

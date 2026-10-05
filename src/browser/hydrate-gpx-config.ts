@@ -1,9 +1,7 @@
-import type { AppConfig } from '@shared/types'
-import { resolveTrailPoints } from '@shared/utils/trail-resolve'
-
-export async function hydrateGpxConfig(config: AppConfig): Promise<AppConfig> {
-  if (config.gpx.imported && resolveTrailPoints(config).length < 2) {
-    throw new Error('Import your GPX file again to restore its track points')
+import type { GpxState } from '@shared/types';
+export async function hydrateGpxConfig<T extends { gpx: GpxState }>(config: T): Promise<T> {
+  if (config.gpx.imported && (config.gpx.rawPoints?.length ?? config.gpx.points?.length ?? 0) < 2) {
+    throw new Error('Import your GPX file again to restore its track points');
   }
-  return config
+  return config;
 }

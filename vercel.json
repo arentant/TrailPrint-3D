@@ -8,7 +8,8 @@
     { "source": "/api/auth/:path*", "destination": "/api/auth?authPath=:path*" }
   ],
   "functions": {
-    "api/elevation.ts": { "maxDuration": 300 }
+    "api/elevation.ts": { "maxDuration": 300 },
+    "api/city.ts": { "maxDuration": 120 }
   },
   "headers": [
     { "source": "/(.*)", "headers": [

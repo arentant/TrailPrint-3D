@@ -1,7 +1,9 @@
 import type { MapModelConfig, MountainTrailConfig } from "./config.js";
 import type { SprayPaintPlan } from "./spray-paint.js";
+import type { CityMapConfig } from "./city.js";
 
 export const STL_FILE_NAMES = {
+  cityMain: "City_Main.stl",
   terrainMain: "Terrain_Main.stl",
   trailLine: "Trail_Line.stl",
   trayBase: "Tray_Base.stl",
@@ -41,6 +43,11 @@ export interface MountainTrailExportRequest extends MapModelExportRequest<Mounta
 /** Add each implemented flow's request here to extend IPC and worker typing. */
 export interface ExportRequestMap {
   "mountain-trail": MountainTrailExportRequest;
+  "city-map": CityMapExportRequest;
+}
+
+export interface CityMapExportRequest extends MapModelExportRequest<CityMapConfig> {
+  flow: "city-map";
 }
 
 export type ModelFlowId = keyof ExportRequestMap;

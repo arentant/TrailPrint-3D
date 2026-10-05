@@ -1,16 +1,13 @@
-import type { GpxImportResult } from "@shared/types/gpx";
-
-/** 主进程最近一次 GPX 解析结果（避免 IPC 丢失轨迹点数组） */
-let lastParse: GpxImportResult | null = null;
-
+import type { GpxImportResult } from '@shared/types/gpx';
+const imports = new Map<string, GpxImportResult>();
+/** Bound memory while retaining separate Mountain and City imports. */
 export function setGpxSessionCache(result: GpxImportResult): void {
-  lastParse = result;
+  if (!result.importId) return;
+  imports.delete(result.importId);
+  imports.set(result.importId, result);
+  while (imports.size > 8) imports.delete(imports.keys().next().value!);
 }
-
-export function getGpxSessionCache(): GpxImportResult | null {
-  return lastParse;
+export function getGpxSessionCache(importId?: string): GpxImportResult | null {
+  return importId ? imports.get(importId) ?? null : null;
 }
-
-export function clearGpxSessionCache(): void {
-  lastParse = null;
-}
+export function clearGpxSessionCache(): void { imports.clear(); }

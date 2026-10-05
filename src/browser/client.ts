@@ -98,6 +98,8 @@ export function createBrowserApi(): TrailPrintApi & { runtime: 'browser' } {
       }
       return invoke('parseGpx', request)
     },
+    generateCityModel: (request) => invoke('generateCityModel', request),
+    onCityProgress: (callback) => onProgress('city', callback),
     generateTerrain: (request) => invoke('generateTerrain', request),
     generateTray: (request) => invoke('generateTray', request),
     segmentSprayPaint: (request) => invoke('segmentSprayPaint', request),
@@ -110,6 +112,7 @@ export function createBrowserApi(): TrailPrintApi & { runtime: 'browser' } {
       triggerDownload()
       return { savedPath: result.fileName, cancelled: false, generationMs: result.generationMs }
     },
+    clearExportDownload: () => { if (download) URL.revokeObjectURL(download.url); download = undefined },
     revealExport: async () => { triggerDownload(); return { ok: true } },
     onTerrainProgress: (callback) => onProgress('terrain', callback),
     onExportProgress: (callback) => onProgress('export', callback),

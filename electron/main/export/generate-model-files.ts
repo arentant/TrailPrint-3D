@@ -2,9 +2,12 @@ import { DEFAULT_MODEL_FLOW, type ExportGenerateRequest } from "@shared/types/ex
 import { createExportPipeline, type ExportFlowRegistry } from "@shared/export/export-pipeline";
 import { mountainTrailExportFlow } from "./mountain-trail-flow";
 
+import { cityMapExportFlow } from "./city-map-flow";
+
 /** Shared by Electron and the browser worker. Register new model flows here. */
 const exportFlows: ExportFlowRegistry<ExportGenerateRequest> = {
   "mountain-trail": mountainTrailExportFlow,
+  "city-map": cityMapExportFlow,
 };
 
 export const generateExportBundle = createExportPipeline<ExportGenerateRequest>(

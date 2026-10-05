@@ -137,6 +137,10 @@ export interface GpxBounds {
 
 export interface GpxState {
   imported: boolean;
+  /** Identity of this import, used to scope desktop hydration. */
+  importId?: string;
+  /** Original GPX segments. Never bridge gaps when generating a city route. */
+  segments?: GpxPoint[][];
   fileName?: string;
   /** 本机 GPX 路径（Electron 导入时有值，供主进程导出时重新读取） */
   filePath?: string;

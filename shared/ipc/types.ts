@@ -98,3 +98,5 @@ export type {
   SprayGenerateMasksResponse,
   SprayMaskMeshPayload
 } from '../types/spray-paint.js'
+
+export type { CityGenerateRequest, CityGenerateResponse, CityGenerateProgress } from '../types/city.js'

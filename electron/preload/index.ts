@@ -1,3 +1,4 @@
+import type { CityGenerateRequest, CityGenerateResponse, CityGenerateProgress } from '@shared/types/city'
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/ipc/channels'
 import type {
@@ -73,12 +74,19 @@ const api = {
     invoke<TaskStatusResponse>(IpcChannels.TASK_STATUS, req),
   parseGpx: (req: GpxParseRequest) =>
     invoke<GpxParseResponse>(IpcChannels.GPX_PARSE, req),
+  generateCityModel: (req: CityGenerateRequest) => invoke<CityGenerateResponse>(IpcChannels.CITY_GENERATE, req),
+  onCityProgress: (callback: (progress: CityGenerateProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: CityGenerateProgress) => callback(progress)
+    ipcRenderer.on(IpcChannels.CITY_PROGRESS, handler)
+    return () => { ipcRenderer.removeListener(IpcChannels.CITY_PROGRESS, handler) }
+  },
   generateTerrain: (req: TerrainGenerateRequest) =>
     invoke<TerrainGenerateResponse>(IpcChannels.TERRAIN_GENERATE, req),
   generateTray: (req: TrayGenerateRequest) =>
     invoke<TrayGenerateResponse>(IpcChannels.TRAY_GENERATE, req),
   generateExport: (req: ExportGenerateRequest) =>
     invoke<ExportGenerateResponse>(IpcChannels.EXPORT_GENERATE, req),
+  clearExportDownload: (): void => {},
   revealExport: (zipPath: string) =>
     invoke<{ ok: true }>(IpcChannels.EXPORT_REVEAL, zipPath),
   segmentSprayPaint: (req: SpraySegmentRequest) =>

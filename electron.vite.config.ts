@@ -1,4 +1,5 @@
 import { resolve } from 'path'
+import { readFileSync } from 'node:fs'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 
@@ -8,7 +9,10 @@ const sharedAlias = {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin(), {
+      name: 'city-manifold-wasm',
+      generateBundle() { this.emitFile({ type: 'asset', fileName: 'manifold.wasm', source: readFileSync(resolve('node_modules/manifold-3d/manifold.wasm')) }); }
+    }],
     build: {
       lib: {
         entry: resolve(__dirname, 'electron/main/index.ts')

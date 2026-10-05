@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 import { useConfigStore } from '@/stores/config'
 import { useUiStore } from '@/stores/ui'
 import { formatIpcError, ipcParseGpx } from '@/ipc/client'
@@ -10,6 +10,8 @@ export function useGpxImport() {
   const configStore = useConfigStore()
   const ui = useUiStore()
   const importing = ref(false)
+  let disposed = false
+  onScopeDispose(() => { disposed = true })
 
   async function importFromFile(file: File): Promise<boolean> {
     if (!file.name.toLowerCase().endsWith('.gpx')) {
@@ -25,11 +27,13 @@ export function useGpxImport() {
     try {
       const req = await buildParseRequest(file)
       const { result } = await ipcParseGpx(req)
+      if (disposed) return false
       configStore.applyGpxImport(result, file.name, (file as ElectronFile).path)
       ui.requestGpxMapFit()
       ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown in red on the satellite map`
       return true
     } catch (err) {
+      if (disposed) return false
       const msg = formatIpcError(err)
       configStore.setGpxImportError(msg)
       ui.statusMessage = msg
@@ -44,11 +48,13 @@ export function useGpxImport() {
     ui.statusMessage = 'Reading GPX…'
     try {
       const { result } = await ipcParseGpx({ filePath, fileName })
+      if (disposed) return false
       configStore.applyGpxImport(result, fileName, filePath)
       ui.requestGpxMapFit()
       ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown in red on the satellite map`
       return true
     } catch (err) {
+      if (disposed) return false
       const msg = formatIpcError(err)
       configStore.setGpxImportError(msg)
       ui.statusMessage = msg
