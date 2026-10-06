@@ -9,6 +9,7 @@ import { computeTrayFootprint } from '@shared/utils/tray-footprint'
 import AccordionSection from '@/components/ui/AccordionSection.vue'
 import IosToggle from '@/components/ui/IosToggle.vue'
 import NumberField from '@/components/ui/NumberField.vue'
+import SettingLabel from '@/components/ui/SettingLabel.vue'
 
 const configStore = useConfigStore()
 const ui = useUiStore()
@@ -55,6 +56,7 @@ const assemblyError = computed(() => {
       <NumberField
         v-model="config.assembly.trailToleranceMm"
         label="Trail groove clearance"
+        help="trailClearance"
         suffix="mm"
         :min="0"
         :max="1"
@@ -63,6 +65,7 @@ const assemblyError = computed(() => {
       <NumberField
         v-model="config.assembly.trayToleranceMm"
         label="Base recess clearance"
+        help="trayClearance"
         suffix="mm"
         :min="0"
         :max="1"
@@ -71,8 +74,8 @@ const assemblyError = computed(() => {
     </div>
 
     <div class="toggle-row">
-      <span>Underside magnet holes</span>
-      <IosToggle v-model="config.assembly.magnet.enabled" />
+      <SettingLabel label="Underside magnet holes" guide="magnets" />
+      <IosToggle v-model="config.assembly.magnet.enabled" aria-label="Underside magnet holes" />
     </div>
 
     <template v-if="config.assembly.magnet.enabled">
@@ -83,6 +86,7 @@ const assemblyError = computed(() => {
         <NumberField
           v-model="config.assembly.magnet.diameterMm"
           label="Magnet diameter"
+          help="magnetDiameter"
           suffix="mm"
           :min="2"
           :max="20"
@@ -91,6 +95,7 @@ const assemblyError = computed(() => {
         <NumberField
           v-model="config.assembly.magnet.thicknessMm"
           label="Magnet thickness"
+          help="magnetThickness"
           suffix="mm"
           :min="0.5"
           :max="10"
@@ -100,6 +105,7 @@ const assemblyError = computed(() => {
       <NumberField
         v-model="config.assembly.magnet.toleranceMm"
         label="Magnet hole clearance"
+        help="magnetClearance"
         suffix="mm"
         :min="0"
         :max="0.5"
@@ -109,6 +115,7 @@ const assemblyError = computed(() => {
         v-if="showCircleMagnetCount"
         v-model="config.assembly.magnet.circleCount"
         label="Magnet hole count"
+        help="magnetCount"
         :min="2"
         :max="12"
         :step="1"

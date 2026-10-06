@@ -7,6 +7,7 @@ import { validateTraySection } from "@shared/utils/model-validation";
 import AccordionSection from "@/components/ui/AccordionSection.vue";
 import NumberField from "@/components/ui/NumberField.vue";
 import IosToggle from "@/components/ui/IosToggle.vue";
+import SettingLabel from "@/components/ui/SettingLabel.vue";
 
 const configStore = useConfigStore();
 const ui = useUiStore();
@@ -31,6 +32,7 @@ const trayError = computed(() => {
     <NumberField
       v-model="config.tray.totalThicknessMm"
       label="Total thickness"
+      help="trayThickness"
       suffix="mm"
       :min="1"
       :max="50"
@@ -39,6 +41,7 @@ const trayError = computed(() => {
     <NumberField
       v-model="config.tray.recessDepthMm"
       label="Recess depth"
+      help="recess"
       suffix="mm"
       :min="0"
       :max="49"
@@ -47,6 +50,7 @@ const trayError = computed(() => {
     <NumberField
       v-model="config.tray.rimWidthMm"
       label="Rim width"
+      help="rim"
       suffix="mm"
       :min="1"
       :max="30"
@@ -56,10 +60,10 @@ const trayError = computed(() => {
     <div class="subsection">
       <div class="toggle-row">
         <div class="toggle-copy">
-          <span class="toggle-label">NFC & LED indicators</span>
+          <SettingLabel class="toggle-label" label="NFC & LED indicators" guide="nfc" />
           <span class="toggle-desc">Add recesses for an NFC chip and LED indicators</span>
         </div>
-        <IosToggle v-model="config.tray.nfc.enabled" />
+        <IosToggle v-model="config.tray.nfc.enabled" aria-label="NFC & LED indicators" />
       </div>
 
       <template v-if="config.tray.nfc.enabled">
@@ -70,6 +74,7 @@ const trayError = computed(() => {
         <NumberField
           v-model="config.tray.nfc.wallClearanceMm"
           label="Inset from print edge"
+          help="nfcInset"
           suffix="mm"
           :min="0"
           :max="10"
@@ -81,6 +86,7 @@ const trayError = computed(() => {
         <NumberField
           v-model="config.tray.nfc.recessDepthMm"
           label="NFC recess depth"
+          help="nfcDepth"
           suffix="mm"
           :min="0.1"
           :max="5"
@@ -96,6 +102,7 @@ const trayError = computed(() => {
           <NumberField
             v-model="config.tray.nfc.ledPocketLengthMm"
             label="LED pocket length"
+            help="ledLength"
             suffix="mm"
             :min="0.5"
             :max="20"
@@ -104,6 +111,7 @@ const trayError = computed(() => {
           <NumberField
             v-model="config.tray.nfc.ledPocketWidthMm"
             label="LED pocket width"
+            help="ledWidth"
             suffix="mm"
             :min="0.5"
             :max="20"
@@ -116,6 +124,7 @@ const trayError = computed(() => {
         <NumberField
           v-model="config.tray.nfc.ledExtraRecessDepthMm"
           label="Extra LED depth"
+          help="ledDepth"
           suffix="mm"
           :min="0"
           :max="3"
@@ -132,6 +141,7 @@ const trayError = computed(() => {
         <NumberField
           v-model="config.tray.nfc.coverThicknessMm"
           label="Cover thickness"
+          help="coverThickness"
           suffix="mm"
           :min="0.1"
           :max="3"
@@ -143,6 +153,7 @@ const trayError = computed(() => {
         <NumberField
           v-model="config.tray.nfc.coverInsetMm"
           label="Cover inset"
+          help="coverInset"
           suffix="mm"
           :min="0"
           :max="5"

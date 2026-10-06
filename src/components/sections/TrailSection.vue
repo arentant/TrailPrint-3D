@@ -6,6 +6,7 @@ import { useUiStore } from '@/stores/ui'
 import AccordionSection from '@/components/ui/AccordionSection.vue'
 import IosToggle from '@/components/ui/IosToggle.vue'
 import NumberField from '@/components/ui/NumberField.vue'
+import SettingLabel from '@/components/ui/SettingLabel.vue'
 import { useStlExport } from '@/composables/useStlExport'
 
 const configStore = useConfigStore()
@@ -36,13 +37,14 @@ const trailHeightAboveMain = computed({
     @toggle="ui.toggleSection('trail')"
   >
     <div class="toggle-row">
-      <span>Reduce noise and smooth the trail</span>
-      <IosToggle v-model="config.trail.gpxSimplify" />
+      <SettingLabel label="Reduce noise and smooth the trail" guide="simplify" />
+      <IosToggle v-model="config.trail.gpxSimplify" aria-label="Reduce noise and smooth the trail" />
     </div>
     <div class="row">
       <NumberField
         v-model="config.trail.trailWidthMm"
         label="Trail width"
+        help="trailWidth"
         suffix="mm"
         :min="0.5"
          :max="20"
@@ -51,6 +53,7 @@ const trailHeightAboveMain = computed({
       <NumberField
         v-model="config.trail.trailDepthMm"
         label="Trail depth"
+        help="trailDepth"
         suffix="mm"
         :min="0.1"
         :max="10"
@@ -60,6 +63,7 @@ const trailHeightAboveMain = computed({
     <NumberField
       v-model="trailHeightAboveMain"
       label="Height above terrain"
+      help="trailHeight"
       suffix="mm"
       :min="0"
       :max="3"

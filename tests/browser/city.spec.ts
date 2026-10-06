@@ -25,6 +25,13 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   const downloadButton=page.getByRole('button',{name:'Download City ZIP'});
   await expect(downloadButton).toBeEnabled({timeout:60000});
   await expect(page.locator('.city-mesh canvas')).toBeVisible();
+  const previewDialog = page.getByRole('dialog', { name: 'Your city run, in 3D' });
+  await previewDialog.locator('[data-setting-guide="routeClearance"] button').click();
+  await expect(page.getByRole('tooltip')).toContainText('Groove width = route width + 2 × clearance.');
+  await page.screenshot({ path: 'test-results/settings-guide-city-preview.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await expect(previewDialog).toBeVisible();
   await page.screenshot({path:'test-results/city-preview.png',fullPage:true});
   const event=page.waitForEvent('download'); await downloadButton.click(); const download=await event;
   expect(download.suggestedFilename()).toMatch(/^TrailPrint-City-.*\.zip$/);

@@ -19,7 +19,8 @@ import AccordionSection from "@/components/ui/AccordionSection.vue";
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 import NumberField from "@/components/ui/NumberField.vue";
 import RangeSlider from "@/components/ui/RangeSlider.vue";
-import InfoTooltip from "@/components/ui/InfoTooltip.vue";
+import SettingHelp from "@/components/ui/SettingHelp.vue";
+import SettingLabel from "@/components/ui/SettingLabel.vue";
 
 const demTooltipText = openTopoDemTooltipText();
 
@@ -110,6 +111,7 @@ const demHint = computed(() => {
     <NumberField
       v-model="config.terrain.baseSolidThicknessMm"
       label="Base thickness"
+      help="base"
       suffix="mm"
       :min="0.5"
       :max="20"
@@ -118,13 +120,14 @@ const demHint = computed(() => {
     <RangeSlider
       v-model="config.terrain.zExaggeration"
       label="Elevation scale"
+      help="elevation"
       :min="1"
       :max="5"
       :step="0.1"
       :format="(v) => `${v.toFixed(1)}x`"
     />
     <div class="field-group">
-      <span class="field-group__label">Mesh quality</span>
+      <SettingLabel class="field-group__label" label="Mesh quality" guide="quality" />
       <SegmentedControl
         v-model="config.terrain.meshQuality"
         :options="meshQualityOptions"
@@ -133,6 +136,7 @@ const demHint = computed(() => {
         v-if="isCustomMeshQuality"
         v-model="customMaxGrid"
         label="DEM grid limit per side"
+        help="grid"
         :min="CUSTOM_MESH_GRID_MIN"
         :max="CUSTOM_MESH_GRID_MAX"
         :step="32"
@@ -142,7 +146,7 @@ const demHint = computed(() => {
       <p class="field-hint">{{ meshQualityPerfHint }}</p>
     </div>
     <div class="field-group">
-      <span class="field-group__label">Terrain smoothing</span>
+      <SettingLabel class="field-group__label" label="Terrain smoothing" guide="smoothing" />
       <SegmentedControl
         v-model="config.terrain.smoothing"
         :options="smoothingOptions"
@@ -154,7 +158,7 @@ const demHint = computed(() => {
         <label class="field-group__label" for="dem-dataset"
           >DEM source (OpenTopography)</label
         >
-        <InfoTooltip aria-label="About DEM sources" :content="demTooltipText" />
+        <SettingHelp guide="dataset" :content="demTooltipText" />
       </div>
       <select
         id="dem-dataset"

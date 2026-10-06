@@ -10,6 +10,7 @@ import { useTrayGeneration } from "@/composables/useTrayGeneration";
 import { validateModelGeneration } from "@shared/utils/model-validation";
 import MapLeafletView from "@/components/map/MapLeafletView.vue";
 import TerrainPreviewModal from "@/components/preview/TerrainPreviewModal.vue";
+import SettingHelp from "@/components/ui/SettingHelp.vue";
 
 const ui = useUiStore();
 const configStore = useConfigStore();
@@ -193,6 +194,7 @@ async function onDownloadStl(): Promise<void> {
           </svg>
           Grid {{ ui.mapGridVisible ? 'on' : 'off' }}
         </button>
+        <SettingHelp guide="positioning" />
         <button
           type="button"
           class="preview__reset-btn"

@@ -5,6 +5,7 @@ import { useUiStore } from "@/stores/ui";
 import AccordionSection from "@/components/ui/AccordionSection.vue";
 import IosToggle from "@/components/ui/IosToggle.vue";
 import NumberField from "@/components/ui/NumberField.vue";
+import SettingLabel from "@/components/ui/SettingLabel.vue";
 
 const configStore = useConfigStore();
 const ui = useUiStore();
@@ -25,8 +26,8 @@ const { openSections } = storeToRefs(ui);
     </p>
 
     <div class="toggle-row">
-      <span>Enable paint masks</span>
-      <IosToggle v-model="config.sprayPaint.enabled" />
+      <SettingLabel label="Enable paint masks" guide="paintMasks" />
+      <IosToggle v-model="config.sprayPaint.enabled" aria-label="Enable paint masks" />
     </div>
 
     <template v-if="config.sprayPaint.enabled">
@@ -35,6 +36,7 @@ const { openSections } = storeToRefs(ui);
         <NumberField
           v-model="config.sprayPaint.maskShellThicknessMm"
           label="Mask thickness"
+          help="maskThickness"
           suffix="mm"
           :min="0.4"
           :max="3"
@@ -43,6 +45,7 @@ const { openSections } = storeToRefs(ui);
         <NumberField
           v-model="config.sprayPaint.maskFitToleranceMm"
           label="Fit clearance"
+          help="maskClearance"
           suffix="mm"
           :min="0"
           :max="1"
@@ -52,6 +55,7 @@ const { openSections } = storeToRefs(ui);
       <NumberField
         v-model="config.sprayPaint.bleedMarginMm"
         label="Edge overlap"
+        help="overlap"
         suffix="mm"
         :min="0"
         :max="2"

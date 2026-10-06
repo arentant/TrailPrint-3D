@@ -1,23 +1,29 @@
 <script setup lang="ts">
-defineProps<{ modelValue: boolean; label: string; disabled?: boolean }>()
+import SettingHelp from './SettingHelp.vue'
+import type { SettingGuideId } from './setting-guides'
+defineProps<{ modelValue: boolean; label: string; disabled?: boolean; help?: SettingGuideId }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 </script>
 
 <template>
-  <label class="checkbox" :class="{ 'checkbox--disabled': disabled }">
-    <input
-      type="checkbox"
-      class="checkbox__input"
-      :checked="modelValue"
-      :disabled="disabled"
-      @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
-    />
-    <span class="checkbox__box" />
-    <span class="checkbox__label">{{ label }}</span>
-  </label>
+  <div class="checkbox-row">
+    <label class="checkbox" :class="{ 'checkbox--disabled': disabled }">
+      <input
+        type="checkbox"
+        class="checkbox__input"
+        :checked="modelValue"
+        :disabled="disabled"
+        @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
+      />
+      <span class="checkbox__box" />
+      <span class="checkbox__label">{{ label }}</span>
+    </label>
+    <SettingHelp v-if="help" :guide="help" />
+  </div>
 </template>
 
 <style scoped>
+.checkbox-row { display: flex; align-items: center; gap: 6px; }
 .checkbox {
   display: flex;
   align-items: center;
@@ -55,6 +61,8 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
   background: var(--tp-text-accent);
   border-color: var(--tp-text-accent);
 }
+
+.checkbox__input:focus-visible + .checkbox__box { outline: 2px solid var(--tp-text-accent); outline-offset: 2px; }
 
 .checkbox__input:checked + .checkbox__box::after {
   content: '';

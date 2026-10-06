@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
+import SettingHelp from './SettingHelp.vue'
+import type { SettingGuideId } from './setting-guides'
 
 const props = defineProps<{
   modelValue: number
@@ -8,7 +10,10 @@ const props = defineProps<{
   step?: number
   label?: string
   format?: (v: number) => string
+  help?: SettingGuideId
 }>()
+
+const inputId = `range-${useId()}`
 
 const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
 
@@ -26,10 +31,14 @@ function onInput(e: Event): void {
 <template>
   <div class="slider">
     <div class="slider__header">
-      <span v-if="label" class="slider__label">{{ label }}</span>
+      <span v-if="label" class="slider__label-row">
+        <label :for="inputId" class="slider__label">{{ label }}</label>
+        <SettingHelp v-if="help" :guide="help" />
+      </span>
       <span class="slider__value">{{ display }}</span>
     </div>
     <input
+      :id="inputId"
       type="range"
       class="slider__input"
       :value="modelValue"
@@ -58,6 +67,8 @@ function onInput(e: Event): void {
   font-size: 12px;
   color: var(--tp-text-secondary);
 }
+
+.slider__label-row { display: inline-flex; align-items: center; gap: 4px; }
 
 .slider__value {
   font-size: 13px;

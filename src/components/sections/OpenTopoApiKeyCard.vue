@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useConfigStore } from "@/stores/config";
-import InfoTooltip from "@/components/ui/InfoTooltip.vue";
+import SettingHelp from "@/components/ui/SettingHelp.vue";
 
 const { config } = storeToRefs(useConfigStore());
 
@@ -30,7 +30,7 @@ const apiKeyTooltip =
         <h2 id="opentopo-api-key-title" class="api-key-card__title">
           OpenTopography API Key
         </h2>
-        <InfoTooltip aria-label="About the API key" :content="apiKeyTooltip" />
+        <SettingHelp guide="apiKey" :content="apiKeyTooltip" />
       </div>
       <p v-if="!apiKeyConfigured" class="api-key-card__desc">
         Enter your API key to download elevation data. It is saved on this device.
@@ -39,6 +39,7 @@ const apiKeyTooltip =
 
     <input
       id="opentopo-api-key"
+      aria-labelledby="opentopo-api-key-title"
       v-model="config.terrain.openTopographyApiKey"
       type="password"
       class="api-key-card__input"

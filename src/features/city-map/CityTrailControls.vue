@@ -10,12 +10,12 @@ function update(key: keyof CityMapConfig['city'], value: number) {
 <template>
   <div class="trail-controls" :class="{ stacked }">
     <div class="row">
-      <NumberField :model-value="modelValue.routeWidthMm" @update:model-value="update('routeWidthMm', $event)" label="Route width" suffix="mm" :min="0.4" :max="10" :disabled="disabled" />
-      <NumberField :model-value="modelValue.routeClearanceMm" @update:model-value="update('routeClearanceMm', $event)" label="Clearance per side" suffix="mm" :min="0" :max="1" :step="0.05" :disabled="disabled" />
+      <NumberField :model-value="modelValue.routeWidthMm" @update:model-value="update('routeWidthMm', $event)" label="Route width" help="routeWidth" suffix="mm" :min="0.4" :max="10" :disabled="disabled" />
+      <NumberField :model-value="modelValue.routeClearanceMm" @update:model-value="update('routeClearanceMm', $event)" label="Clearance per side" help="routeClearance" suffix="mm" :min="0" :max="1" :step="0.05" :disabled="disabled" />
     </div>
     <div class="row">
-      <NumberField :model-value="modelValue.routeSeatDepthMm" @update:model-value="update('routeSeatDepthMm', $event)" label="Seating depth" suffix="mm" :min="0.1" :max="baseThickness - 0.4" :disabled="disabled" />
-      <NumberField :model-value="modelValue.routeReliefMm" @update:model-value="update('routeReliefMm', $event)" label="Visible route relief" suffix="mm" :min="0.2" :max="10" :disabled="disabled" />
+      <NumberField :model-value="modelValue.routeSeatDepthMm" @update:model-value="update('routeSeatDepthMm', $event)" label="Seating depth" help="routeDepth" suffix="mm" :min="0.1" :max="baseThickness - 0.4" :disabled="disabled" />
+      <NumberField :model-value="modelValue.routeReliefMm" @update:model-value="update('routeReliefMm', $event)" label="Visible route relief" help="routeRelief" suffix="mm" :min="0.2" :max="10" :disabled="disabled" />
     </div>
   </div>
 </template>

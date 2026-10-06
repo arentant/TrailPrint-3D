@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useId } from 'vue'
+import SettingHelp from './SettingHelp.vue'
+import type { SettingGuideId } from './setting-guides'
+
 defineProps<{
   modelValue: number
   label?: string
@@ -7,7 +11,10 @@ defineProps<{
   max?: number
   step?: number
   disabled?: boolean
+  help?: SettingGuideId
 }>()
+
+const inputId = `number-${useId()}`
 
 const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
 
@@ -19,10 +26,14 @@ function onInput(e: Event): void {
 </script>
 
 <template>
-  <label class="field" :class="{ 'field--disabled': disabled }">
-    <span v-if="label" class="field__label">{{ label }}</span>
+  <div class="field">
+    <div v-if="label" class="field__label-row">
+      <label :for="inputId" class="field__label" :class="{ 'field--disabled': disabled }">{{ label }}</label>
+      <SettingHelp v-if="help" :guide="help" />
+    </div>
     <span class="field__input-wrap">
       <input
+        :id="inputId"
         type="number"
         class="field__input"
         :value="modelValue"
@@ -34,7 +45,7 @@ function onInput(e: Event): void {
       />
       <span v-if="suffix" class="field__suffix">{{ suffix }}</span>
     </span>
-  </label>
+  </div>
 </template>
 
 <style scoped>
@@ -49,6 +60,15 @@ function onInput(e: Event): void {
 .field--disabled {
   opacity: 0.45;
 }
+
+.field__label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.field__input-wrap:has(input:disabled) { opacity: 0.45; }
 
 .field__label {
   font-size: 12px;

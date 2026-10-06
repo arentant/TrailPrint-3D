@@ -8,6 +8,7 @@ import { useUiStore } from "@/stores/ui";
 import AccordionSection from "@/components/ui/AccordionSection.vue";
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 import NumberField from "@/components/ui/NumberField.vue";
+import SettingLabel from "@/components/ui/SettingLabel.vue";
 
 const configStore = useConfigStore();
 const ui = useUiStore();
@@ -34,7 +35,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
     @toggle="ui.toggleSection('map')"
   >
     <div class="field-group">
-      <span class="field-group__label">Shape</span>
+      <SettingLabel class="field-group__label" label="Shape" guide="shape" />
       <SegmentedControl
         v-model="config.mapCrop.shape"
         :options="shapeOptions"
@@ -50,6 +51,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
         v-if="isCircle"
         v-model="config.mapCrop.radiusMm"
         label="Print radius"
+        help="radius"
         suffix="mm"
         :min="10"
         :max="500"
@@ -58,6 +60,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
         <NumberField
           v-model="config.mapCrop.lengthMm"
           label="Print length"
+          help="length"
           suffix="mm"
           :min="10"
           :max="500"
@@ -65,6 +68,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
         <NumberField
           v-model="config.mapCrop.widthMm"
           label="Print width"
+          help="width"
           suffix="mm"
           :min="10"
           :max="500"
@@ -74,6 +78,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
         <NumberField
           v-model="config.mapCrop.polygonSides"
           label="Sides"
+          help="sides"
           :min="3"
           :max="8"
           :step="1"
@@ -81,6 +86,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
         <NumberField
           v-model="config.mapCrop.polygonSideLengthMm"
           label="Side length"
+          help="sideLength"
           suffix="mm"
           :min="10"
           :max="300"
@@ -92,6 +98,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
       <NumberField
         v-model="config.mapCrop.cornerRadiusMm"
         label="Corner radius"
+        help="corner"
         suffix="mm"
         :min="0"
         :max="maxCornerRadius"

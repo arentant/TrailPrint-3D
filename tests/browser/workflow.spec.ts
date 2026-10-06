@@ -29,6 +29,12 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   const downloadButton = page.getByRole('button', { name: 'Download', exact: true })
   await expect(downloadButton).toBeEnabled({ timeout: 60_000 })
   await expect(page.locator('canvas').first()).toBeVisible()
+  const previewDialog = page.getByRole('dialog')
+  await previewDialog.locator('[data-setting-guide="paintMasks"] button').click()
+  await expect(page.getByRole('tooltip').getByRole('img')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  await expect(previewDialog).toBeVisible()
   const downloadEvent = page.waitForEvent('download', { timeout: 90_000 })
   await downloadButton.click()
   const download = await downloadEvent

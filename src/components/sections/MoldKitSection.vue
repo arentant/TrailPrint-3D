@@ -7,6 +7,7 @@ import { validateMoldKitSection } from "@shared/utils/model-validation";
 import AccordionSection from "@/components/ui/AccordionSection.vue";
 import IosToggle from "@/components/ui/IosToggle.vue";
 import NumberField from "@/components/ui/NumberField.vue";
+import SettingLabel from "@/components/ui/SettingLabel.vue";
 
 const configStore = useConfigStore();
 const ui = useUiStore();
@@ -68,8 +69,8 @@ function onSkirtWidth(v: number): void {
     </p>
 
     <div class="toggle-row">
-      <span>Enable mold kit</span>
-      <IosToggle v-model="config.moldKit.enabled" />
+      <SettingLabel label="Enable mold kit" guide="mold" />
+      <IosToggle v-model="config.moldKit.enabled" aria-label="Enable mold kit" />
     </div>
 
     <template v-if="config.moldKit.enabled">
@@ -82,6 +83,7 @@ function onSkirtWidth(v: number): void {
         <NumberField
           :model-value="config.moldKit.skirtHeightMm"
           label="Skirt height"
+          help="skirtHeight"
           suffix="mm"
           :min="0.2"
           :max="20"
@@ -91,6 +93,7 @@ function onSkirtWidth(v: number): void {
         <NumberField
           :model-value="config.moldKit.skirtWidthMm"
           label="Skirt extension"
+          help="skirtWidth"
           suffix="mm"
           :min="0.2"
           :max="30"
@@ -101,13 +104,14 @@ function onSkirtWidth(v: number): void {
 
       <p class="subhead">Casting lid</p>
       <div class="toggle-row toggle-row--compact">
-        <span>Match skirt dimensions</span>
-        <IosToggle v-model="config.moldKit.lidSyncWithSkirt" />
+        <SettingLabel label="Match skirt dimensions" guide="sync" />
+        <IosToggle v-model="config.moldKit.lidSyncWithSkirt" aria-label="Match skirt dimensions" />
       </div>
       <div class="row">
         <NumberField
           v-model="config.moldKit.lidHeightMm"
           label="Lid height"
+          help="lidHeight"
           suffix="mm"
           :min="1"
           :max="20"
@@ -117,6 +121,7 @@ function onSkirtWidth(v: number): void {
         <NumberField
           v-model="config.moldKit.lidWidthMm"
           label="Lid extension"
+          help="lidWidth"
           suffix="mm"
           :min="0.2"
           :max="30"
@@ -136,6 +141,7 @@ function onSkirtWidth(v: number): void {
         v-if="advancedOpen"
         v-model="config.moldKit.lidClearanceMm"
         label="Lid fit clearance"
+        help="lidClearance"
         suffix="mm"
         :min="0"
         :max="2"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SettingHelp from '@/components/ui/SettingHelp.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConfigStore } from '@/stores/config'
@@ -119,7 +120,10 @@ function onKeydown(e: KeyboardEvent): void {
           <p class="scheme-dialog__hint">
             Save size, terrain, trail, tray, and other settings. GPX data and your API key are excluded.
           </p>
-          <label class="scheme-dialog__label" for="save-scheme-name">Preset name</label>
+          <div class="scheme-dialog__guide-row">
+            <label class="scheme-dialog__label" for="save-scheme-name">Preset name</label>
+            <SettingHelp guide="presetName" />
+          </div>
           <input
             id="save-scheme-name"
             ref="inputEl"
@@ -134,10 +138,13 @@ function onKeydown(e: KeyboardEvent): void {
             @keydown.enter.prevent="submit"
           />
           <p v-if="error" class="scheme-dialog__error">{{ error }}</p>
-          <label class="scheme-dialog__option">
-            <input v-model="includeMapView" type="checkbox" />
-            <span>Save map coordinates and framing</span>
-          </label>
+          <div class="scheme-dialog__guide-row">
+            <label class="scheme-dialog__option">
+              <input v-model="includeMapView" type="checkbox" />
+              <span>Save map coordinates and framing</span>
+            </label>
+            <SettingHelp guide="saveFraming" />
+          </div>
           <p class="scheme-dialog__option-hint">
             Restore this location, zoom, and rotation when you apply the preset.
           </p>
@@ -161,6 +168,7 @@ function onKeydown(e: KeyboardEvent): void {
 </template>
 
 <style scoped>
+.scheme-dialog__guide-row { display: flex; align-items: center; gap: 6px; }
 .scheme-dialog {
   position: fixed;
   inset: 0;

@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import TerrainMeshPreview from "@/components/preview/TerrainMeshPreview.vue";
+import SettingHelp from "@/components/ui/SettingHelp.vue";
 import { useSpraySegmentation } from "@/composables/useSpraySegmentation";
 import { useSprayMaskPreview } from "@/composables/useSprayMaskPreview";
 import { useConfigStore } from "@/stores/config";
@@ -514,18 +515,21 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
               aria-label="Paint masks"
             >
               <div class="spray-panel__section">
-                <label class="spray-panel__toggle">
-                  <input
-                    type="checkbox"
-                    :checked="sprayEnabled"
-                    @change="
-                      onSprayToggle(
-                        ($event.target as HTMLInputElement).checked,
-                      )
-                    "
-                  />
-                  <span>Enable paint masks</span>
-                </label>
+                <div class="spray-panel__guide-row">
+                  <label class="spray-panel__toggle">
+                    <input
+                      type="checkbox"
+                      :checked="sprayEnabled"
+                      @change="
+                        onSprayToggle(
+                          ($event.target as HTMLInputElement).checked,
+                        )
+                      "
+                    />
+                    <span>Enable paint masks</span>
+                  </label>
+                  <SettingHelp guide="paintMasks" />
+                </div>
               </div>
 
               <div class="spray-panel__section spray-panel__actions">
@@ -590,6 +594,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 <div class="spray-panel__colors-header">
                   <p class="spray-panel__colors-title">
                     Palette ({{ sprayPlan.colors.length }} colors)
+                    <SettingHelp guide="palette" />
                   </p>
                   <div class="spray-panel__color-actions">
                     <button
@@ -623,9 +628,11 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   >
                     {{ paintMode ? "Painting…" : "Paint tool" }}
                   </button>
-                  <label v-if="paintMode" class="spray-panel__brush">
-                    <span>Brush</span>
+                  <div v-if="paintMode" class="spray-panel__brush">
+                    <label for="paint-brush-radius">Brush</label>
+                    <SettingHelp guide="brush" />
                     <input
+                      id="paint-brush-radius"
                       v-model.number="paintBrushRadius"
                       type="range"
                       min="1"
@@ -633,7 +640,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                       step="1"
                     />
                     <span>{{ paintBrushRadius }}</span>
-                  </label>
+                  </div>
                 </div>
 
                 <p v-if="paintMode" class="spray-panel__paint-hint">
@@ -676,7 +683,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
               <div v-if="sprayMasks.length" class="spray-panel__masks">
                 <div class="spray-panel__masks-header">
-                  <p class="spray-panel__colors-title">Mask fit preview</p>
+                  <p class="spray-panel__colors-title">Mask fit preview <SettingHelp guide="maskView" /></p>
                   <div class="spray-panel__masks-actions">
                     <button
                       type="button"
@@ -756,6 +763,11 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 </template>
 
 <style scoped>
+.spray-panel__guide-row { display: flex; align-items: center; gap: 6px; }
+.spray-panel__colors-title { display: flex; align-items: center; gap: 4px; }
+.terrain-modal__spray-panel :deep(.info-tip__btn) { color: #bcc9d6; }
+.terrain-modal__spray-panel :deep(.info-tip__btn:hover),
+.terrain-modal__spray-panel :deep(.info-tip__btn--open) { color: #8cddd0; background: #8cddd019; }
 .terrain-modal {
   position: fixed;
   inset: 0;
