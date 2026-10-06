@@ -2,12 +2,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { gzipSync } from 'node:zlib'
 import type { MapCropConfig } from '../shared/types/config.js'
 import type { TerrainCropRegion } from '../shared/types/terrain.js'
+import { MAX_ELEVATION_RESPONSE_SAMPLES, type ElevationSampleWindow } from '../shared/types/elevation.js'
 import { OPEN_TOPO_DEM_OPTIONS } from '../shared/types/dem.js'
 import { heightfieldSampleGeo } from '../shared/utils/map-mm-projection.js'
-import { createGeotiffSampler } from '../electron/main/terrain/geotiff-sampler.js'
+import { loadElevationSampler } from '../server/elevation-source.js'
 import { requireSession } from '../server/auth.js'
 
-const MAX_DOWNLOAD_BYTES = 32 * 1024 * 1024
 const MAX_BODY_BYTES = 16 * 1024
 
 export const config = { maxDuration: 300 }
@@ -20,6 +20,14 @@ function validate(body: any): void {
   if (!body || typeof body.apiKey !== 'string' || !body.apiKey.trim() || body.apiKey.length > 256) throw new Error('Enter a valid OpenTopography API key')
   if (!OPEN_TOPO_DEM_OPTIONS.some((option) => option.value === body.dataset)) throw new Error('Choose a supported elevation dataset')
   if (![body.cols, body.rows].every((n) => Number.isInteger(n) && n >= 2 && n <= 1536)) throw new Error('Invalid elevation grid size')
+  const window = body.sampleWindow
+  if (window !== undefined && (!window || !Number.isInteger(window.rowStart) || !Number.isInteger(window.rowCount) ||
+    window.rowStart < 0 || window.rowCount < 1 || window.rowStart + window.rowCount > body.rows)) {
+    throw new Error('Invalid elevation sample window')
+  }
+  if (body.cols * (window?.rowCount ?? body.rows) > MAX_ELEVATION_RESPONSE_SAMPLES) {
+    throw new Error('The elevation grid needs smaller row chunks')
+  }
   if (![body.viewportWidth, body.viewportHeight].every((n) => finite(n, 64, 16384))) throw new Error('Invalid map viewport')
   const c = body.crop
   const m = body.mapCrop
@@ -68,14 +76,16 @@ export default async function elevation(req: IncomingMessage & { body?: unknown 
     return
   }
   try {
-    const { crop, cols, rows, mapCrop, viewportWidth, viewportHeight } = body as {
-      crop: TerrainCropRegion; cols: number; rows: number; mapCrop: MapCropConfig; viewportWidth: number; viewportHeight: number
+    const { crop, cols, rows, mapCrop, viewportWidth, viewportHeight, sampleWindow } = body as {
+      crop: TerrainCropRegion; cols: number; rows: number; mapCrop: MapCropConfig; viewportWidth: number; viewportHeight: number; sampleWindow?: ElevationSampleWindow
     }
-    const { lats, lons } = heightfieldSampleGeo(crop, cols, rows, mapCrop, viewportWidth, viewportHeight)
+    // Projected grid coordinates attain their extrema at the four corners.
+    // Use the full grid bounds for every chunk so each samples the same raster.
+    const corners = heightfieldSampleGeo(crop, 2, 2, mapCrop, viewportWidth, viewportHeight)
     let south = crop.minLat, north = crop.maxLat, west = crop.minLon, east = crop.maxLon
-    for (let i = 0; i < lats.length; i++) {
-      south = Math.min(south, lats[i]!); north = Math.max(north, lats[i]!)
-      west = Math.min(west, lons[i]!); east = Math.max(east, lons[i]!)
+    for (let i = 0; i < corners.lats.length; i++) {
+      south = Math.min(south, corners.lats[i]!); north = Math.max(north, corners.lats[i]!)
+      west = Math.min(west, corners.lons[i]!); east = Math.max(east, corners.lons[i]!)
     }
     const padLat = Math.max((north - south) * 0.08, 0.0008)
     const padLon = Math.max((east - west) * 0.08, 0.0008)
@@ -85,38 +95,12 @@ export default async function elevation(req: IncomingMessage & { body?: unknown 
     }
     const url = new URL('https://portal.opentopography.org/API/globaldem')
     for (const [key, value] of Object.entries({ demtype: body.dataset, south, north, west, east, outputFormat: 'GTiff', API_Key: body.apiKey.trim() })) url.searchParams.set(key, String(value))
-    const response = await fetch(url, { signal: AbortSignal.timeout(230_000), redirect: 'error' })
-    if (!response.ok) {
-      await response.body?.cancel()
-      throw new Error(response.status === 401 || response.status === 403
-        ? 'OpenTopography rejected the API key. Check the key and dataset access.'
-        : response.status === 429 ? 'OpenTopography request limit reached. Try again later.'
-        : `OpenTopography could not provide elevation data (${response.status}). Check your key or choose a smaller area.`)
-    }
-    if (Number(response.headers.get('content-length')) > MAX_DOWNLOAD_BYTES) {
-      await response.body?.cancel()
-      throw new Error('Elevation data is too large. Select a smaller area.')
-    }
-    const reader = response.body?.getReader()
-    if (!reader) throw new Error('OpenTopography returned no elevation data')
-    const chunks: Uint8Array[] = []
-    let size = 0
-    for (;;) {
-      const { value, done } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > MAX_DOWNLOAD_BYTES) { await reader.cancel(); throw new Error('Elevation data is too large. Select a smaller area.') }
-      chunks.push(value)
-    }
-    const bytes = new Uint8Array(size)
-    let offset = 0
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
-    const sampler = await createGeotiffSampler(bytes.buffer)
-    const output = Buffer.alloc(cols * rows * 4)
+    const sampler = await loadElevationSampler(url)
+    const { lats, lons } = heightfieldSampleGeo(crop, cols, rows, mapCrop, viewportWidth, viewportHeight, sampleWindow)
+    const output = Buffer.alloc(lats.length * 4)
     for (let i = 0; i < lats.length; i++) output.writeFloatLE(sampler.sample(lats[i]!, lons[i]!) ?? NaN, i * 4)
-    // Large custom grids use compression to stay within Vercel's response limit.
+    // Row chunks fit the response limit even when the elevations compress poorly.
     const compressed = gzipSync(output)
-    if (compressed.length > 4_400_000) throw new Error('Choose a lower mesh quality for this area (Studio or below)')
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Encoding': 'gzip', 'Content-Length': compressed.length }).end(compressed)
   } catch (error) {
     const message = error instanceof Error && error.name !== 'TimeoutError' && error.message !== 'fetch failed'

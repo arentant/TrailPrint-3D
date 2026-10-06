@@ -112,15 +112,21 @@ for provider setup details.
 - API keys are saved in the user's browser and forwarded through the endpoint
   to OpenTopography for elevation requests. They are never embedded in the build.
 - ZIP creation and browser downloads happen locally. The most recent elevation
-  grid is cached only in worker memory and is cleared when the page closes.
+  grid is cached in worker memory and is cleared when the page closes. Each warm
+  API runtime retains one source raster for 10 minutes, scoped to the requested
+  bounds, dataset and API key, so row chunks can reuse the provider download.
+  Responses remain private and are not cached by the browser or CDN.
 - Satellite imagery continues to come from the existing map providers.
 
 The browser defaults to High mesh quality. Larger presets remain available but
 depend on the device's memory. Imports are limited to 10 MB / 100,000 points.
 Elevation downloads are limited to 32 MB, rasters to 16 million pixels, and the
-sampling grid to 1536 per side. A custom grid whose compressed response exceeds
-4.4 MB produces an actionable error to choose a lower quality. Large map areas
-may require a smaller crop.
+sampling grid to 1536 per side. Grids above 1,048,576 samples download in sequential
+row chunks, each below the response-size limit even without compression. The
+worker assembles the full requested grid before processing; chunk boundaries use
+the original projection and spacing. Studio and smaller grids use one response.
+Large map areas may require a smaller crop, and large meshes still need enough
+device memory for preview and export.
 
 ## Checks
 

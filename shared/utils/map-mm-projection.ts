@@ -1,5 +1,6 @@
 import type { MapCropConfig } from "../types/config.js";
 import type { TerrainCropRegion } from "../types/terrain.js";
+import type { ElevationSampleWindow } from "../types/elevation.js";
 import { containerPointToLatLng } from "./leaflet-projection.js";
 import { buildMaskGeometry } from "./mask-geometry.js";
 
@@ -97,10 +98,13 @@ export function heightfieldSampleGeo(
   mapCrop: MapCropConfig,
   viewportWidth: number,
   viewportHeight: number,
+  window?: ElevationSampleWindow,
 ): { lats: number[]; lons: number[] } {
   const lats: number[] = [];
   const lons: number[] = [];
-  for (let row = 0; row < rows; row++) {
+  const rowStart = window?.rowStart ?? 0;
+  const rowEnd = rowStart + (window?.rowCount ?? rows);
+  for (let row = rowStart; row < rowEnd; row++) {
     for (let col = 0; col < cols; col++) {
       const { x, y } = heightfieldCellMm(crop, row, col, rows, cols);
       const geo = modelMmToLatLon(
