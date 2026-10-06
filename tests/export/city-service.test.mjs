@@ -22,7 +22,7 @@ before(async () => { globalThis.__cityWasm = await Module(); globalThis.__cityWa
 function request() {
   const config=api.createDefaultCityConfig();
   const parsed=api.parseGpxXml(xml);
-  config.gpx={ ...config.gpx,...parsed,rawPoints:parsed.points,imported:true,importId:'test' };
+  config.gpx={ ...config.gpx,...parsed,rawPoints:parsed.points,imported:true,importId:'test',fileName:'city-run.gpx' };
   Object.assign(config.mapCrop,{mapCenterLat:40.18,mapCenterLon:44.51,mapZoom:15});
   return { config,viewportWidth:800,viewportHeight:600 };
 }
@@ -34,11 +34,14 @@ test('Flat skips DEM, caches the finalized preview and exports the same geometry
   assert.equal(await api.generateCityModel(req),preview);
   req.config.colors = { ...req.config.colors, terrain: '#2468ac', trail: '#00ff00' };
   assert.equal(await api.generateCityModel(req),preview, 'color changes reuse the finalized geometry');
+  assert.equal(api.cityMapExportFlow.describeArtifact(req).fileName, 'city-run.zip');
   const files={}; await api.cityMapExportFlow.generateFiles({...req,flow:'city-map'},()=>{},(name,value)=>files[name]=value);
-  assert.deepEqual(files['City_Main.stl'], api.encodeBinaryStl(preview.cityMesh,'City_Main'));
-  assert.deepEqual(files['Trail_Line.stl'], api.encodeBinaryStl(preview.routeMesh,'Trail_Line'));
-  assert.deepEqual(Object.keys(files),['City_Main.stl','Trail_Line.stl','Assembly_Instructions.txt']);
-  assert.match(new TextDecoder().decode(files['Assembly_Instructions.txt']),/OpenStreetMap contributors/);
+  assert.deepEqual(files['city-run_City_Main.stl'], api.encodeBinaryStl(preview.cityMesh,'City_Main'));
+  assert.deepEqual(files['city-run_Trail_Line.stl'], api.encodeBinaryStl(preview.routeMesh,'Trail_Line'));
+  assert.deepEqual(Object.keys(files),['city-run_City_Main.stl','city-run_Trail_Line.stl','city-run_Assembly_Instructions.txt']);
+  const instructions = new TextDecoder().decode(files['city-run_Assembly_Instructions.txt']);
+  assert.match(instructions,/OpenStreetMap contributors/);
+  assert.match(instructions,/city-run_City_Main\.stl and city-run_Trail_Line\.stl/);
   assert.equal(maps,1); assert.equal(dems,0);
   const edits=[];
   req.config.city.routeWidthMm=1.5; const next=await api.generateCityModel(req,(p)=>edits.push(p)); assert.notEqual(next,preview); assert.equal(maps,1);
@@ -80,8 +83,8 @@ test('Real terrain trail edits reuse map and elevation inputs and export the lat
   assert.equal(progress.filter((p)=>/Fusing city/.test(p.message)).length,0);
   assert.equal(progress.filter((p)=>/Updating the running trail/.test(p.message)).length,4);
   const files={};await api.cityMapExportFlow.generateFiles({...req,flow:'city-map'},()=>{},(name,bytes)=>files[name]=bytes);
-  assert.deepEqual(files['City_Main.stl'],api.encodeBinaryStl(latest.cityMesh,'City_Main'));
-  assert.deepEqual(files['Trail_Line.stl'],api.encodeBinaryStl(latest.routeMesh,'Trail_Line'));
+  assert.deepEqual(files['city-run_City_Main.stl'],api.encodeBinaryStl(latest.cityMesh,'City_Main'));
+  assert.deepEqual(files['city-run_Trail_Line.stl'],api.encodeBinaryStl(latest.routeMesh,'Trail_Line'));
   assert.equal(maps,1);assert.equal(dems,1);assert.deepEqual(raw,originalRaw);
 });
 test('elevation processing edits stay local and changed sampling inputs fetch fresh data', async () => {

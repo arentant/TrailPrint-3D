@@ -148,7 +148,7 @@ const trayError = computed(() => {
           :step="0.05"
         />
         <p class="field-hint">
-          Includes Tray_Cover.stl in the ZIP. The default is 0.2mm; adjust for your printer.
+          Includes a cover STL named after your GPX file in the ZIP. The default is 0.2mm; adjust for your printer.
         </p>
         <NumberField
           v-model="config.tray.nfc.coverInsetMm"

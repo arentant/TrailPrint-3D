@@ -40,7 +40,7 @@ test('preview can be closed, adjusted, reopened, and exported repeatedly', async
   const downloadEvent = page.waitForEvent('download')
   await download.click()
   const firstDownload = await downloadEvent
-  expect(firstDownload.suggestedFilename()).toMatch(/^TrailPrint-.*\.zip$/)
+  expect(firstDownload.suggestedFilename()).toBe('sample-trail.zip')
   const firstZip = await readFile((await firstDownload.path())!)
   await expect(download).toBeEnabled()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
@@ -51,7 +51,7 @@ test('preview can be closed, adjusted, reopened, and exported repeatedly', async
   const nextDownload = page.waitForEvent('download')
   await download.click()
   const secondZip = await readFile((await (await nextDownload).path())!)
-  expect(unzipSync(secondZip)['Terrain_Main.stl']).not.toEqual(unzipSync(firstZip)['Terrain_Main.stl'])
+  expect(unzipSync(secondZip)['sample-trail_Terrain_Main.stl']).not.toEqual(unzipSync(firstZip)['sample-trail_Terrain_Main.stl'])
   await expect(download).toBeEnabled()
   expect(errors).toEqual([])
 })

@@ -18,7 +18,7 @@ TrailPrint 3D is an open-source desktop app that combines GPX activity tracks wi
 ### Use cases
 
 - **Hiking & trail-running keepsakes:** Turn routes like West Lake Heart Trail, Wugong Mountain, MacLehose Trail, or Tiger Leaping Gorge into a displayable terrain model
-- **GPX to STL:** Import a track and get `Terrain_Main.stl` (terrain), `Trail_Line.stl` (trail), and `Tray_Base.stl` (tray base) automatically
+- **GPX to STL:** Import a track and get `<gpx-name>_Terrain_Main.stl` (terrain), `<gpx-name>_Trail_Line.stl` (trail), and `<gpx-name>_Tray_Base.stl` (tray base) automatically
 - **Multi-color FDM printing:** Split exports for Bambu Lab and other multi-color FDM printers — trail grooves plus a separate line part for color swaps, magnet holes for glue-free assembly
 - **Terrain relief display pieces:** Adjustable elevation exaggeration, surface smoothing, and a picture-frame base to make subtle real-world relief readable at desk scale
 
@@ -56,7 +56,7 @@ Check the terrain, trail, and tray in the 3D preview, then generate and download
 
 ### 4. Import into Bambu Studio and assign colors
 
-Unzip the archive and drag `Terrain_Main.stl`, `Trail_Line.stl`, and `Tray_Base.stl` into [Bambu Studio](https://bambulab.com/zh/download/studio). Assign filament colors to terrain, trail, and base, preview the multi-color assembly, then slice and print.
+Unzip the archive and drag `<gpx-name>_Terrain_Main.stl`, `<gpx-name>_Trail_Line.stl`, and `<gpx-name>_Tray_Base.stl` into [Bambu Studio](https://bambulab.com/zh/download/studio). Assign filament colors to terrain, trail, and base, preview the multi-color assembly, then slice and print.
 
 ![Import into Bambu Studio](docs/images/readme/04-bambu-studio-import.webp)
 
@@ -152,7 +152,7 @@ TRAILPRINT_HEAP_MB=8192
 
 - **Inset frame structure:** Automatically generates a picture-frame base that wraps the main terrain mesh.
 - **Adjustable parameters:** Set total thickness, inset depth, and border width for different print and display needs.
-- **NFC & LED:** Reserve NFC chip pockets and 0805 LED indicator slots in the tray recess, with an optional `Tray_Cover.stl` cover plate.
+- **NFC & LED:** Reserve NFC chip pockets and 0805 LED indicator slots in the tray recess, with an optional `<gpx-name>_Tray_Cover.stl` cover plate.
 
 ### 🧩 4. Split printing and assembly
 
@@ -165,14 +165,16 @@ Built for multi-color printing and post-print assembly:
 
 ## 📦 Output files
 
-After generation, you get a zip archive containing:
+Downloads use the imported GPX filename. For `my-run.gpx`, the archive is `my-run.zip`, the standalone trail is `my-run_Trail_Line.stl`, and every file inside the archive starts with `my-run_`. This applies in both Mountain and City views. Unsupported filename characters are replaced with underscores.
+
+The Mountain archive contains:
 
 | File               | Description                                             | Condition           |
 | ------------------ | ------------------------------------------------------- | ------------------- |
-| `Terrain_Main.stl` | Main terrain mesh with base thickness and trail grooves | Always              |
-| `Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | Always              |
-| `Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Always              |
-| `Tray_Cover.stl`   | NFC / LED cover plate                                   | When NFC is enabled |
+| `<gpx-name>_Terrain_Main.stl` | Main terrain mesh with base thickness and trail grooves | Always              |
+| `<gpx-name>_Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | Always              |
+| `<gpx-name>_Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Always              |
+| `<gpx-name>_Tray_Cover.stl`   | NFC / LED cover plate                                   | When NFC is enabled |
 
 Import the STL files into your slicer, assign colors and print settings, and start making.
 
@@ -182,7 +184,7 @@ Import the STL files into your slicer, assign colors and print settings, and sta
 
 The following capabilities are still in development and not yet available to users:
 
-- **Spray-paint segmentation:** After printing a single-color white model, apply rule-based surface coloring and generate fit-checked 3D stencil shells (`Mask_Color_XX.stl`) plus a color manifest for partitioned spray painting. See [PRD-spray-paint-masks.md](./PRD-spray-paint-masks.md).
+- **Spray-paint segmentation:** After printing a single-color white model, apply rule-based surface coloring and generate fit-checked 3D stencil shells (`<gpx-name>_Mask_Color_XX.stl`) plus a color manifest for partitioned spray painting. See [PRD-spray-paint-masks.md](./PRD-spray-paint-masks.md).
 
 ---
 

@@ -34,11 +34,11 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   await expect(previewDialog).toBeVisible();
   await page.screenshot({path:'test-results/city-preview.png',fullPage:true});
   const event=page.waitForEvent('download'); await downloadButton.click(); const download=await event;
-  expect(download.suggestedFilename()).toMatch(/^TrailPrint-City-.*\.zip$/);
+  expect(download.suggestedFilename()).toBe('city-run.zip');
   const files=unzipSync(await readFile((await download.path())!));
-  expect(Object.keys(files).sort()).toEqual(['Assembly_Instructions.txt','City_Main.stl','Trail_Line.stl']);
-  expect(new TextDecoder().decode(files['Assembly_Instructions.txt'])).toContain('OpenStreetMap contributors');
-  for (const name of ['City_Main.stl','Trail_Line.stl']) {
+  expect(Object.keys(files).sort()).toEqual(['city-run_Assembly_Instructions.txt','city-run_City_Main.stl','city-run_Trail_Line.stl']);
+  expect(new TextDecoder().decode(files['city-run_Assembly_Instructions.txt'])).toContain('OpenStreetMap contributors');
+  for (const name of ['city-run_City_Main.stl','city-run_Trail_Line.stl']) {
     const bytes=files[name]!, view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength); const triangles=view.getUint32(80,true);
     expect(triangles).toBeGreaterThan(0); expect(bytes.length).toBe(84+50*triangles);
     for(let t=0;t<triangles;t++) for(let c=0;c<12;c++) expect(Number.isFinite(view.getFloat32(84+t*50+c*4,true))).toBe(true);
@@ -147,7 +147,7 @@ test('Real terrain trail edits in the preview reuse data and export the updated 
   await page.screenshot({path:'test-results/city-trail-editor.png',fullPage:true});
   const event=page.waitForEvent('download');await downloadButton.click();const download=await event;
   const files=unzipSync(await readFile((await download.path())!));
-  const instructions=new TextDecoder().decode(files['Assembly_Instructions.txt']);
+  const instructions=new TextDecoder().decode(files['city-run_Assembly_Instructions.txt']);
   expect(instructions).toContain('Surface mode: real');
   expect(instructions).toContain('2 mm width, 0.8 mm seating depth, 1.4 mm visible relief, 0.25 mm clearance per side');
   expect(maps).toBe(1);expect(elevations).toBe(1);

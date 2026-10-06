@@ -11,8 +11,8 @@
 ## 圆形底图
 
 - [ ] 默认参数点击「生成并下载 STL」
-- [ ] 保存对话框出现，选择路径后 ZIP 生成成功
-- [ ] 解压 ZIP，含且仅含：`Terrain_Main.stl`、`Trail_Line.stl`、`Tray_Base.stl`（文件名精确匹配）
+- [ ] 保存对话框出现，默认 ZIP 名称与 GPX 文件名一致（例如 `my-run.gpx` → `my-run.zip`），选择路径后 ZIP 生成成功
+- [ ] 解压 ZIP，含且仅含：`<GPX文件名>_Terrain_Main.stl`、`<GPX文件名>_Trail_Line.stl`、`<GPX文件名>_Tray_Base.stl`（文件名精确匹配）
 - [ ] 三个 STL 可在切片软件中打开，无破面报错
 
 ## 矩形底图

@@ -93,8 +93,14 @@ the reusable city while releasing temporary route geometry.
   persisted OpenTopography key. Missing keys/provider failures never switch modes.
   City solid operations support DEM grids up to 512 × 512 (Extreme or Custom).
 
-City ZIPs contain `City_Main.stl`, `Trail_Line.stl` and
-`Assembly_Instructions.txt`. Both STL parts use millimeters and shared XYZ
+Exports use the imported GPX filename rather than the internal track title.
+For `my-run.gpx`, both flows download `my-run.zip`; each archive entry has the
+`my-run_` prefix. The standalone Mountain trail is `my-run_Trail_Line.stl`.
+Names preserve spaces and Unicode, sanitize unsupported filesystem characters,
+and fall back to the desktop path, track title or `TrailPrint` if needed.
+
+City ZIPs contain `<gpx-name>_City_Main.stl`, `<gpx-name>_Trail_Line.stl` and
+`<gpx-name>_Assembly_Instructions.txt`. Both STL parts use millimeters and shared XYZ
 assembly coordinates. Instructions include OpenStreetMap attribution and ODbL
 information. Separate route islands may need supports when printed individually.
 

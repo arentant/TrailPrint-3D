@@ -214,11 +214,11 @@ test('the sidebar downloads only the trail, independent of invalid tray settings
   const event = page.waitForEvent('download')
   await trailButton.click()
   const download = await event
-  expect(download.suggestedFilename()).toBe('Trail_Line.stl')
+  expect(download.suggestedFilename()).toBe('sample-trail_Trail_Line.stl')
   const bytes = await readFile((await download.path())!)
   const triangles = bytes.readUInt32LE(80)
   expect(triangles).toBeGreaterThan(0)
   expect(bytes.length).toBe(84 + triangles * 50)
   await expect(page.getByRole('dialog')).toBeHidden()
-  await expect(page.locator('.sidebar__status')).toContainText('Trail_Line.stl')
+  await expect(page.locator('.sidebar__status')).toContainText('sample-trail_Trail_Line.stl')
 })

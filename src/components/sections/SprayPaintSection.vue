@@ -22,7 +22,7 @@ const { openSections } = storeToRefs(ui);
   >
     <p class="hint">
       When enabled, the ZIP also includes paint mask STLs and
-      <code>spray_paint_manifest.json</code>. Use the 3D preview to assign colors and check mask fit.
+      a color manifest, named after your GPX file. Use the 3D preview to assign colors and check mask fit.
     </p>
 
     <div class="toggle-row">

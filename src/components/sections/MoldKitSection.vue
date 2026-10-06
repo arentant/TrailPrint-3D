@@ -64,8 +64,8 @@ function onSkirtWidth(v: number): void {
   >
     <p class="hint">
       When enabled, the exported ZIP also includes
-      <code>Mold_Master.stl</code> (terrain and skirt) and
-      <code>Mold_Lid.stl</code> (casting lid) for silicone molds and resin casting. The original three model parts are included as usual.
+      a mold master (terrain and skirt) and casting lid for silicone molds and resin casting,
+      named after your GPX file. The original three model parts are included as usual.
     </p>
 
     <div class="toggle-row">

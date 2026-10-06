@@ -157,7 +157,7 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
             <ModelColorControls v-model="config.colors" workspace="city" :show-tray="false" :disabled="ui.generating" @input.stop />
           </aside>
         </div>
-        <footer class="modal-footer"><p>{{ ui.generating ? ui.statusMessage : 'ZIP includes City_Main.stl, Trail_Line.stl and assembly instructions.' }}</p><button v-if="error" class="secondary" :disabled="previewBusy" @click="preview">Retry preview</button><button class="primary" :disabled="!result || previewStale || previewBusy || ui.generating || !!error" @click="download">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button></footer>
+        <footer class="modal-footer"><p>{{ ui.generating ? ui.statusMessage : 'ZIP includes the city base, trail and assembly instructions, named after your GPX file.' }}</p><button v-if="error" class="secondary" :disabled="previewBusy" @click="preview">Retry preview</button><button class="primary" :disabled="!result || previewStale || previewBusy || ui.generating || !!error" @click="download">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button></footer>
       </section>
     </div>
   </div>

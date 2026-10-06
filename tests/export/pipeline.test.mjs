@@ -6,7 +6,9 @@ import { resolve } from 'node:path'
 const compiled = await build({
   stdin: {
     contents: `export { createExportPipeline } from './shared/export/export-pipeline';
-      export { timestampedZipName } from './shared/export/export-artifact';`,
+      export { gpxExportStem, gpxExportFileName } from './shared/export/export-artifact';
+      export { createDefaultConfig } from './shared/types/config';
+      export { buildSprayPaintManifest } from './shared/utils/spray-manifest';`,
     resolveDir: resolve('.'),
   },
   bundle: true,
@@ -14,7 +16,7 @@ const compiled = await build({
   platform: 'node',
   format: 'esm',
 })
-const { createExportPipeline, timestampedZipName } = await import(
+const { createExportPipeline, gpxExportStem, gpxExportFileName, createDefaultConfig, buildSprayPaintManifest } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].contents).toString('base64')}`
 )
 
@@ -113,6 +115,37 @@ test('file sink failures propagate to the runtime adapter', async () => {
   await assert.rejects(generate({}, noop, () => { throw error }), (received) => received === error)
 })
 
-test('archive names keep the existing timestamp format', () => {
-  assert.equal(timestampedZipName('TrailPrint', new Date(2026, 0, 2, 3, 4)), 'TrailPrint-20260102-0304.zip')
+test('export names use the GPX filename, preserving spaces, Unicode and multiple dots', () => {
+  const gpx = { fileName: 'Արագած hike.v2.GPX', trackName: 'Different internal title' }
+  assert.equal(gpxExportStem(gpx), 'Արագած hike.v2')
+  assert.equal(gpxExportFileName(gpx, 'Trail_Line.stl'), 'Արագած hike.v2_Trail_Line.stl')
+  assert.equal(`${gpxExportStem(gpx)}.zip`, 'Արագած hike.v2.zip')
+})
+
+test('missing filenames fall back to desktop paths, track titles and a default', () => {
+  assert.equal(gpxExportStem({ filePath: '/Users/test/tracks/morning-run.gpx' }), 'morning-run')
+  assert.equal(gpxExportStem({ filePath: 'C:\\tracks\\morning-run.gpx' }), 'morning-run')
+  assert.equal(gpxExportStem({ fileName: '.gpx', trackName: 'Morning run' }), 'Morning run')
+  assert.equal(gpxExportStem({}), 'TrailPrint')
+})
+
+test('export names remove unsafe characters and avoid reserved or oversized filenames', () => {
+  assert.equal(gpxExportStem({ fileName: '../ridge:run?*.gpx' }), 'ridge_run_')
+  assert.equal(gpxExportStem({ trackName: '  ../ridge\\run\0  ' }), '_ridge_run_')
+  assert.equal(gpxExportStem({ fileName: 'CON.gpx' }), '_CON')
+  const name = gpxExportFileName({ fileName: '山'.repeat(100) + '.gpx' }, 'Assembly_Instructions.txt')
+  assert.ok(new TextEncoder().encode(name).length <= 255)
+  assert.ok(!name.includes('\ufffd'))
+})
+
+test('paint manifests reference the GPX-named terrain and masks', async () => {
+  const config = createDefaultConfig()
+  config.gpx.fileName = 'ridge-run.gpx'
+  const plan = {
+    colors: [{ index: 1, hex: '#ffffff', label: 'Snow', regionId: 1 }],
+    cellRegions: [1], gridCols: 1, gridRows: 1, generatedAt: 1,
+  }
+  const manifest = await buildSprayPaintManifest(config, plan)
+  assert.equal(manifest.terrainStl, 'ridge-run_Terrain_Main.stl')
+  assert.equal(manifest.colors[0].stl, 'ridge-run_Mask_Color_01.stl')
 })

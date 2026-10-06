@@ -38,9 +38,9 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   const downloadEvent = page.waitForEvent('download', { timeout: 90_000 })
   await downloadButton.click()
   const download = await downloadEvent
-  expect(download.suggestedFilename()).toMatch(/^TrailPrint-.*\.zip$/)
+  expect(download.suggestedFilename()).toBe('sample-trail.zip')
   const files = unzipSync(await readFile((await download.path())!))
-  expect(Object.keys(files).sort()).toEqual(['Terrain_Main.stl', 'Trail_Line.stl', 'Tray_Base.stl'])
+  expect(Object.keys(files).sort()).toEqual(['sample-trail_Terrain_Main.stl', 'sample-trail_Trail_Line.stl', 'sample-trail_Tray_Base.stl'])
   for (const [name, bytes] of Object.entries(files)) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     const triangles = view.getUint32(80, true)
@@ -66,12 +66,12 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   const trailEvent = page.waitForEvent('download', { timeout: 90_000 })
   await page.getByRole('dialog').getByRole('button', { name: 'Download trail STL' }).click()
   const trail = await trailEvent
-  expect(trail.suggestedFilename()).toBe('Trail_Line.stl')
-  expect(await readFile((await trail.path())!)).toEqual(Buffer.from(files['Trail_Line.stl']!))
+  expect(trail.suggestedFilename()).toBe('sample-trail_Trail_Line.stl')
+  expect(await readFile((await trail.path())!)).toEqual(Buffer.from(files['sample-trail_Trail_Line.stl']!))
   await expect(downloadButton).toBeEnabled()
   const repeatTrail = page.waitForEvent('download')
   await page.evaluate(() => window.trailPrint.revealExport('last-export'))
-  expect((await repeatTrail).suggestedFilename()).toBe('Trail_Line.stl')
+  expect((await repeatTrail).suggestedFilename()).toBe('sample-trail_Trail_Line.stl')
   expect(errors).toEqual([])
 })
 
