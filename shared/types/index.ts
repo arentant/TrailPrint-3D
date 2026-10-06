@@ -1,4 +1,5 @@
 export * from "./config.js";
+export * from './model-colors.js';
 export * from "./city.js";
 export * from "./dem.js";
 export * from "./export.js";

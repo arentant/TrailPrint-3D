@@ -30,7 +30,7 @@ export function useGpxImport() {
       if (disposed) return false
       configStore.applyGpxImport(result, file.name, (file as ElectronFile).path)
       ui.requestGpxMapFit()
-      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown in red on the satellite map`
+      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown on the satellite map`
       return true
     } catch (err) {
       if (disposed) return false
@@ -51,7 +51,7 @@ export function useGpxImport() {
       if (disposed) return false
       configStore.applyGpxImport(result, fileName, filePath)
       ui.requestGpxMapFit()
-      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown in red on the satellite map`
+      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown on the satellite map`
       return true
     } catch (err) {
       if (disposed) return false

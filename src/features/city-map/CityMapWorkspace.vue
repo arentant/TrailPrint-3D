@@ -12,6 +12,7 @@ import TrailPrintLogo from '@/components/ui/TrailPrintLogo.vue';
 import CityControls from './CityControls.vue';
 import CityMeshPreview from './CityMeshPreview.vue';
 import CityTrailControls from './CityTrailControls.vue';
+import ModelColorControls from '@/components/ui/ModelColorControls.vue';
 const api = window.trailPrint;
 const store = useCityStore(), ui = useUiStore();
 const { config } = storeToRefs(store);
@@ -28,7 +29,10 @@ const result = shallowRef<CityGenerateResponse | null>(null);
 const resultKey = ref('');
 const error = ref<string | null>(null), progress = ref(0), progressMessage = ref('');
 let revision = 0, disposed = false;
-const requestKey = computed(() => JSON.stringify([config.value, viewport.value]));
+const requestKey = computed(() => {
+  const { colors: _colors, ...geometry } = config.value;
+  return JSON.stringify([geometry, viewport.value]);
+});
 const previewStale = computed(() => !!result.value && resultKey.value !== requestKey.value);
 function snapshot(): CityGenerateRequest {
   map.value?.syncStoreFromMap();
@@ -125,7 +129,7 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
     <main class="city-panel">
       <div class="map-tools"><span>City / {{ config.city.surface === 'flat' ? 'Flat base' : 'Real terrain' }}</span><button class="secondary" @click="map?.resetMapView()">Fit track</button></div>
       <div class="city-map" :class="{ locked: ui.generating }" @dragover.prevent @drop.prevent="onDrop">
-        <MapFramingView ref="map" :crop="config.mapCrop" :gpx="config.gpx" :points="config.gpx.points" :segments="config.gpx.segments" :fit-nonce="store.fitNonce" :restore-view="config.gpx.imported" @update:crop="config.mapCrop = $event" @viewport="viewportChanged" @ready="mapReady = $event" />
+        <MapFramingView ref="map" :crop="config.mapCrop" v-model:colors="config.colors" :gpx="config.gpx" :points="config.gpx.points" :segments="config.gpx.segments" :fit-nonce="store.fitNonce" :restore-view="config.gpx.imported" @update:crop="config.mapCrop = $event" @viewport="viewportChanged" @ready="mapReady = $event" />
         <div v-if="!config.gpx.imported" class="empty"><strong>A city. A run. Your story.</strong><p>Drop a GPX running route to get started.</p></div>
       </div>
       <p class="attribution">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p>
@@ -136,7 +140,7 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
         <div class="preview-layout">
           <div class="preview-model">
             <div class="preview-stage" :aria-busy="previewBusy || (previewStale && !error)">
-              <CityMeshPreview v-if="result" :result="result" />
+              <CityMeshPreview v-if="result" :result="result" :colors="config.colors" />
               <div v-if="previewBusy || (previewStale && !error)" :class="result ? 'preview-update' : 'preview-status'" role="status"><p>{{ previewBusy ? progressMessage : 'Changes apply after you stop typing…' }}</p><progress v-if="previewBusy" :value="progress" max="1" /></div>
               <p v-else-if="error" :class="result ? 'preview-update preview-error' : 'preview-status'" role="alert">{{ error }}</p>
               <div v-else-if="!result" class="preview-status"><p>The framing or settings changed.</p><button class="secondary" @click="preview">Regenerate city preview</button></div>
@@ -144,11 +148,13 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
             <div v-if="result" class="model-notes"><p>{{ result.featureCounts.buildings }} buildings · {{ result.featureCounts.roads }} roads · {{ result.featureCounts.routeSegments }} GPX segments</p><p v-for="warning in result.warnings" :key="warning">{{ warning }}</p></div>
           </div>
           <aside class="trail-editor" aria-labelledby="city-preview-trail-title" @input="schedulePreview">
-            <h3 id="city-preview-trail-title"><span class="trail-dot" aria-hidden="true"></span>Running route</h3>
+            <h3 id="city-preview-trail-title"><span class="trail-dot" :style="{ backgroundColor: config.colors.trail }" aria-hidden="true"></span>Running route</h3>
             <p>Updates 1 second after you stop typing.</p>
             <CityTrailControls v-model="config.city" :base-thickness="config.terrain.baseSolidThicknessMm" :disabled="ui.generating" stacked />
             <p class="trail-help">Width shapes the insert. Clearance gives it room to fit. Seating depth sinks it into the base; relief sets its height above the surface.</p>
             <p class="trail-note">Your GPX stays in place.</p>
+            <h3>Model colors</h3>
+            <ModelColorControls v-model="config.colors" workspace="city" :show-tray="false" :disabled="ui.generating" @input.stop />
           </aside>
         </div>
         <footer class="modal-footer"><p>{{ ui.generating ? ui.statusMessage : 'ZIP includes City_Main.stl, Trail_Line.stl and assembly instructions.' }}</p><button v-if="error" class="secondary" :disabled="previewBusy" @click="preview">Retry preview</button><button class="primary" :disabled="!result || previewStale || previewBusy || ui.generating || !!error" @click="download">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button></footer>

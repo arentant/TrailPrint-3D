@@ -32,6 +32,8 @@ test('Flat skips DEM, caches the finalized preview and exports the same geometry
   globalThis.__cityDem=async () => { dems++; throw new Error('Unexpected elevation'); };
   const req=request(); const preview=await api.generateCityModel(req);
   assert.equal(await api.generateCityModel(req),preview);
+  req.config.colors = { ...req.config.colors, terrain: '#2468ac', trail: '#00ff00' };
+  assert.equal(await api.generateCityModel(req),preview, 'color changes reuse the finalized geometry');
   const files={}; await api.cityMapExportFlow.generateFiles({...req,flow:'city-map'},()=>{},(name,value)=>files[name]=value);
   assert.deepEqual(files['City_Main.stl'], api.encodeBinaryStl(preview.cityMesh,'City_Main'));
   assert.deepEqual(files['Trail_Line.stl'], api.encodeBinaryStl(preview.routeMesh,'Trail_Line'));

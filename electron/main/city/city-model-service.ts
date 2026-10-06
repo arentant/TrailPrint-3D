@@ -46,7 +46,9 @@ export function generateCityModel(request: CityGenerateRequest, onProgress?: (p:
     const config = await hydrateGpxConfig(request.config);
     request = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
     validateCityGeneration(request);
-    const key = JSON.stringify(request);
+    // Preview colors do not affect the STL geometry or invalidate its cache.
+    const { colors: _colors, ...geometryConfig } = config;
+    const key = JSON.stringify({ ...request, config: geometryConfig });
     if (cached?.key === key) { onProgress?.({ phase: 'done', progress: 1, message: 'City model ready' }); return cached.result; }
     cached = undefined;
     onProgress?.({ phase: 'prepare', progress: 0.02, message: 'Preparing city crop…' });

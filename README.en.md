@@ -50,6 +50,8 @@ Use **Grid on/off** above the map for positioning guides. **Save preset** can al
 
 ![Frame and tune parameters](docs/images/readme/02-compose-framing.webp)
 
+Open **Colors** below the rotation controls to choose the trail, terrain, and tray colors (or the city base in City view). Changes apply to the map and 3D preview one second after you stop editing. Mountain presets save the palette. STL files contain geometry; assign filament colors in your slicer.
+
 ### 3. Preview and export
 
 Check the terrain, trail, and tray in the 3D preview, then generate and download the model archive.

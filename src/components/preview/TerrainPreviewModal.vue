@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import TerrainMeshPreview from "@/components/preview/TerrainMeshPreview.vue";
 import SettingHelp from "@/components/ui/SettingHelp.vue";
+import ModelColorControls from '@/components/ui/ModelColorControls.vue';
 import { useSpraySegmentation } from "@/composables/useSpraySegmentation";
 import { useSprayMaskPreview } from "@/composables/useSprayMaskPreview";
 import { useConfigStore } from "@/stores/config";
@@ -362,11 +363,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 type="button"
                 class="terrain-modal__spray-toggle"
                 :class="{ 'terrain-modal__spray-toggle--active': sprayPanelOpen }"
-                aria-label="Paint mask panel"
-                title="Paint masks"
+                aria-label="Color and paint mask panel"
+                :aria-expanded="sprayPanelOpen"
+                title="Colors and paint masks"
                 @click="sprayPanelOpen = !sprayPanelOpen"
               >
-                Paint masks
+                Colors & paint masks
               </button>
               <button
                 type="button"
@@ -512,8 +514,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             <aside
               v-if="sprayPanelOpen"
               class="terrain-modal__spray-panel"
-              aria-label="Paint masks"
+              aria-label="Colors and paint masks"
             >
+              <div class="spray-panel__section">
+                <p class="spray-panel__colors-title">Model colors</p>
+                <ModelColorControls v-model="config.colors" :disabled="downloading" />
+                <p v-if="sprayEnabled && sprayPlan" class="spray-panel__paint-hint">Painted regions override the terrain's base color.</p>
+              </div>
               <div class="spray-panel__section">
                 <div class="spray-panel__guide-row">
                   <label class="spray-panel__toggle">

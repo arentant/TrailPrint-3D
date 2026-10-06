@@ -4,6 +4,7 @@
  */
 
 import type { OpenTopoDemType } from "./dem.js";
+import { createDefaultModelColors, type ModelColors } from './model-colors.js';
 
 // ─── 模块一：地图选取与尺寸 ─────────────────────────────────────────
 
@@ -193,6 +194,7 @@ export interface MoldKitConfig {
 /** Settings shared by map-based model flows. No GPX or terrain requirements. */
 export interface MapModelConfig {
   mapCrop: MapCropConfig;
+  colors: ModelColors;
 }
 
 export interface MountainTrailConfig extends MapModelConfig {
@@ -213,6 +215,7 @@ export type AppConfig = MountainTrailConfig;
  * 不含 GPX 与 API Key。地图取景可选；旧方案加载时沿用当前取景。
  */
 export interface ConfigSchemePayload {
+  colors?: ModelColors;
   mapCrop: MapCropConfig;
   mapView?: Pick<MapCropConfig, "mapCenterLat" | "mapCenterLon" | "mapZoom" | "mapBearingDeg">;
   terrain: Omit<TerrainConfig, "openTopographyApiKey">;
@@ -233,6 +236,7 @@ export interface ConfigScheme {
 
 export function createDefaultConfig(): AppConfig {
   return {
+    colors: createDefaultModelColors(),
     gpx: {
       imported: false,
       points: [],

@@ -3,8 +3,9 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CityGenerateResponse } from '@shared/types/city';
+import type { ModelColors } from '@shared/types/model-colors';
 import { payloadToBufferGeometry } from '@/utils/terrain-mesh-three';
-const props = defineProps<{ result: CityGenerateResponse }>();
+const props = defineProps<{ result: CityGenerateResponse; colors: ModelColors }>();
 const container = ref<HTMLDivElement | null>(null);
 const error = ref<string | null>(null);
 let renderer: THREE.WebGLRenderer | undefined;
@@ -14,10 +15,14 @@ let scene: THREE.Scene;
 let group: THREE.Group | undefined;
 let observer: ResizeObserver | undefined;
 let frame = 0;
+let cityMaterial: THREE.MeshStandardMaterial | undefined;
+let routeMaterial: THREE.MeshStandardMaterial | undefined;
 function disposeGroup() {
   group?.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((m) => m.dispose()); } });
   if (group) scene.remove(group);
   group = undefined;
+  cityMaterial = undefined;
+  routeMaterial = undefined;
 }
 function build(resetView = false) {
   if (!renderer) return;
@@ -25,8 +30,10 @@ function build(resetView = false) {
   group = new THREE.Group();
   // Shared assembly coordinates are preserved, with Z up in the source meshes.
   group.rotation.x = -Math.PI / 2;
-  group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.cityMesh, { hardEdges: true }), new THREE.MeshStandardMaterial({ color: 0xbfc8bd, roughness: 0.8, flatShading: true })));
-  group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.routeMesh, { hardEdges: true }), new THREE.MeshStandardMaterial({ color: 0xe84335, roughness: 0.5 })));
+  cityMaterial = new THREE.MeshStandardMaterial({ color: props.colors.terrain, roughness: 0.8, flatShading: true });
+  routeMaterial = new THREE.MeshStandardMaterial({ color: props.colors.trail, roughness: 0.5 });
+  group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.cityMesh, { hardEdges: true }), cityMaterial));
+  group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.routeMesh, { hardEdges: true }), routeMaterial));
   scene.add(group);
   const box = new THREE.Box3().setFromObject(group), size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
   const span = Math.max(size.x, size.y, size.z, 20);
@@ -53,6 +60,10 @@ onMounted(() => {
   } catch { error.value = '3D preview is unavailable on this device. The finalized STL files can still be downloaded.'; }
 });
 watch(() => props.result, () => build());
+watch(() => props.colors, (colors) => {
+  cityMaterial?.color.set(colors.terrain);
+  routeMaterial?.color.set(colors.trail);
+}, { deep: true });
 onUnmounted(() => { cancelAnimationFrame(frame); observer?.disconnect(); controls?.dispose(); disposeGroup(); renderer?.dispose(); renderer?.forceContextLoss(); renderer?.domElement.remove(); renderer = undefined; });
 </script>
 <template><div ref="container" class="city-mesh"><p v-if="error" role="status">{{ error }}</p></div></template>

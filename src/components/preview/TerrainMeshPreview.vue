@@ -87,7 +87,7 @@ let pendingPaintY: number | null = null;
 let paintFrameRaf = 0;
 
 const trailMaterial = new THREE.MeshBasicMaterial({
-  color: 0xe84335,
+  color: config.value.colors.trail,
   depthTest: true,
   depthWrite: true,
 });
@@ -128,7 +128,7 @@ function resetTerrainMaterial(mesh: THREE.Mesh): void {
   const mat = mesh.material as THREE.MeshStandardMaterial;
   mat.vertexColors = false;
   mat.map = null;
-  mat.color.setHex(0xf3ead6);
+  mat.color.set(config.value.colors.terrain);
   const geo = mesh.geometry as THREE.BufferGeometry;
   geo.deleteAttribute("color");
   mat.needsUpdate = true;
@@ -137,7 +137,7 @@ function resetTerrainMaterial(mesh: THREE.Mesh): void {
 function ensureTerrainMaterial(): THREE.MeshStandardMaterial {
   if (!terrainMaterial) {
     terrainMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf3ead6,
+      color: config.value.colors.terrain,
       roughness: 0.88,
       metalness: 0.01,
       side: THREE.DoubleSide,
@@ -153,7 +153,7 @@ function ensureTrayMaterial(): THREE.MeshLambertMaterial {
   if (!trayMaterial) {
     // 预览需 360° 环视：双面 + 哑光 Lambert，避免底面被 FrontSide 剔除
     trayMaterial = new THREE.MeshLambertMaterial({
-      color: 0x5c6670,
+      color: config.value.colors.tray,
       flatShading: true,
       side: THREE.DoubleSide,
     });
@@ -694,6 +694,16 @@ function disposeThree(): void {
 }
 
 watch(
+  () => config.value.colors,
+  (colors) => {
+    trailMaterial.color.set(colors.trail);
+    trayMaterial?.color.set(colors.tray);
+    if (terrainMaterial && !terrainMaterial.vertexColors) terrainMaterial.color.set(colors.terrain);
+  },
+  { deep: true },
+);
+
+watch(
   () => [props.sprayMasks, props.sprayPlan?.colors] as const,
   () => {
     if (!maskRoot || !props.result?.crop) return;
@@ -870,7 +880,7 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       class="terrain-preview__badge terrain-preview__badge--dim"
     >
       {{ demLabel }}
-      <span> · Tray base included · Red = trail · Drag to rotate</span>
+      <span> · Tray base included · Drag to rotate</span>
     </div>
   </div>
 </template>

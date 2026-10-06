@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import {
   createDefaultConfig,
+  normalizeModelColors,
   type AppConfig,
   type ConfigScheme,
   type ConfigSchemePayload,
@@ -128,6 +129,7 @@ function extractMapCropForScheme(mapCrop: AppConfig["mapCrop"]): AppConfig["mapC
 function extractSchemePayload(cfg: AppConfig, includeMapView = false): ConfigSchemePayload {
   const { openTopographyApiKey: _key, ...terrainRest } = cfg.terrain;
   return deepClone({
+    colors: cfg.colors,
     mapCrop: extractMapCropForScheme(cfg.mapCrop),
     ...(includeMapView ? {
       mapView: {
@@ -147,6 +149,7 @@ function extractSchemePayload(cfg: AppConfig, includeMapView = false): ConfigSch
 }
 
 function applySchemePayload(cfg: AppConfig, payload: ConfigSchemePayload): void {
+  cfg.colors = normalizeModelColors(payload.colors);
   const apiKey = cfg.terrain.openTopographyApiKey;
   const gpx = cfg.gpx;
   const framing = {

@@ -51,12 +51,7 @@ function setBearing(value: number): void {
 
 <style scoped>
 .map-rotation {
-  position: absolute;
-  top: 72px;
-  left: 16px;
-  z-index: 1001;
-  width: 224px;
-  max-width: calc(100% - 32px);
+  width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);

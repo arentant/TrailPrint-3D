@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, useId, watch } from 
 import L from "leaflet";
 import "leaflet-rotate";
 import MapRotationControls from './MapRotationControls.vue';
+import ModelColorControls from '@/components/ui/ModelColorControls.vue';
+import type { ModelColors } from '@shared/types/model-colors';
 import {
   buildMaskGeometry,
   maskEvenOddPath,
@@ -24,6 +26,7 @@ import {
 import type { MapCropConfig, GpxState, GpxPoint, TrayConfig } from '@shared/types/config';
 const props = defineProps<{
   crop: MapCropConfig;
+  colors: ModelColors;
   gpx: GpxState;
   points: GpxPoint[];
   segments?: GpxPoint[][];
@@ -34,6 +37,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   'update:crop': [crop: MapCropConfig];
+  'update:colors': [colors: ModelColors];
   viewport: [value: { w: number; h: number }];
   ready: [value: boolean];
 }>();
@@ -82,7 +86,6 @@ const WHEEL_PX_PER_ZOOM_LEVEL = 5;
 const ZOOM_SNAP = 0.01;
 
 const TRACK_STYLE: L.PolylineOptions = {
-  color: "#e53935",
   weight: 5,
   opacity: 0.95,
   lineCap: "round",
@@ -228,7 +231,7 @@ function updateTrackLayer(): void {
   if (!points.length) return;
 
   const latlngs = (props.segments ?? [points]).map((segment) => segment.map((p) => toMapLatLng(p.lat, p.lon)));
-  trackLayer.value = L.polyline(latlngs, TRACK_STYLE).addTo(map);
+  trackLayer.value = L.polyline(latlngs, { ...TRACK_STYLE, color: props.colors.trail }).addTo(map);
 }
 
 let fitRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -474,6 +477,8 @@ watch(
   { deep: true },
 );
 
+watch(() => props.colors.trail, (color) => trackLayer.value?.setStyle({ color }));
+
 watch(
   () => config.value.gpx.imported,
   (v) => {
@@ -547,8 +552,22 @@ defineExpose({
 <template>
   <div ref="mapWrap" class="map-wrap">
     <div ref="mapRoot" class="leaflet-map" />
-    <MapRotationControls :bearing="crop.mapBearingDeg" :disabled="!mapInstance"
-      @update:bearing="setMapBearing" />
+    <div class="map-controls">
+      <MapRotationControls :bearing="crop.mapBearingDeg" :disabled="!mapInstance"
+        @update:bearing="setMapBearing" />
+      <details class="map-colors">
+        <summary>
+          <span>Colors</span>
+          <span class="map-colors__swatches" aria-hidden="true">
+            <i :style="{ backgroundColor: colors.trail }" />
+            <i :style="{ backgroundColor: colors.terrain }" />
+            <i v-if="tray" :style="{ backgroundColor: colors.tray }" />
+          </span>
+        </summary>
+        <ModelColorControls :model-value="colors" :workspace="tray ? 'mountain' : 'city'"
+          :show-tray="!!tray" @update:model-value="emit('update:colors', $event)" />
+      </details>
+    </div>
     <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
     <!-- 遮罩固定于屏幕；圆形/矩形用 CSS 避免 SVG 非等比拉伸导致虚线变形 -->
     <div v-if="maskGeom" class="map-mask">
@@ -623,6 +642,36 @@ defineExpose({
   height: 100%;
   background: #1a1a2e;
 }
+
+.map-controls {
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 224px;
+  max-width: calc(100% - 32px);
+}
+
+.map-colors {
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  color: var(--tp-text-primary);
+}
+
+.map-colors summary { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; }
+.map-colors summary::-webkit-details-marker { display: none; }
+.map-colors summary::after { content: '+'; margin-left: auto; font-size: 16px; color: var(--tp-text-secondary); }
+.map-colors[open] summary::after { content: '−'; }
+.map-colors[open] { padding-bottom: 12px; }
+.map-colors summary:focus-visible { outline: 2px solid var(--tp-text-accent); outline-offset: 2px; border-radius: 4px; }
+.map-colors__swatches { display: flex; gap: 3px; }
+.map-colors__swatches i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.12); }
 
 .basemap-status {
   position: absolute;

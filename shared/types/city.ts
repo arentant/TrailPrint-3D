@@ -1,5 +1,6 @@
 import { createDefaultConfig, type GpxBounds, type GpxState, type MapModelConfig, type TerrainConfig } from './config.js';
 import type { TerrainCropRegion, TerrainMeshPayload } from './terrain.js';
+import { createDefaultModelColors } from './model-colors.js';
 
 export interface CityMapConfig extends MapModelConfig {
   gpx: GpxState;
@@ -21,6 +22,7 @@ export interface CityMapConfig extends MapModelConfig {
 export function createDefaultCityConfig(): CityMapConfig {
   const defaults = createDefaultConfig();
   return {
+    colors: createDefaultModelColors('city'),
     gpx: defaults.gpx,
     mapCrop: defaults.mapCrop,
     terrain: { ...defaults.terrain, baseSolidThicknessMm: 3, zExaggeration: 1, meshQuality: 'high' },
