@@ -112,7 +112,7 @@ test('color edits wait one second after the last input and reset cancels pending
   await expect(track).toHaveAttribute('stroke', '#1268d2');
   await trail.fill('#ff00ff');
   await page.clock.runFor(600);
-  await panel.getByRole('button', { name: 'Reset colors', exact: true }).click();
+  await panel.getByRole('button', { name: 'Reset colors', exact: true }).press('Enter');
   await expect(track).toHaveAttribute('stroke', '#e84335');
   await page.clock.runFor(1000);
   await expect(track).toHaveAttribute('stroke', '#e84335');
