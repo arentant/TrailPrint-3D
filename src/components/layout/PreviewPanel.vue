@@ -174,7 +174,7 @@ async function onDownloadStl(): Promise<void> {
 
       <div v-if="config.gpx.imported" class="preview__hint-bar">
         <span
-          >Drag to pan · Scroll to zoom · White = terrain · Yellow = tray ·
+          >Drag to pan · Scroll to zoom · Alt / Option + drag to rotate · White = terrain · Yellow = tray ·
           Reset the view at the top right</span
         >
       </div>

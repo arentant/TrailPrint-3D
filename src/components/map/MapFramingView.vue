@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef, useId, watch } from "vue";
 import L from "leaflet";
 import "leaflet-rotate";
+import MapRotationControls from './MapRotationControls.vue';
 import {
   buildMaskGeometry,
   maskEvenOddPath,
@@ -275,14 +276,16 @@ function scheduleFitTrackInView(): void {
   });
 }
 
-function resetMapView(): void {
+function setMapBearing(bearing: number): void {
   const map = mapInstance.value;
-  if (!map) return;
+  if (!map || !Number.isFinite(bearing)) return;
+  map.setBearing(bearing);
+  syncStoreFromMap();
+}
 
-  if (typeof map.setBearing === "function") {
-    map.setBearing(0);
-    emit('update:crop', { ...props.crop, mapBearingDeg: 0 });
-  }
+function resetMapView(): void {
+  if (!mapInstance.value) return;
+  setMapBearing(0);
 
   if (config.value.gpx.imported && config.value.gpx.bounds) {
     scheduleFitTrackInView();
@@ -544,6 +547,8 @@ defineExpose({
 <template>
   <div ref="mapWrap" class="map-wrap">
     <div ref="mapRoot" class="leaflet-map" />
+    <MapRotationControls :bearing="crop.mapBearingDeg" :disabled="!mapInstance"
+      @update:bearing="setMapBearing" />
     <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
     <!-- 遮罩固定于屏幕；圆形/矩形用 CSS 避免 SVG 非等比拉伸导致虚线变形 -->
     <div v-if="maskGeom" class="map-mask">

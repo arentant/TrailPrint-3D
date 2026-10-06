@@ -35,7 +35,7 @@ const demTooltipText = openTopoDemTooltipText();
         </template>
       </div>
       <NumberField v-if="config.mapCrop.shape !== 'circle'" v-model="config.mapCrop.cornerRadiusMm" label="Corner radius" help="corner" suffix="mm" :min="0" :max="maxCorner" :step="0.5" />
-      <p>Pan, zoom and Option/Alt-drag to frame your run. Dimensions set the print size.</p>
+      <p>Pan and zoom to frame your run. Use the map rotation controls or Alt / Option + drag to turn it. Dimensions set the print size.</p>
     </section>
     <section aria-labelledby="city-surface">
       <h2 id="city-surface">2. Surface</h2>

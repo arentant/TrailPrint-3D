@@ -42,7 +42,7 @@ Launch the app and upload the `.gpx` file from the previous step.
 
 ### 2. Frame and tune parameters
 
-Choose a base shape (circle, rectangle, or regular polygon), then pan and zoom the map to position your track. Hold **Alt / Option** and drag to rotate map bearing. Use the sidebar to set print dimensions, corner radius, elevation exaggeration, surface smoothing, tray base, and assembly tolerances.
+Choose a base shape (circle, rectangle, or regular polygon), then pan and zoom the map to position your track. Use **Map rotation** at the top left: the arrow buttons turn the map by 15°, the slider adjusts the angle, and **Reset north** restores north without changing position or zoom. You can also hold **Alt / Option** and drag to rotate. These controls work in both Mountain and City views. Use the sidebar to set print dimensions, corner radius, elevation exaggeration, surface smoothing, tray base, and assembly tolerances.
 
 ![Frame and tune parameters](docs/images/readme/02-compose-framing.webp)
 
@@ -135,7 +135,7 @@ TRAILPRINT_HEAP_MB=8192
 - **Base shape:** Circular, rectangular, or regular polygon crop regions.
 - **Print size:** Scale the model to your actual print dimensions (e.g. 150mm × 150mm).
 - **Map framing:** Pan and zoom on the map to select the trail and terrain area to keep.
-- **Map rotation:** Alt / Option + drag to rotate map bearing while the crop mask stays fixed.
+- **Map rotation:** Arrow buttons, an angle slider, and Reset north in both workspaces; Alt / Option + drag also rotates the map while the crop mask stays fixed.
 - **Corner radius:** Rounded outer contours for rectangles and polygons (0 = sharp corners).
 
 ### ⛰️ 2. Terrain generation and trail processing
