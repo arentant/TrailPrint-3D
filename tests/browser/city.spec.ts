@@ -3,7 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { compactCityMap } from '../city-fixture.mjs';
+import { MAX_PICTURE_TILES } from '../../shared/city/map-tiles';
 const data = JSON.stringify(compactCityMap(JSON.parse(await readFile('fixtures/city-map.osm.json','utf8'))));
+const tilePng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64');
+test.beforeEach(async ({ page }) => {
+  await page.route('**/World_Topo_Map/MapServer/tile/**', route => route.fulfill({ contentType: 'image/png', body: tilePng }));
+});
 
 test('City import, finalized preview, ZIP, repeat download and independent workspace state', async ({ page }) => {
   const errors: string[]=[]; page.on('pageerror',e=>errors.push(e.message));
@@ -43,9 +48,22 @@ test('City import, finalized preview, ZIP, repeat download and independent works
     expect(triangles).toBeGreaterThan(0); expect(bytes.length).toBe(84+50*triangles);
     for(let t=0;t<triangles;t++) for(let c=0;c<12;c++) expect(Number.isFinite(view.getFloat32(84+t*50+c*4,true))).toBe(true);
   }
+  const trailEvent = page.waitForEvent('download');
+  await previewDialog.getByRole('button', { name: 'Download trail STL', exact: true }).click();
+  const trailDownload = await trailEvent;
+  expect(trailDownload.suggestedFilename()).toBe('city-run_Trail_Line.stl');
+  expect(await readFile((await trailDownload.path())!)).toEqual(Buffer.from(files['city-run_Trail_Line.stl']));
+  const mapEvent = page.waitForEvent('download');
+  await previewDialog.getByRole('button', { name: 'Download map picture', exact: true }).click();
+  const mapDownload = await mapEvent;
+  expect(mapDownload.suggestedFilename()).toBe('city-run_City_Map.svg');
+  const svg = await readFile((await mapDownload.path())!, 'utf8');
+  expect(svg).toContain('width="140mm" height="140mm"');
+  expect(svg).not.toContain('City fixture run');
+  expect(svg).toContain('OpenStreetMap contributors');
   expect(maps).toBe(1); expect(elevations).toBe(0);
   await page.getByRole('button',{name:'Close city preview'}).click();
-  const again=page.waitForEvent('download'); await page.getByRole('button',{name:'Download again',exact:true}).click(); expect((await again).suggestedFilename()).toBe(download.suggestedFilename());
+  const again=page.waitForEvent('download'); await page.getByRole('button',{name:'Download again',exact:true}).click(); expect((await again).suggestedFilename()).toBe(mapDownload.suggestedFilename());
   await page.getByRole('button',{name:'Mountain',exact:true}).click();
   await expect(page.getByRole('spinbutton',{name:'Print radius'})).toHaveValue(mountainRadius);
   await expect(page.locator('.gpx-summary__title')).toHaveText(mountainTrack!);
@@ -60,6 +78,82 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   await page.getByRole('button',{name:'Close city preview'}).click();
   await expect(page.getByRole('button',{name:'Real terrain',exact:true})).toHaveAttribute('aria-pressed','true');
   expect(errors).toEqual([]);
+});
+
+test('paper map exports before a 3D preview, needs no elevation key, and renders at physical size', async ({ page, context }) => {
+  let maps = 0, elevations = 0;
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await page.route('**/api/city', route => { maps++; return route.fulfill({ contentType: 'application/json', body: data }); });
+  await page.route('**/api/elevation', route => { elevations++; return route.fulfill({ status: 502 }); });
+  await page.goto('/'); await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'City', exact: true }).click();
+  const pictureButton = page.getByRole('button', { name: 'Download city map picture', exact: true });
+  await expect(pictureButton).toBeDisabled();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
+  await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Print length', exact: true }).fill('120');
+  await page.getByRole('spinbutton', { name: 'Print width', exact: true }).fill('90');
+  await page.getByRole('button', { name: 'Real terrain', exact: true }).click();
+  await page.getByPlaceholder('Paste your API key').fill('');
+  await expect(pictureButton).toBeEnabled();
+  const event = page.waitForEvent('download'); await pictureButton.click(); const download = await event;
+  expect(download.suggestedFilename()).toBe('city-run_City_Map.svg');
+  const svg = await readFile((await download.path())!, 'utf8');
+  const parsed = await page.evaluate(source => {
+    const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
+    return {
+      errors: doc.querySelectorAll('parsererror').length,
+      width: doc.documentElement.getAttribute('width'), height: doc.documentElement.getAttribute('height'),
+      route: doc.querySelector('#running-route path')?.getAttribute('d'),
+      routeColor: doc.querySelector('#running-route')?.getAttribute('stroke'),
+      text: Array.from(doc.querySelectorAll('text')).map(node => node.textContent),
+      tiles: doc.querySelectorAll('#street-map image').length,
+    };
+  }, svg);
+  expect(parsed.errors).toBe(0); expect(parsed.width).toBe('120mm'); expect(parsed.height).toBe('90mm');
+  expect(parsed.routeColor).toBe('#fc4c02');
+  expect(parsed.text).toEqual([]);
+  expect(parsed.route).toMatch(/^M/); expect(parsed.tiles).toBeGreaterThan(0); expect(parsed.tiles).toBeLessThanOrEqual(MAX_PICTURE_TILES);
+  expect(elevations).toBe(0); expect(maps).toBe(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.city-status')).toContainText('100% / actual size');
+  const image = await context.newPage();
+  await image.goto(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  await expect(image.locator('svg')).toBeVisible();
+  await image.screenshot({ path: 'test-results/city-paper-map.png' });
+  await image.close();
+  const repeat = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download again', exact: true }).click();
+  expect((await repeat).suggestedFilename()).toBe(download.suggestedFilename());
+  expect(maps).toBe(0); expect(errors).toEqual([]);
+});
+
+test('marathon trail and map downloads bypass city geometry and work after an oversized city preview', async ({ page }) => {
+  let maps = 0, elevations = 0;
+  await page.route('**/api/city', route => { maps++; return route.fulfill({ status: 413, contentType: 'application/json', body: JSON.stringify({ error: 'The map download is too large. Choose a smaller selection.' }) }); });
+  await page.route('**/api/elevation', route => { elevations++; return route.fulfill({ status: 502 }); });
+  await page.goto('/'); await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'City', exact: true }).click();
+  const trailButton = page.getByRole('button', { name: 'Download trail STL', exact: true });
+  await expect(trailButton).toBeDisabled();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-marathon.gpx'));
+  await expect(trailButton).toBeEnabled();
+  const event = page.waitForEvent('download'); await trailButton.click(); const trail = await event;
+  expect(trail.suggestedFilename()).toBe('city-marathon_Trail_Line.stl');
+  expect((await readFile((await trail.path())!)).length).toBeGreaterThan(84);
+  expect(maps).toBe(0); expect(elevations).toBe(0);
+  await page.getByRole('button', { name: 'Preview & export City STL' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('alert')).toContainText('The map download is too large');
+  await expect(dialog.getByRole('button', { name: 'Download City ZIP' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Download trail STL', exact: true })).toBeEnabled();
+  const retryTrail = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download trail STL', exact: true }).click();
+  expect((await retryTrail).suggestedFilename()).toBe(trail.suggestedFilename());
+  const mapEvent = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download map picture' }).click(); const picture = await mapEvent;
+  const svg = await readFile((await picture.path())!, 'utf8');
+  expect(svg).toContain('id="street-map"><image'); expect(svg).toContain('id="running-route"');
+  expect(maps).toBe(1); expect(elevations).toBe(0);
 });
 
 test('Real terrain stays manual, provider failures are shown, and stale previews are discarded', async ({page}) => {

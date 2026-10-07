@@ -121,6 +121,17 @@ test('desktop ZIP delivery packages the entries declared by any model flow', asy
   await assertStagingRemoved()
 })
 
+test('desktop delivers the printable city SVG as an image with correct save metadata', async () => {
+  const input = request();
+  input.artifact = { kind: 'file', fileName: 'run_City_Map.svg', extension: 'svg', mimeType: 'image/svg+xml', saveDialogTitle: 'Save printable city map picture' };
+  input.files = { 'run_City_Map.svg': new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>') };
+  const result = await generateModelExport(input, () => {});
+  assert.equal(result.savedPath, join(output, 'saved-model.svg'));
+  assert.equal(mock.options[0].filters[0].name, 'SVG image');
+  assert.deepEqual(await readFile(result.savedPath), Buffer.from(input.files['run_City_Map.svg']));
+  await assertStagingRemoved();
+})
+
 test('cancelled desktop saves clean up staged files and do not reveal an export', async () => {
   mock.result = { canceled: true }
   const result = await generateModelExport(request(), () => {})

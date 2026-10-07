@@ -9,7 +9,7 @@ import { buildFootprintPolygonMm } from '../utils/footprint';
 import { buildMaskGeometry } from '../utils/mask-geometry';
 import { sampleHeightBilinearMm } from '../utils/heightfield-mesh';
 
-function cityProjector(request: CityGenerateRequest, crop: TerrainCropRegion) {
+export function cityProjector(request: CityGenerateRequest, crop: TerrainCropRegion) {
   const { mapCrop } = request.config;
   const { viewportWidth: w, viewportHeight: h } = request;
   const origin = computePixelOrigin(mapCrop, w, h);
@@ -87,6 +87,12 @@ export function buildCityGeometry(wasm: ManifoldToplevel, ...inputs: GeometryInp
   return buildGeometry(wasm, ...inputs);
 }
 
+/** Only the route and its supporting heightfield; no map features or city groove. */
+export function buildCityRouteGeometry(wasm: ManifoldToplevel, request: CityGenerateRequest, crop: TerrainCropRegion,
+  heights: Float64Array, cols: number, rows: number): TerrainMeshPayload {
+  return buildGeometry(wasm, request, crop, { elements: [] }, heights, cols, rows, undefined, undefined, undefined, true).routeMesh;
+}
+
 /** Retains one uncut city. Trail edits always cut a fresh groove into that original solid. */
 export function createCityGeometryBuilder(wasm: ManifoldToplevel) {
   let cached: { key: string; data: CityMapData; heights: Float64Array; prepared: PreparedCity } | undefined;
@@ -110,8 +116,10 @@ export function createCityGeometryBuilder(wasm: ManifoldToplevel) {
   };
 }
 
-function buildGeometry(wasm: ManifoldToplevel, request: CityGenerateRequest, crop: TerrainCropRegion, data: CityMapData, heights: Float64Array, cols: number, rows: number,
-  prepared?: PreparedCity, retain?: (city: PreparedCity) => void, onTrail?: () => void): GeometryResult {
+function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared?: PreparedCity, retain?: (city: PreparedCity) => void, onTrail?: () => void, trailOnly?: false]): GeometryResult;
+function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared: undefined, retain: undefined, onTrail: undefined, trailOnly: true]): Pick<GeometryResult, 'routeMesh'>;
+function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared?: PreparedCity, retain?: (city: PreparedCity) => void, onTrail?: () => void, trailOnly?: boolean]): GeometryResult | Pick<GeometryResult, 'routeMesh'> {
+  let [request, crop, data, heights, cols, rows, prepared, retain, onTrail, trailOnly] = args;
   const { CrossSection: CS, Manifold: Solid, Mesh } = wasm;
   const allocations = new Set<Scoped>();
   const own = <T extends Scoped>(value: T): T => { allocations.add(value); return value; };
@@ -167,93 +175,96 @@ function buildGeometry(wasm: ManifoldToplevel, request: CityGenerateRequest, cro
         if (raw.status() !== 'NoError') throw new Error('Could not build a closed terrain solid. Choose a lower mesh quality.');
         terrain = own(raw.intersect(clipSolid)); drop(raw);
       }
-      const geojson = osmtogeojson(data as Parameters<typeof osmtogeojson>[0], { flatProperties: false }) as unknown as { features: Feature[] };
-      type Building = { section: CrossSection; height: number; part: boolean };
-      const buildings: Building[] = [];
-      const roads: Array<{ lines: Vec2[][]; width: number }> = [];
-      const scale = maskMmScale(request.config.mapCrop, crop, request.viewportWidth, request.viewportHeight);
-      const metersPerPixel = 156543.03392804097 * Math.cos(crop.centerLat * Math.PI / 180) / 2 ** request.config.mapCrop.mapZoom;
-      const mmPerMeter = scale.scaleX / metersPerPixel;
-      let fallbackCount = 0, unsupported = 0, simplifiedDetails = 0;
-      for (const feature of geojson.features) {
-        const tags = feature.properties.tags ?? {};
-        const g = feature.geometry;
-        if (feature.properties.tainted) { counts.omitted++; continue; }
-        if (settings.buildingsVisible && ((tags.building && tags.building !== 'no') || (tags['building:part'] && tags['building:part'] !== 'no'))) {
-          const polygons: number[][][][] = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
-          if (!polygons.length) { counts.omitted++; continue; }
-          const pieces: CrossSection[] = [];
-          for (const polygon of polygons) {
-            const rings = polygon.map(projectLine);
-            const section = contours(rings);
-            const simplified = own(section.simplify(0.05)); simplifiedDetails += Math.max(0, section.numVert() - simplified.numVert()); drop(section);
-            const clipped = own(simplified.intersect(footprint)); drop(simplified);
-            pieces.push(clipped);
+      let city = terrain;
+      if (!trailOnly) {
+        const geojson = osmtogeojson(data as Parameters<typeof osmtogeojson>[0], { flatProperties: false }) as unknown as { features: Feature[] };
+        type Building = { section: CrossSection; height: number; part: boolean };
+        const buildings: Building[] = [];
+        const roads: Array<{ lines: Vec2[][]; width: number }> = [];
+        const scale = maskMmScale(request.config.mapCrop, crop, request.viewportWidth, request.viewportHeight);
+        const metersPerPixel = 156543.03392804097 * Math.cos(crop.centerLat * Math.PI / 180) / 2 ** request.config.mapCrop.mapZoom;
+        const mmPerMeter = scale.scaleX / metersPerPixel;
+        let fallbackCount = 0, unsupported = 0, simplifiedDetails = 0;
+        for (const feature of geojson.features) {
+          const tags = feature.properties.tags ?? {};
+          const g = feature.geometry;
+          if (feature.properties.tainted) { counts.omitted++; continue; }
+          if (settings.buildingsVisible && ((tags.building && tags.building !== 'no') || (tags['building:part'] && tags['building:part'] !== 'no'))) {
+            const polygons: number[][][][] = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+            if (!polygons.length) { counts.omitted++; continue; }
+            const pieces: CrossSection[] = [];
+            for (const polygon of polygons) {
+              const rings = polygon.map(projectLine);
+              const section = contours(rings);
+              const simplified = own(section.simplify(0.05)); simplifiedDetails += Math.max(0, section.numVert() - simplified.numVert()); drop(section);
+              const clipped = own(simplified.intersect(footprint)); drop(simplified);
+              pieces.push(clipped);
+            }
+            const section = own(CS.union(pieces)); pieces.forEach(drop);
+            if (section.area() < 0.16) { drop(section); counts.omitted++; continue; }
+            const height = buildingHeightM(tags, settings.fallbackBuildingHeightM);
+            if (height.fallback) fallbackCount++;
+            buildings.push({ section, height: Math.max(0.4, height.height * settings.buildingHeightExaggeration * mmPerMeter), part: !!tags['building:part'] && tags['building:part'] !== 'no' });
+            if (buildings.length > 35_000) throw new Error('Too many printable buildings to process. Reduce the model size or select a smaller area.');
           }
-          const section = own(CS.union(pieces)); pieces.forEach(drop);
-          if (section.area() < 0.16) { drop(section); counts.omitted++; continue; }
-          const height = buildingHeightM(tags, settings.fallbackBuildingHeightM);
-          if (height.fallback) fallbackCount++;
-          buildings.push({ section, height: Math.max(0.4, height.height * settings.buildingHeightExaggeration * mmPerMeter), part: !!tags['building:part'] && tags['building:part'] !== 'no' });
-          if (buildings.length > 35_000) throw new Error('Too many printable buildings to process. Reduce the model size or select a smaller area.');
+          if (settings.roadsVisible && tags.highway && !['proposed', 'construction'].includes(tags.highway)) {
+            if (tags.tunnel === 'yes' || tags.bridge === 'yes' || tags.covered === 'yes') { unsupported++; counts.omitted++; continue; }
+            const lines = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates[0]] : [];
+            if (!lines.length) { counts.omitted++; continue; }
+            const mappedWidth = Number(tags.width);
+            const widthM = Number.isFinite(mappedWidth) && mappedWidth > 0 && mappedWidth < 100 ? mappedWidth : /footway|path|pedestrian|steps|cycleway/.test(tags.highway) ? 2 : /motorway|trunk|primary/.test(tags.highway) ? 12 : 6;
+            roads.push({ lines: lines.map(projectLine), width: Math.max(0.4, widthM * mmPerMeter) });
+          }
         }
-        if (settings.roadsVisible && tags.highway && !['proposed', 'construction'].includes(tags.highway)) {
-          if (tags.tunnel === 'yes' || tags.bridge === 'yes' || tags.covered === 'yes') { unsupported++; counts.omitted++; continue; }
-          const lines = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates[0]] : [];
-          if (!lines.length) { counts.omitted++; continue; }
-          const mappedWidth = Number(tags.width);
-          const widthM = Number.isFinite(mappedWidth) && mappedWidth > 0 && mappedWidth < 100 ? mappedWidth : /footway|path|pedestrian|steps|cycleway/.test(tags.highway) ? 2 : /motorway|trunk|primary/.test(tags.highway) ? 12 : 6;
-          roads.push({ lines: lines.map(projectLine), width: Math.max(0.4, widthM * mmPerMeter) });
+        const solidFeatures: Manifold[] = [terrain];
+        const parts = own(CS.union(buildings.filter((b) => b.part).map((b) => b.section)));
+        for (const building of buildings) {
+          const section = building.part ? building.section : own(building.section.subtract(parts));
+          if (section.area() >= 0.16) {
+            // Extrusion extends down through the base, so flat roofs remain supported on relief.
+            const polygons = section.toPolygons();
+            let roof = 0;
+            // Bound the roof height over its footprint while avoiding a full-grid scan for each building.
+            const bounds = section.bounds();
+            const cMin = Math.max(0, Math.floor((bounds.min[0] / crop.widthMm + 0.5) * (cols - 1)));
+            const cMax = Math.min(cols - 1, Math.ceil((bounds.max[0] / crop.widthMm + 0.5) * (cols - 1)));
+            const rMin = Math.max(0, Math.floor((bounds.min[1] / crop.heightMm + 0.5) * (rows - 1)));
+            const rMax = Math.min(rows - 1, Math.ceil((bounds.max[1] / crop.heightMm + 0.5) * (rows - 1)));
+            for (let r = rMin; r <= rMax; r++) for (let c = cMin; c <= cMax; c++) roof = Math.max(roof, heights[r * cols + c]!);
+            for (const ring of polygons) for (const [x, y] of ring) roof = Math.max(roof, sampleHeightBilinearMm(x, y, heights, cols, rows, crop));
+            if (!polygons.length) continue;
+            solidFeatures.push(extrusion(section, -baseThickness + 0.05, Math.max(roof, 0) + building.height)); counts.buildings++;
+          }
+          if (!building.part) drop(section);
         }
-      }
-      const solidFeatures: Manifold[] = [terrain];
-      const parts = own(CS.union(buildings.filter((b) => b.part).map((b) => b.section)));
-      for (const building of buildings) {
-        const section = building.part ? building.section : own(building.section.subtract(parts));
-        if (section.area() >= 0.16) {
-          // Extrusion extends down through the base, so flat roofs remain supported on relief.
-          const polygons = section.toPolygons();
-          let roof = 0;
-          // Bound the roof height over its footprint while avoiding a full-grid scan for each building.
-          const bounds = section.bounds();
-          const cMin = Math.max(0, Math.floor((bounds.min[0] / crop.widthMm + 0.5) * (cols - 1)));
-          const cMax = Math.min(cols - 1, Math.ceil((bounds.max[0] / crop.widthMm + 0.5) * (cols - 1)));
-          const rMin = Math.max(0, Math.floor((bounds.min[1] / crop.heightMm + 0.5) * (rows - 1)));
-          const rMax = Math.min(rows - 1, Math.ceil((bounds.max[1] / crop.heightMm + 0.5) * (rows - 1)));
-          for (let r = rMin; r <= rMax; r++) for (let c = cMin; c <= cMax; c++) roof = Math.max(roof, heights[r * cols + c]!);
-          for (const ring of polygons) for (const [x, y] of ring) roof = Math.max(roof, sampleHeightBilinearMm(x, y, heights, cols, rows, crop));
-          if (!polygons.length) continue;
-          solidFeatures.push(extrusion(section, -baseThickness + 0.05, Math.max(roof, 0) + building.height)); counts.buildings++;
+        drop(parts); buildings.forEach((b) => drop(b.section));
+        const roadSections: CrossSection[] = [];
+        for (const road of roads) {
+          const section = stroke(road.lines, road.width, footprint);
+          if (!section.isEmpty()) {
+            const simplified = own(section.simplify(0.05));
+            simplifiedDetails += Math.max(0, section.numVert() - simplified.numVert());
+            roadSections.push(simplified); counts.roads++;
+          }
+          drop(section);
         }
-        if (!building.part) drop(section);
-      }
-      drop(parts); buildings.forEach((b) => drop(b.section));
-      const roadSections: CrossSection[] = [];
-      for (const road of roads) {
-        const section = stroke(road.lines, road.width, footprint);
-        if (!section.isEmpty()) {
-          const simplified = own(section.simplify(0.05));
-          simplifiedDetails += Math.max(0, section.numVert() - simplified.numVert());
-          roadSections.push(simplified); counts.roads++;
+        if (roadSections.length) {
+          const section = own(CS.union(roadSections)); roadSections.forEach(drop);
+          const prism = extrusion(section, -baseThickness + 0.05, maxSurface + settings.roadReliefMm + 1);
+          const raisedTerrain = own(terrain.translate([0, 0, settings.roadReliefMm]));
+          solidFeatures.push(own(prism.intersect(raisedTerrain))); drop(raisedTerrain); drop(prism); drop(section);
         }
-        drop(section);
+        city = own(Solid.union(solidFeatures));
+        // Evaluate the city union once before retaining it; subsequent booleans reuse its result.
+        if (city.status() !== 'NoError' || city.isEmpty() || city.volume() <= 0) throw new Error('City is not a closed printable solid. Adjust the crop or city settings.');
+        if (city.numTri() > 2_000_000) throw new Error('The model is too complex. Choose a smaller area or lower mesh quality.');
+        if (simplifiedDetails) warnings.push(`${simplifiedDetails} sub-print-scale building/road vertices were simplified at 0.05 mm; route coordinates are retained.`);
+        if (fallbackCount) warnings.push(`${fallbackCount} buildings use the ${settings.fallbackBuildingHeightM} m fallback height; mapped levels use 3 m per level.`);
+        if (counts.omitted) warnings.push(`${counts.omitted} incomplete or sub-print-scale details were omitted (0.05 mm simplification, 0.16 mm² building minimum).`);
+        if (unsupported) warnings.push(`${unsupported} bridges, tunnels or covered roads were omitted; road relief is supported on the base.`);
+        if (!counts.buildings && settings.buildingsVisible) warnings.push('No printable buildings were found in this crop.');
+        if (!counts.roads && settings.roadsVisible) warnings.push('No printable roads were found in this crop.');
       }
-      if (roadSections.length) {
-        const section = own(CS.union(roadSections)); roadSections.forEach(drop);
-        const prism = extrusion(section, -baseThickness + 0.05, maxSurface + settings.roadReliefMm + 1);
-        const raisedTerrain = own(terrain.translate([0, 0, settings.roadReliefMm]));
-        solidFeatures.push(own(prism.intersect(raisedTerrain))); drop(raisedTerrain); drop(prism); drop(section);
-      }
-      const city = own(Solid.union(solidFeatures));
-      // Evaluate the city union once before retaining it; subsequent booleans reuse its result.
-      if (city.status() !== 'NoError' || city.isEmpty() || city.volume() <= 0) throw new Error('City is not a closed printable solid. Adjust the crop or city settings.');
-      if (city.numTri() > 2_000_000) throw new Error('The model is too complex. Choose a smaller area or lower mesh quality.');
-      if (simplifiedDetails) warnings.push(`${simplifiedDetails} sub-print-scale building/road vertices were simplified at 0.05 mm; route coordinates are retained.`);
-      if (fallbackCount) warnings.push(`${fallbackCount} buildings use the ${settings.fallbackBuildingHeightM} m fallback height; mapped levels use 3 m per level.`);
-      if (counts.omitted) warnings.push(`${counts.omitted} incomplete or sub-print-scale details were omitted (0.05 mm simplification, 0.16 mm² building minimum).`);
-      if (unsupported) warnings.push(`${unsupported} bridges, tunnels or covered roads were omitted; road relief is supported on the base.`);
-      if (!counts.buildings && settings.buildingsVisible) warnings.push('No printable buildings were found in this crop.');
-      if (!counts.roads && settings.roadsVisible) warnings.push('No printable roads were found in this crop.');
       prepared = { footprint, terrain, city, maxSurface, strokeEdges, counts: { ...counts }, warnings: [...warnings] };
       if (retain) {
         retain(prepared);
@@ -268,18 +279,11 @@ function buildGeometry(wasm: ManifoldToplevel, request: CityGenerateRequest, cro
     counts.routeSegments = segments.length;
     const routeSection = stroke(segments, settings.routeWidthMm, footprint);
     if (routeSection.isEmpty()) throw new Error('The running route is outside the crop. Fit the track or pan the map.');
-    const grooveSection = stroke(segments, settings.routeWidthMm + settings.routeClearanceMm * 2, footprint);
     const belowSeat = own(terrain.translate([0, 0, -settings.routeSeatDepthMm]));
     const aboveRoute = own(terrain.translate([0, 0, settings.routeReliefMm]));
     const slab = own(aboveRoute.subtract(belowSeat));
     const routePrism = extrusion(routeSection, -baseThickness, maxSurface + settings.routeReliefMm + 1);
     const route = own(routePrism.intersect(slab));
-    const groovePrism = extrusion(grooveSection, -baseThickness, maxSurface + 2000);
-    // Cut all buildings and road relief above the terrain-following seat, leaving the route visible.
-    // 0.01 mm of vertical fit clearance avoids coplanar floor contact after STL float32 rounding.
-    const grooveFloor = own(terrain.translate([0, 0, -settings.routeSeatDepthMm - 0.01]));
-    const cutter = own(groovePrism.subtract(grooveFloor));
-    const main = own(city.subtract(cutter));
     const payload = (solid: Manifold, name: string): TerrainMeshPayload => {
       if (solid.status() !== 'NoError' || solid.isEmpty() || solid.volume() <= 0) throw new Error(`${name} is not a closed printable solid. Adjust the crop or route settings.`);
       const mesh = solid.getMesh();
@@ -288,6 +292,14 @@ function buildGeometry(wasm: ManifoldToplevel, request: CityGenerateRequest, cro
       if (!positions.every(Number.isFinite) || mesh.triVerts.length > 6_000_000) throw new Error('The model is too complex. Choose a smaller area or lower mesh quality.');
       return { positions, indices: Array.from(mesh.triVerts), minSurfaceZ: 0, bottomZ: -baseThickness, gridCols: cols, gridRows: rows };
     };
+    if (trailOnly) return { routeMesh: payload(route, 'Route') };
+    const grooveSection = stroke(segments, settings.routeWidthMm + settings.routeClearanceMm * 2, footprint);
+    const groovePrism = extrusion(grooveSection, -baseThickness, maxSurface + 2000);
+    // Cut all buildings and road relief above the terrain-following seat, leaving the route visible.
+    // 0.01 mm of vertical fit clearance avoids coplanar floor contact after STL float32 rounding.
+    const grooveFloor = own(terrain.translate([0, 0, -settings.routeSeatDepthMm - 0.01]));
+    const cutter = own(groovePrism.subtract(grooveFloor));
+    const main = own(city.subtract(cutter));
     return { crop, cityMesh: payload(main, 'City'), routeMesh: payload(route, 'Route'), featureCounts: counts, warnings };
   } finally { for (const value of allocations) value.delete(); }
 }

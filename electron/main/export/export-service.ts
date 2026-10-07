@@ -40,7 +40,7 @@ export async function generateModelExport(req: ExportGenerateRequest, onProgress
     const saveOptions = {
       title: artifact.saveDialogTitle,
       defaultPath: artifact.fileName,
-      filters: [{ name: `${artifact.extension.toUpperCase()} ${artifact.kind === "zip" ? "archive" : "model"}`, extensions: [artifact.extension] }],
+      filters: [{ name: `${artifact.extension.toUpperCase()} ${artifact.kind === "zip" ? "archive" : artifact.mimeType.startsWith("image/") ? "image" : "model"}`, extensions: [artifact.extension] }],
     };
     const { canceled, filePath } = browserWindow
       ? await dialog.showSaveDialog(browserWindow, saveOptions)

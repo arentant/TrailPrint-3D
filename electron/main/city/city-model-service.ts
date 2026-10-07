@@ -3,15 +3,18 @@ import type { ManifoldToplevel } from 'manifold-3d';
 import { computeTerrainCropRegion } from '@shared/utils/crop-region';
 import { heightfieldGeoBounds } from '@shared/utils/map-mm-projection';
 import { gridResolutionForQuality, demFetchTimeoutMs } from '@shared/utils/terrain-mesh-quality';
-import { createCityGeometryBuilder, cityFootprint } from '@shared/city/geometry';
+import { createCityGeometryBuilder, buildCityRouteGeometry, cityFootprint } from '@shared/city/geometry';
 import { validateCityMapRequest } from '@shared/city/map-provider';
 import { sampleDemGrid } from '../terrain/dem-provider';
 import { prepareElevationHeightfield } from '../terrain/prepare-heightfield';
 import { hydrateGpxConfig } from '../gpx/hydrate-gpx-config';
 import { getManifold } from './manifold-runtime';
 import { loadCityMapData } from './city-map-provider';
+import { renderPrintableCityMap } from '@shared/city/printable-map';
+import { loadCityPictureTiles, clearCityPictureTileCache } from '@shared/city/map-tiles';
+import type { TerrainCropRegion, TerrainMeshPayload } from '@shared/types/terrain';
 
-export function validateCityGeneration(request: CityGenerateRequest): void {
+function validateCityFraming(request: CityGenerateRequest): void {
   const config = request?.config;
   if (!config?.gpx?.imported || !(config.gpx.segments?.some((s) => s.length >= 2) || config.gpx.points?.length >= 2 || config.gpx.rawPoints?.length >= 2)) throw new Error('Import a GPX running route with at least two points.');
   const valid = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
@@ -19,12 +22,25 @@ export function validateCityGeneration(request: CityGenerateRequest): void {
   if (!t || !c || !m || !['flat', 'real'].includes(c.surface)) throw new Error('Choose Flat or Real terrain.');
   if (!valid(request.viewportWidth, 64, 16384) || !valid(request.viewportHeight, 64, 16384)) throw new Error('The map viewport is too small. Resize the window.');
   if (!['circle', 'rectangle', 'polygon'].includes(m.shape) || ![m.radiusMm, m.lengthMm, m.widthMm, m.polygonSideLengthMm].every((v) => valid(v, 10, 500)) || !valid(m.polygonSides, 3, 8) || !Number.isInteger(m.polygonSides) || !valid(m.cornerRadiusMm, 0, 250) || !valid(m.mapZoom, 1, 22) || !valid(m.mapBearingDeg, -360, 360)) throw new Error('Check the city footprint dimensions and map framing.');
+  if (!valid(c.routeWidthMm, 0.4, 10)) throw new Error('Check the route width.');
+}
+
+function validateCityRouteGeneration(request: CityGenerateRequest): void {
+  validateCityFraming(request);
+  const valid = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
+  const { terrain: t, city: c } = request.config;
   if (!valid(t.baseSolidThicknessMm, 1, 20) || !valid(c.routeSeatDepthMm, 0.1, t.baseSolidThicknessMm - 0.4) || !valid(c.routeWidthMm, 0.4, 10) || !valid(c.routeReliefMm, 0.2, 10) || !valid(c.routeClearanceMm, 0, 1)) throw new Error('Check route dimensions. Keep at least 0.4 mm of base below the route seat.');
-  if (!valid(c.buildingHeightExaggeration, 0.1, 10) || !valid(c.fallbackBuildingHeightM, 1, 100) || !valid(c.roadReliefMm, 0.1, 3)) throw new Error('Check building heights and road relief.');
   if (c.surface === 'real') {
     if (!t.openTopographyApiKey?.trim()) throw new Error('Enter your OpenTopography API key to use Real terrain.');
     if (!valid(t.zExaggeration, 0.1, 10) || !['standard', 'high', 'ultra', 'extreme', 'studio', 'custom'].includes(t.meshQuality) || !['raw', 'light', 'medium', 'heavy'].includes(t.smoothing)) throw new Error('Check terrain quality, smoothing and elevation scale.');
   }
+}
+
+export function validateCityGeneration(request: CityGenerateRequest): void {
+  validateCityRouteGeneration(request);
+  const valid = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
+  const c = request.config.city;
+  if (!valid(c.buildingHeightExaggeration, 0.1, 10) || !valid(c.fallbackBuildingHeightM, 1, 100) || !valid(c.roadReliefMm, 0.1, 3)) throw new Error('Check building heights and road relief.');
 }
 
 let cached: { key: string; result: CityGenerateResponse } | undefined;
@@ -34,10 +50,112 @@ let cachedDem: { key: string; elevations: Float64Array } | undefined;
 let cachedHeights: { key: string; heights: Float64Array } | undefined;
 const flatHeights = new Float64Array(4);
 let geometry: { wasm: ManifoldToplevel; builder: ReturnType<typeof createCityGeometryBuilder> } | undefined;
+let cachedTrail: { key: string; mesh: TerrainMeshPayload } | undefined;
 let queue = Promise.resolve();
 export function clearCityModelCache(): void {
-  cached = undefined; cachedMap = undefined; cachedDem = undefined; cachedHeights = undefined;
+  cached = undefined; cachedMap = undefined; cachedDem = undefined; cachedHeights = undefined; cachedTrail = undefined;
+  clearCityPictureTileCache();
   geometry?.builder.dispose(); geometry = undefined;
+}
+
+function citySelectionCrop(request: CityGenerateRequest): TerrainCropRegion {
+  const { config } = request;
+  const crop = computeTerrainCropRegion(config.mapCrop, request.viewportWidth, request.viewportHeight);
+  const outline = cityFootprint(request, crop);
+  if (outline) {
+    crop.widthMm = Math.max(crop.widthMm, ...outline.map(([x]) => Math.abs(x) * 2));
+    crop.heightMm = Math.max(crop.heightMm, ...outline.map(([, y]) => Math.abs(y) * 2));
+  }
+  return crop;
+}
+
+/** Only the full 3D city requires OSM feature geometry. */
+async function prepareCityMapSelection(request: CityGenerateRequest, onProgress?: (p: CityGenerateProgress) => void) {
+  const { config } = request;
+  onProgress?.({ phase: 'prepare', progress: 0.02, message: 'Preparing city crop…' });
+  const crop = citySelectionCrop(request);
+  const bounds = heightfieldGeoBounds(crop, 2, 2, config.mapCrop, request.viewportWidth, request.viewportHeight, 0.00015);
+  const mapRequest = { bounds, buildings: config.city.buildingsVisible, roads: config.city.roadsVisible };
+  validateCityMapRequest(mapRequest);
+  const mapKey = JSON.stringify(mapRequest);
+  let data: CityMapData;
+  if (cachedMap?.key === mapKey) data = cachedMap.data;
+  else {
+    cachedMap = undefined;
+    onProgress?.({ phase: 'map', progress: 0.08, message: 'Fetching OpenStreetMap buildings and roads…' });
+    data = await loadCityMapData(mapRequest);
+    cachedMap = { key: mapKey, data };
+  }
+  return { crop, data };
+}
+
+async function prepareCityHeightfield(request: CityGenerateRequest, crop: TerrainCropRegion, onProgress?: (p: CityGenerateProgress) => void) {
+  const { config } = request;
+  let cols = 2, rows = 2, heights = flatHeights;
+  if (config.city.surface === 'real') {
+    ({ cols, rows } = gridResolutionForQuality(crop.widthMm, crop.heightMm, config.terrain.meshQuality, config.terrain.meshQualityCustom));
+    // Bound solid boolean work before allocating a potentially huge DEM mesh.
+    if (cols * rows > 262_144) throw new Error('City Real terrain supports up to 512 × 512 samples. Choose Extreme quality or a custom grid up to 512.');
+    const demKey = JSON.stringify([crop, cols, rows, config.mapCrop, request.viewportWidth, request.viewportHeight,
+      config.terrain.demDataset, config.terrain.openTopographyApiKey]);
+    if (cachedDem?.key !== demKey) {
+      cachedDem = undefined; cachedHeights = undefined;
+      onProgress?.({ phase: 'dem', progress: 0.3, message: 'Fetching Real terrain elevation…' });
+      const dem = await sampleDemGrid(crop, cols, rows, config.mapCrop, request.viewportWidth, request.viewportHeight, {
+        dataset: config.terrain.demDataset, openTopographyApiKey: config.terrain.openTopographyApiKey,
+        fetchTimeoutMs: demFetchTimeoutMs(config.terrain.meshQuality, config.terrain.meshQualityCustom),
+      });
+      cachedDem = { key: demKey, elevations: dem.elevations.slice() };
+    }
+    const heightKey = JSON.stringify([demKey, config.terrain.smoothing, config.terrain.zExaggeration,
+      config.terrain.meshQuality, config.terrain.meshQualityCustom]);
+    if (cachedHeights?.key !== heightKey) {
+      // Preparation normalizes elevations in place; keep the raw grid intact for later edits.
+      heights = prepareElevationHeightfield(cachedDem.elevations.slice(), cols, rows, crop, config.terrain);
+      cachedHeights = { key: heightKey, heights };
+    } else heights = cachedHeights.heights;
+  }
+  return { cols, rows, heights };
+}
+
+export function generateCityTrailModel(request: CityGenerateRequest, onProgress?: (p: CityGenerateProgress) => void): Promise<TerrainMeshPayload> {
+  const job = queue.then(async () => {
+    const config = await hydrateGpxConfig(request.config);
+    const hydrated = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
+    validateCityRouteGeneration(hydrated);
+    const { colors: _colors, ...geometryConfig } = config;
+    const previewKey = JSON.stringify({ ...hydrated, config: geometryConfig });
+    if (cached?.key === previewKey) return cached.result.routeMesh;
+    const crop = citySelectionCrop(hydrated);
+    const key = JSON.stringify([crop, config.mapCrop, config.gpx, config.terrain, hydrated.viewportWidth, hydrated.viewportHeight,
+      config.city.surface, config.city.routeWidthMm, config.city.routeSeatDepthMm, config.city.routeReliefMm]);
+    if (cachedTrail?.key === key) return cachedTrail.mesh;
+    const { cols, rows, heights } = await prepareCityHeightfield(hydrated, crop, onProgress);
+    onProgress?.({ phase: 'geometry', progress: 0.8, message: 'Building the running trail only…' });
+    const mesh = buildCityRouteGeometry(await getManifold(), hydrated, crop, heights, cols, rows);
+    cachedTrail = { key, mesh };
+    return mesh;
+  });
+  queue = job.then(() => {}, () => {});
+  return job;
+}
+
+export function generateCityMapPicture(request: CityGenerateRequest, onProgress?: (p: CityGenerateProgress) => void): Promise<Uint8Array> {
+  const job = queue.then(async () => {
+    const config = await hydrateGpxConfig(request.config);
+    const hydrated = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
+    validateCityFraming(hydrated);
+    const crop = citySelectionCrop(hydrated);
+    const bounds = heightfieldGeoBounds(crop, 2, 2, config.mapCrop, hydrated.viewportWidth, hydrated.viewportHeight, 0);
+    validateCityMapRequest({ bounds, buildings: false, roads: false });
+    const tiles = await loadCityPictureTiles(bounds, crop.widthMm, crop.heightMm, (complete, total) => {
+      onProgress?.({ phase: 'map', progress: 0.05 + complete / total * 0.7, message: `Loading street map picture… ${complete}/${total}` });
+    });
+    onProgress?.({ phase: 'map', progress: 0.8, message: 'Drawing printable city map…' });
+    return new TextEncoder().encode(renderPrintableCityMap(hydrated, crop, tiles));
+  });
+  queue = job.then(() => {}, () => {});
+  return job;
 }
 /** Serializes Manifold jobs; retains one finalized model, uncut city, map and elevation grid. */
 export function generateCityModel(request: CityGenerateRequest, onProgress?: (p: CityGenerateProgress) => void): Promise<CityGenerateResponse> {
@@ -51,50 +169,8 @@ export function generateCityModel(request: CityGenerateRequest, onProgress?: (p:
     const key = JSON.stringify({ ...request, config: geometryConfig });
     if (cached?.key === key) { onProgress?.({ phase: 'done', progress: 1, message: 'City model ready' }); return cached.result; }
     cached = undefined;
-    onProgress?.({ phase: 'prepare', progress: 0.02, message: 'Preparing city crop…' });
-    const crop = computeTerrainCropRegion(config.mapCrop, request.viewportWidth, request.viewportHeight);
-    const outline = cityFootprint(request, crop);
-    if (outline) {
-      // The DEM rectangle must cover the full asymmetric footprint too.
-      crop.widthMm = Math.max(crop.widthMm, ...outline.map(([x]) => Math.abs(x) * 2));
-      crop.heightMm = Math.max(crop.heightMm, ...outline.map(([, y]) => Math.abs(y) * 2));
-    }
-    const bounds = heightfieldGeoBounds(crop, 2, 2, config.mapCrop, request.viewportWidth, request.viewportHeight, 0.00015);
-    const mapRequest = { bounds, buildings: config.city.buildingsVisible, roads: config.city.roadsVisible };
-    validateCityMapRequest(mapRequest);
-    const mapKey = JSON.stringify(mapRequest);
-    let data: CityMapData;
-    if (cachedMap?.key === mapKey) data = cachedMap.data;
-    else {
-      cachedMap = undefined;
-      onProgress?.({ phase: 'map', progress: 0.08, message: 'Fetching OpenStreetMap buildings and roads…' });
-      data = await loadCityMapData(mapRequest);
-      cachedMap = { key: mapKey, data };
-    }
-    let cols = 2, rows = 2, heights = flatHeights;
-    if (config.city.surface === 'real') {
-      ({ cols, rows } = gridResolutionForQuality(crop.widthMm, crop.heightMm, config.terrain.meshQuality, config.terrain.meshQualityCustom));
-      // Bound solid boolean work before allocating a potentially huge DEM mesh.
-      if (cols * rows > 262_144) throw new Error('City Real terrain supports up to 512 × 512 samples. Choose Extreme quality or a custom grid up to 512.');
-      const demKey = JSON.stringify([crop, cols, rows, config.mapCrop, request.viewportWidth, request.viewportHeight,
-        config.terrain.demDataset, config.terrain.openTopographyApiKey]);
-      if (cachedDem?.key !== demKey) {
-        cachedDem = undefined; cachedHeights = undefined;
-        onProgress?.({ phase: 'dem', progress: 0.3, message: 'Fetching Real terrain elevation…' });
-        const dem = await sampleDemGrid(crop, cols, rows, config.mapCrop, request.viewportWidth, request.viewportHeight, {
-          dataset: config.terrain.demDataset, openTopographyApiKey: config.terrain.openTopographyApiKey,
-          fetchTimeoutMs: demFetchTimeoutMs(config.terrain.meshQuality, config.terrain.meshQualityCustom),
-        });
-        cachedDem = { key: demKey, elevations: dem.elevations.slice() };
-      }
-      const heightKey = JSON.stringify([demKey, config.terrain.smoothing, config.terrain.zExaggeration,
-        config.terrain.meshQuality, config.terrain.meshQualityCustom]);
-      if (cachedHeights?.key !== heightKey) {
-        // Preparation normalizes elevations in place; keep the raw grid intact for later edits.
-        heights = prepareElevationHeightfield(cachedDem.elevations.slice(), cols, rows, crop, config.terrain);
-        cachedHeights = { key: heightKey, heights };
-      } else heights = cachedHeights.heights;
-    }
+    const { crop, data } = await prepareCityMapSelection(request, onProgress);
+    const { cols, rows, heights } = await prepareCityHeightfield(request, crop, onProgress);
     const wasm = await getManifold();
     if (geometry?.wasm !== wasm) {
       geometry?.builder.dispose();

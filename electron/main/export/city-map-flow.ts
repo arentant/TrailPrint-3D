@@ -2,11 +2,27 @@ import type { CityMapExportRequest, ModelExportFlow } from '@shared/types/export
 import { STL_FILE_NAMES } from '@shared/types/export';
 import { gpxExportFileName, gpxExportStem } from '@shared/export/export-artifact';
 import { encodeBinaryStl } from '@shared/utils/binary-stl';
-import { generateCityModel } from '../city/city-model-service';
+import { generateCityModel, generateCityTrailModel, generateCityMapPicture } from '../city/city-model-service';
 
 export const cityMapExportFlow: ModelExportFlow<CityMapExportRequest> = {
-  describeArtifact: (request) => ({ kind: 'zip', fileName: `${gpxExportStem(request.config.gpx)}.zip`, extension: 'zip', mimeType: 'application/zip', saveDialogTitle: 'Save city and running route STL archive' }),
+  describeArtifact(request) {
+    if (request.target && !['all', 'trail', 'map'].includes(request.target)) throw new Error('Unsupported city export target.');
+    if (request.target === 'trail') return { kind: 'file', fileName: gpxExportFileName(request.config.gpx, STL_FILE_NAMES.trailLine), extension: 'stl', mimeType: 'model/stl', saveDialogTitle: 'Save city running trail STL' };
+    if (request.target === 'map') return { kind: 'file', fileName: gpxExportFileName(request.config.gpx, 'City_Map.svg'), extension: 'svg', mimeType: 'image/svg+xml', saveDialogTitle: 'Save printable city map picture' };
+    return { kind: 'zip', fileName: `${gpxExportStem(request.config.gpx)}.zip`, extension: 'zip', mimeType: 'application/zip', saveDialogTitle: 'Save city and running route STL archive' };
+  },
   async generateFiles(request, progress, file) {
+    if (request.target === 'map') {
+      const picture = await generateCityMapPicture(request, (p) => progress({ phase: 'map', progress: p.progress, message: p.message }));
+      await file(gpxExportFileName(request.config.gpx, 'City_Map.svg'), picture);
+      return;
+    }
+    if (request.target === 'trail') {
+      const mesh = await generateCityTrailModel(request, (p) => progress({ phase: 'model', progress: p.progress * 0.75, message: p.message }));
+      progress({ phase: 'stl', progress: 0.78, message: 'Writing running trail STL…' });
+      await file(gpxExportFileName(request.config.gpx, STL_FILE_NAMES.trailLine), encodeBinaryStl(mesh, 'Trail_Line'));
+      return;
+    }
     const result = await generateCityModel(request, (p) => progress({ phase: 'model', progress: p.progress * 0.75, message: p.message }));
     progress({ phase: 'stl', progress: 0.78, message: 'Writing city and route STLs…' });
     const cityStl = gpxExportFileName(request.config.gpx, STL_FILE_NAMES.cityMain);

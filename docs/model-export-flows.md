@@ -95,7 +95,7 @@ the reusable city while releasing temporary route geometry.
 
 Exports use the imported GPX filename rather than the internal track title.
 For `my-run.gpx`, both flows download `my-run.zip`; each archive entry has the
-`my-run_` prefix. The standalone Mountain trail is `my-run_Trail_Line.stl`.
+`my-run_` prefix. The standalone trail in either workspace is `my-run_Trail_Line.stl`.
 Names preserve spaces and Unicode, sanitize unsupported filesystem characters,
 and fall back to the desktop path, track title or `TrailPrint` if needed.
 
@@ -103,6 +103,39 @@ City ZIPs contain `<gpx-name>_City_Main.stl`, `<gpx-name>_Trail_Line.stl` and
 `<gpx-name>_Assembly_Instructions.txt`. Both STL parts use millimeters and shared XYZ
 assembly coordinates. Instructions include OpenStreetMap attribution and ODbL
 information. Separate route islands may need supports when printed individually.
+
+City also accepts `target: "trail"` for only the matching route STL, and
+`target: "map"` for `<gpx-name>_City_Map.svg`. Both can be downloaded directly from
+City without a full-city preview, even after that preview fails. Trail-only
+generation uses the GPX and the selected surface; it never downloads OSM buildings
+or roads, fuses a city, or cuts a groove. Flat requires no network. Real terrain
+fetches only elevation, with the existing grid cache. A matching finalized preview
+can supply the identical route immediately.
+
+The paper map uses the same rotated projection, footprint clipping, physical
+dimensions and route width as the STLs. Its background is rendered Esri World
+Topographic imagery, with gray streets, green parks, blue water and an orange
+vector GPX route. 3D layer switches and material
+colors do not change the paper basemap. The SVG embeds the tile images, keeps
+separate GPX segments. The picture fills the selected physical dimensions with
+no title, distance, print instructions, border, visible source credits or extra
+margin. Provider credits remain in SVG metadata.
+Open it in a browser and print at **100% / actual size**, with fit-to-page disabled
+and paper large enough for the image. Choose Flat for a route insert to place on
+the paper map. The app shows the print instructions after download. The route
+remains sharp at any print resolution.
+
+Paper exports hydrate the GPX and validate framing, but never download OSM feature
+geometry, initialize solid geometry, or request elevation, even in Real terrain
+mode without an API key. Print-size-based zoom selection targets 600 DPI using
+actual pixels inside the geographic bounds, rather than the surrounding tile
+padding. Each picture is capped at 512 tiles, 8,192 pixels per tile-grid axis and
+32 MB of downloaded images, with four concurrent requests and a cache of the
+current selection. Oversized print dimensions use the highest detail within
+these bounds. Large
+city runs do not hit the full-city geometry download limits. Tile failures report
+an error and remain retryable. Only full ZIP downloads require a valid preview.
+Browser downloads and desktop save/cancel behavior are shared across all targets.
 
 Water, parks, 3MF, City presets, trays, magnets and NFC are deferred.
 

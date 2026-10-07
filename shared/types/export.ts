@@ -15,6 +15,7 @@ export const STL_FILE_NAMES = {
 export type ExportPhase =
   | "validate"
   | "model"
+  | "map"
   | "terrain"
   | "tray"
   | "stl"
@@ -48,6 +49,8 @@ export interface ExportRequestMap {
 
 export interface CityMapExportRequest extends MapModelExportRequest<CityMapConfig> {
   flow: "city-map";
+  /** Defaults to the complete ZIP; map exports a print-sized vector image. */
+  target?: ExportTarget | "map";
 }
 
 export type ModelFlowId = keyof ExportRequestMap;

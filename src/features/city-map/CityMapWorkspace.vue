@@ -34,6 +34,8 @@ const requestKey = computed(() => {
   return JSON.stringify([geometry, viewport.value]);
 });
 const previewStale = computed(() => !!result.value && resultKey.value !== requestKey.value);
+const canExportModel = computed(() => !!result.value && !previewStale.value && !previewBusy.value && !ui.generating && !error.value);
+const canExportMap = computed(() => mapReady.value && config.value.gpx.imported && !ui.generating && !importing.value && !previewBusy.value);
 function snapshot(): CityGenerateRequest {
   map.value?.syncStoreFromMap();
   return { config: JSON.parse(JSON.stringify(config.value)), viewportWidth: viewport.value.w, viewportHeight: viewport.value.h };
@@ -68,11 +70,15 @@ async function preview() {
     if (!disposed && token !== revision && previewOpen.value) schedulePreview();
   }
 }
-const exporter = useModelExport<void, CityMapExportRequest>({
-  prepareRequest: () => ({ ...snapshot(), flow: 'city-map' }),
-  describeSuccess: (response) => `City ZIP ready: ${response.savedPath}`,
+const exporter = useModelExport<NonNullable<CityMapExportRequest['target']>, CityMapExportRequest>({
+  prepareRequest: (target) => ({ ...snapshot(), flow: 'city-map', target }),
+  describeSuccess: (response, request) => request.target === 'map'
+    ? `City map ready: ${response.savedPath}. Open the SVG in a browser and print at 100% / actual size.`
+    : `${request.target === 'trail' ? 'Running trail STL' : 'City ZIP'} ready: ${response.savedPath}`,
 });
-async function download() { if (result.value && !previewStale.value && !previewBusy.value && !error.value) await exporter.generateAndSave(); }
+async function download(target: NonNullable<CityMapExportRequest['target']> = 'all') {
+  if (target === 'all' ? canExportModel.value : canExportMap.value) await exporter.generateAndSave(target);
+}
 async function importFile(file?: File) {
   if (!file || importing.value || ui.generating || previewBusy.value) return;
   if (!file.name.toLowerCase().endsWith('.gpx') || file.size > 10 * 1024 * 1024) { ui.statusMessage = 'Select a .gpx file smaller than 10 MB'; return; }
@@ -123,7 +129,10 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
         <p v-if="ui.statusMessage" class="city-status" role="status">{{ ui.statusMessage }}</p>
         <progress v-if="ui.generating" :value="ui.exportProgress" max="1" />
         <button class="primary" :disabled="!mapReady || !config.gpx.imported || ui.generating || importing || previewBusy" @click="preview">Preview & export City STL</button>
-        <button v-if="ui.lastExportPath && !ui.generating" class="secondary" @click="revealDownload">{{ api.runtime === 'browser' ? 'Download again' : 'Show saved ZIP' }}</button>
+        <button class="secondary" :disabled="!canExportMap" @click="download('trail')">Download trail STL</button>
+        <button class="secondary" :disabled="!canExportMap" @click="download('map')">Download city map picture</button>
+        <p class="print-hint">Trail and paper map exports work without a city preview. Print the map at 100%; choose Flat to place the trail on paper.</p>
+        <button v-if="ui.lastExportPath && !ui.generating" class="secondary" @click="revealDownload">{{ api.runtime === 'browser' ? 'Download again' : 'Show saved export' }}</button>
       </footer>
     </aside>
     <main class="city-panel">
@@ -157,7 +166,15 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
             <ModelColorControls v-model="config.colors" workspace="city" :show-tray="false" :disabled="ui.generating" @input.stop />
           </aside>
         </div>
-        <footer class="modal-footer"><p>{{ ui.generating ? ui.statusMessage : 'ZIP includes the city base, trail and assembly instructions, named after your GPX file.' }}</p><button v-if="error" class="secondary" :disabled="previewBusy" @click="preview">Retry preview</button><button class="primary" :disabled="!result || previewStale || previewBusy || ui.generating || !!error" @click="download">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button></footer>
+        <footer class="modal-footer">
+          <p role="status">{{ ui.generating ? ui.statusMessage : 'Download the full city, just the trail, or a city map picture to print at 100% / actual size.' }}</p>
+          <div class="export-actions">
+            <button v-if="error" class="secondary" :disabled="previewBusy || ui.generating" @click="preview">Retry preview</button>
+            <button class="secondary" :disabled="!canExportMap" @click="download('map')">Download map picture</button>
+            <button class="secondary" :disabled="!canExportMap" @click="download('trail')">Download trail STL</button>
+            <button class="primary" :disabled="!canExportModel" @click="download()">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button>
+          </div>
+        </footer>
       </section>
     </div>
   </div>
@@ -169,6 +186,7 @@ header { padding: 4px 8px 18px; } .brand { display: flex; align-items: center; g
 header p, .track-summary { font-size: 12px; color: var(--tp-text-secondary); line-height: 1.5; }
 .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 4px; }
 footer { display: flex; flex-direction: column; gap: 10px; padding: 14px 4px 0; } .city-status { margin: 0; font-size: 12px; line-height: 1.5; }
+.print-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--tp-text-secondary); }
 .primary, .secondary { border-radius: 10px; padding: 11px 16px; font-size: 13px; font-weight: 600; } .primary { background: var(--tp-text-accent); color: white; } .secondary { background: var(--tp-bg-panel); color: var(--tp-text-primary); border: 1px solid var(--tp-border-strong); }
 button:disabled { opacity: 0.45; cursor: default; } button:focus-visible { outline: 2px solid var(--tp-text-accent); outline-offset: 3px; }
 .city-panel { display: flex; flex-direction: column; flex: 1; min-width: 0; border-radius: 16px; overflow: hidden; background: var(--tp-bg-panel); }
@@ -194,6 +212,7 @@ button:disabled { opacity: 0.45; cursor: default; } button:focus-visible { outli
 .preview-status { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; }
 .model-notes { max-height: 100px; overflow-y: auto; font-size: 11px; color: var(--tp-text-secondary); } .model-notes p { margin: 4px 0; }
 .modal-footer { flex-direction: row; align-items: center; justify-content: space-between; } .modal-footer p { font-size: 12px; flex: 1; }
+.export-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 progress { width: 100%; accent-color: var(--tp-text-accent); }
 @media (max-width: 800px) { .city-workspace { padding: 12px; gap: 12px; } .city-sidebar { width: 290px; } .modal-backdrop { padding: 12px; } }
 @media (max-width: 900px) { .preview-layout { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .preview-model { min-height: 360px; } .trail-editor { border-left: 0; border-top: 1px solid var(--tp-border-strong); padding: 18px 0 0; overflow: visible; } .modal-footer { flex-wrap: wrap; } }
