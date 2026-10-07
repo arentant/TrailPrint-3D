@@ -2,11 +2,12 @@ import type { AppConfig } from "../types/config";
 import type { TrayValidationResult } from "../types/tray";
 import { computeTerrainCropRegion } from "./crop-region";
 import { computeTrayBottomMagnetHoles } from "./magnet-hole-layout";
-import { magnetCutDimensionsMm } from "./magnet-hole-geometry";
+import { magnetCutDimensionsMm, magnetPocketVertsMm } from "./magnet-hole-geometry";
 import { computeTrayFootprint, type Vec2 } from "./tray-footprint";
 import {
   computeTrayNfcCavityPolygon,
   computeTrayNfcLedPockets,
+  pointInPolygon,
 } from "./tray-nfc-layout";
 import { projectTrailToModelMm } from "./trail-coords";
 import { resolveTrailPoints } from "./trail-resolve";
@@ -114,7 +115,23 @@ export function validateTrailInPrintArea(
   return { valid: true };
 }
 
-/** 磁铁孔深与托盘底面、外缘余量 */
+/** Separating-axis check for the convex pocket contours. Touching also blocks generation. */
+function contoursOverlap(a: Vec2[], b: Vec2[]): boolean {
+  for (const contour of [a, b]) {
+    for (let i = 0; i < contour.length; i++) {
+      const p = contour[i]!;
+      const q = contour[(i + 1) % contour.length]!;
+      const nx = q.y - p.y;
+      const ny = p.x - q.x;
+      const pa = a.map(v => v.x * nx + v.y * ny);
+      const pb = b.map(v => v.x * nx + v.y * ny);
+      if (Math.max(...pa) < Math.min(...pb) - 1e-9 || Math.max(...pb) < Math.min(...pa) - 1e-9) return false;
+    }
+  }
+  return true;
+}
+
+/** Validate pocket sizes, depth, outer walls and spacing. */
 export function validateMagnetAssembly(
   config: AppConfig,
 ): ModelValidationResult {
@@ -123,11 +140,22 @@ export function validateMagnetAssembly(
   }
 
   const magnet = config.assembly.magnet;
-  if (magnet.diameterMm <= 0) {
-    return fail("magnet", "Magnet diameter must be greater than 0");
+  const shape = magnet.shape ?? "circle";
+  if (!["circle", "rectangle", "hexagon"].includes(shape)) {
+    return fail("magnet", "Choose a round, rectangular or hexagonal magnet hole.");
   }
-  if (magnet.thicknessMm <= 0) {
+  const validRectangleSize = [magnet.lengthMm ?? 6, magnet.widthMm ?? 4].every(v => Number.isFinite(v) && v > 0);
+  if (shape === "rectangle" && !validRectangleSize) {
+    return fail("magnet", "Magnet length and width must be greater than 0.");
+  }
+  if (shape !== "rectangle" && (!Number.isFinite(magnet.diameterMm) || magnet.diameterMm <= 0)) {
+    return fail("magnet", `${shape === "hexagon" ? "Magnet width across flats" : "Magnet diameter"} must be greater than 0`);
+  }
+  if (!Number.isFinite(magnet.thicknessMm) || magnet.thicknessMm <= 0) {
     return fail("magnet", "Magnet thickness must be greater than 0");
+  }
+  if (!Number.isFinite(magnet.toleranceMm ?? 0) || (magnet.toleranceMm ?? 0) < 0) {
+    return fail("magnet", "Magnet hole clearance must be 0 or greater.");
   }
 
   const bottomSolidMm =
@@ -143,17 +171,20 @@ export function validateMagnetAssembly(
 
   const footprint = computeTrayFootprint(config);
   const holes = computeTrayBottomMagnetHoles(config, footprint);
-  for (const hole of holes) {
-    const wall = minDistanceToPolygonBoundary(
-      hole.x,
-      hole.y,
-      footprint.outer,
-    );
-    if (wall < cut.radiusMm + MIN_MAGNET_WALL_MM) {
+  const contours = holes.map(hole => magnetPocketVertsMm(hole.x, hole.y, cut.radiusMm, cut));
+  for (const contour of contours) {
+    if (contour.some(p => !pointInPolygon(p.x, p.y, footprint.outer) || minDistanceToPolygonBoundary(p.x, p.y, footprint.outer) < MIN_MAGNET_WALL_MM)) {
       return fail(
         "magnet",
-        "The magnet holes are too close to the tray edge. Reduce the magnet diameter or rim width, or increase the print size.",
+        "The magnet holes are too close to the tray edge. Reduce the magnet size or increase the print size.",
       );
+    }
+  }
+  for (let i = 0; i < contours.length; i++) {
+    for (let j = i + 1; j < contours.length; j++) {
+      if (contoursOverlap(contours[i]!, contours[j]!)) {
+        return fail("magnet", "Magnet holes overlap. Reduce the magnet size or hole count, or increase the print size.");
+      }
     }
   }
 

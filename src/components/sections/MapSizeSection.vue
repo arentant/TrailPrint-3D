@@ -39,6 +39,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
       <SegmentedControl
         v-model="config.mapCrop.shape"
         :options="shapeOptions"
+        aria-label="Print shape"
       />
     </div>
 

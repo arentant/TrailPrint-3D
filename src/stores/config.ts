@@ -56,6 +56,9 @@ function ensureMagnetConfigDefaults(cfg: AppConfig): void {
   if (magnet.toleranceMm == null) {
     magnet.toleranceMm = 0.1;
   }
+  magnet.shape ??= "circle";
+  magnet.lengthMm ??= 6;
+  magnet.widthMm ??= 4;
 }
 
 function ensureTrayNfcDefaults(cfg: AppConfig): void {

@@ -105,13 +105,19 @@ export interface TrayConfig {
 
 // ─── 模块五：打印装配与磁铁 ───────────────────────────────────────────
 
+export type MagnetHoleShape = "circle" | "rectangle" | "hexagon";
+
 export interface MagnetConfig {
   enabled: boolean;
+  shape: MagnetHoleShape;
+  /** Diameter for round magnets; distance between opposite flats for hexagons. */
   diameterMm: number;
+  lengthMm: number;
+  widthMm: number;
   thicknessMm: number;
-  /** 孔径/孔深装配公差 (mm)：孔内切圆直径 +2×、孔深 +1× */
+  /** Added per side to pocket dimensions, and once to its depth (mm). */
   toleranceMm: number;
-  /** 圆形底座磁铁孔数量（仅 shape===circle 时生效，默认 3，范围 2～12） */
+  /** Pocket count for circular trays, independent of pocket shape (default 3, range 2–12). */
   circleCount: number;
 }
 
@@ -293,7 +299,10 @@ export function createDefaultConfig(): AppConfig {
       trayToleranceMm: 0.2,
       magnet: {
         enabled: false,
+        shape: "circle",
         diameterMm: 6,
+        lengthMm: 6,
+        widthMm: 4,
         thicknessMm: 2,
         toleranceMm: 0.1,
         circleCount: 3,

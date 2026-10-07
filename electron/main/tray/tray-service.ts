@@ -99,8 +99,7 @@ export async function generateTrayBase(
     magnetCut
       ? {
           holes: magnetHoles,
-          radiusMm: magnetCut.radiusMm,
-          depthMm: magnetCut.depthMm,
+          ...magnetCut,
         }
       : undefined,
     nfcMesh,

@@ -4,19 +4,15 @@ import { computeTrayBottomMagnetHoles } from "@shared/utils/magnet-hole-layout";
 import { magnetCutDimensionsMm } from "@shared/utils/magnet-hole-geometry";
 import { logMagnetDebug } from "@shared/utils/magnet-debug-log";
 import type { TrayFootprint } from "@shared/utils/tray-footprint";
-import {
-  applyCylinderCuts,
-  countMeshCutIntersections,
-  type CylinderCut,
-} from "./mesh-cylinder-cut";
+import { applyTrayMagnetPockets } from "./tray-bottom-features";
 import {
   countBottomHoleOpenings,
   countBottomPlateOverHole,
 } from "./tray-magnet-pockets";
 
 /**
- * 托盘底面磁铁盲孔：在完整封闭托盘实体上做圆柱体布尔差集。
- * 保留完整底板，挖除圆柱体后补内壁 + 孔顶面（孔底在 z=bottomZ 敞开，供嵌入磁铁）。
+ * 托盘底面磁铁盲孔：按所选磁铁轮廓重建底面与孔壁。
+ * 保留完整底板，补内壁 + 孔顶面（孔底在 z=bottomZ 敞开，供嵌入磁铁）。
  */
 export function applyTrayMagnetHoles(
   mesh: TerrainMeshPayload,
@@ -26,27 +22,19 @@ export function applyTrayMagnetHoles(
   const holes = computeTrayBottomMagnetHoles(config, footprint);
   if (!holes.length) return mesh;
 
-  const { radiusMm: radius, depthMm: depth } = magnetCutDimensionsMm(
+  const cut = magnetCutDimensionsMm(
     config.assembly.magnet,
   );
+  const { radiusMm: radius, depthMm: depth } = cut;
   const triBefore = mesh.indices.length / 3;
 
-  const cuts: CylinderCut[] = holes.map((h) => ({
-    x: h.x,
-    y: h.y,
-    radius,
-    zBottom: mesh.bottomZ,
-    zTop: mesh.bottomZ + depth,
-  }));
+  const result = applyTrayMagnetPockets(mesh, footprint.outer, holes, radius, depth, cut);
 
-  const removed = countMeshCutIntersections(mesh, cuts);
-  const result = applyCylinderCuts(mesh, cuts);
-
-  const openings = countBottomHoleOpenings(result, holes, radius);
-  const covered = countBottomPlateOverHole(result, holes, radius);
+  const openings = countBottomHoleOpenings(result, holes, radius, cut);
+  const covered = countBottomPlateOverHole(result, holes, radius, cut);
 
   logMagnetDebug({
-    phase: "apply-cylinder-cuts",
+    phase: "apply-pocket-cuts",
     mapCropShape: config.mapCrop.shape,
     footprintShape: footprint.shape,
     outerVertCount: footprint.outer.length,
@@ -55,7 +43,7 @@ export function applyTrayMagnetHoles(
     cutDepthMm: depth,
     triCountBefore: triBefore,
     triCountAfter: result.indices.length / 3,
-    note: `Cylinder subtraction removed ${removed} triangles; underside openings ${openings}/${holes.length}, openings blocked by base ${covered}/${holes.length}`,
+    note: `${cut.shape} pockets; underside openings ${openings}/${holes.length}, openings blocked by base ${covered}/${holes.length}`,
   });
 
   return result;

@@ -1,5 +1,6 @@
 import type { AppConfig, BaseShape, MagnetConfig } from "../types/config";
 import type { TrayFootprint } from "./tray-footprint";
+import { regularPolygonVertexAngleRad } from "./footprint";
 
 /** 磁铁孔中心 (mm)，与 Tray_Base 共用模型平面原点 */
 export interface MagnetHole2D {
@@ -95,7 +96,17 @@ function layoutOnRectangle(
 function layoutOnOuterVerts(
   verts: ReadonlyArray<{ x: number; y: number }>,
   inset: number,
+  sides?: number,
 ): MagnetHole2D[] {
+  if (sides != null) {
+    // Use logical corners rather than placing a pocket on every fillet segment.
+    return Array.from({ length: sides }, (_, i) => {
+      const angle = regularPolygonVertexAngleRad(i, sides);
+      const ux = Math.cos(angle), uy = Math.sin(angle);
+      const extent = Math.max(...verts.map(v => v.x * ux + v.y * uy));
+      return { x: ux * extent * inset, y: uy * extent * inset };
+    });
+  }
   return verts.map((v) => ({ x: v.x * inset, y: v.y * inset }));
 }
 
@@ -148,7 +159,7 @@ export function computeTrayBottomMagnetHoles(
       if (footprint.outer.length < 3) {
         holes = [];
       } else {
-        holes = layoutOnOuterVerts(footprint.outer, BOTTOM_INSET.polygon);
+        holes = layoutOnOuterVerts(footprint.outer, BOTTOM_INSET.polygon, footprint.polygonSides);
       }
       break;
     default:

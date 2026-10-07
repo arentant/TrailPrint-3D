@@ -3,7 +3,7 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Brush, Evaluator, SUBTRACTION } from "three-bvh-csg";
 import type { TrayConfig } from "@shared/types";
 import type { TerrainMeshPayload } from "@shared/types/terrain";
-import { magnetHexagonVertsMm } from "../../../shared/utils/magnet-hole-geometry";
+import { magnetPocketVertsMm, type MagnetPocketProfile } from "../../../shared/utils/magnet-hole-geometry";
 import type { TrayFootprint, Vec2 } from "@shared/utils/tray-footprint";
 
 const CSG_EPS_MM = 0.02;
@@ -36,16 +36,17 @@ function makeExtrudedBrush(verts: Vec2[], z0: number, height: number): Brush {
   return brush;
 }
 
-/** 内切圆 = magnetRadiusMm 的正六边形棱柱（沿 +Z 挤出） */
-function makeHexagonMagnetBrush(
+/** Magnet profile extruded along +Z. */
+function makeMagnetBrush(
   x: number,
   y: number,
   magnetRadiusMm: number,
   zBottom: number,
   height: number,
+  profile?: MagnetPocketProfile,
 ): Brush {
   return makeExtrudedBrush(
-    magnetHexagonVertsMm(x, y, magnetRadiusMm),
+    magnetPocketVertsMm(x, y, magnetRadiusMm, profile),
     zBottom,
     height,
   );
@@ -78,9 +79,9 @@ function brushToPayload(
   };
 }
 
-export interface TrayMagnetCutSpec {
+export interface TrayMagnetCutSpec extends MagnetPocketProfile {
   holes: Array<{ x: number; y: number }>;
-  /** 磁铁半径 (mm)，对应六边形孔内切圆 */
+  /** Round radius / hexagon apothem / rectangular half diagonal, including clearance. */
   radiusMm: number;
   depthMm: number;
 }
@@ -114,12 +115,13 @@ export function buildTrayBaseMeshCsg(
 
   if (magnet?.holes.length) {
     for (const hole of magnet.holes) {
-      const cutter = makeHexagonMagnetBrush(
+      const cutter = makeMagnetBrush(
         hole.x,
         hole.y,
         magnet.radiusMm,
         -CSG_EPS_MM,
         magnet.depthMm + CSG_EPS_MM * 2,
+        magnet,
       );
       prev = brush;
       brush = evaluator.evaluate(prev, cutter, SUBTRACTION) as Brush;

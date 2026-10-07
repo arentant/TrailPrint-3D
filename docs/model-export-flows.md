@@ -94,18 +94,25 @@ the reusable city while releasing temporary route geometry.
   City solid operations support DEM grids up to 512 × 512 (Extreme or Custom).
 
 Exports use the imported GPX filename rather than the internal track title.
-For `my-run.gpx`, both flows download `my-run.zip`; each archive entry has the
-`my-run_` prefix. The standalone trail in either workspace is `my-run_Trail_Line.stl`.
+The ZIP and every entry share a parameterized prefix, for example
+`my-run_circle_R80mm_mesh-high_magnets-on-circle-6x2mm`. Names include the active shape,
+radius in millimeters (rectangle: length × width), mesh quality and magnet state.
+Polygons include their side count; custom quality includes its grid limit.
+Enabled magnets also include their pocket shape and nominal dimensions: diameter
+and thickness for round magnets, width across flats and thickness for hexagons,
+or length × width × thickness for rectangles. Clearance is added to the geometry.
+STL headers use the corresponding part filename, including Unicode safely within
+the 80-byte header. Paint-manifest references use the same prefix.
 Names preserve spaces and Unicode, sanitize unsupported filesystem characters,
 and fall back to the desktop path, track title or `TrailPrint` if needed.
 
-City ZIPs contain `<gpx-name>_City_Main.stl`, `<gpx-name>_Trail_Line.stl` and
-`<gpx-name>_Assembly_Instructions.txt`. Both STL parts use millimeters and shared XYZ
+City ZIPs contain `<prefix>_City_Main.stl`, `<prefix>_Trail_Line.stl` and
+`<prefix>_Assembly_Instructions.txt`. Both STL parts use millimeters and shared XYZ
 assembly coordinates. Instructions include OpenStreetMap attribution and ODbL
 information. Separate route islands may need supports when printed individually.
 
 City also accepts `target: "trail"` for only the matching route STL, and
-`target: "map"` for `<gpx-name>_City_Map.svg`. Both can be downloaded directly from
+`target: "map"` for `<prefix>_City_Map.svg`. Both can be downloaded directly from
 City without a full-city preview, even after that preview fails. Trail-only
 generation uses the GPX and the selected surface; it never downloads OSM buildings
 or roads, fuses a city, or cuts a groove. Flat requires no network. Real terrain
@@ -136,6 +143,19 @@ these bounds. Large
 city runs do not hit the full-city geometry download limits. Tile failures report
 an error and remain retryable. Only full ZIP downloads require a valid preview.
 Browser downloads and desktop save/cancel behavior are shared across all targets.
+
+Mountain tray magnet pockets can be round, rectangular or hexagonal, independently
+of the map footprint. Set diameter for round magnets, length and width for rectangles
+(equal dimensions make a square), or width across opposite flats for hexagons.
+Thickness controls pocket depth. Clearance adds twice its value to the opening
+dimensions and once to the depth. Existing presets default to round pockets;
+new presets retain the selected shape and sizes. Invalid dimensions, overlapping
+pockets, thin outer walls and excessive depth block generation with an explanation.
+The map shape controls placement and count. Rounded polygons retain one pocket
+per logical corner, rather than one per fillet segment. Preview, STL export and diagnostic
+geometry share the same contour. Round facets add at most 0.01 mm radial error
+at supported sizes while preserving fit. Aligned rectangular pocket edges are
+split during bottom-plate triangulation to keep the mesh closed.
 
 Water, parks, 3MF, City presets, trays, magnets and NFC are deferred.
 

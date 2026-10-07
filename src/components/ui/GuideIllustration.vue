@@ -134,7 +134,22 @@ const arrowId = `guide-arrow-${useId()}`
       </g>
 
       <g v-else-if="visual.kind === 'magnet'">
-        <template v-if="visual.focus === 'layout'">
+        <template v-if="visual.focus === 'shape'">
+          <circle cx="53" cy="56" r="25" class="object" />
+          <rect x="117" y="37" width="60" height="38" rx="1" class="object" />
+          <path d="M247 25 274 40V72L247 87 220 72V40Z" class="object" />
+        </template>
+        <template v-else-if="['length', 'width'].includes(visual.focus)">
+          <rect x="73" y="28" width="154" height="60" rx="2" class="object" />
+          <rect x="81" y="36" width="138" height="44" rx="1" class="accent" />
+          <path v-if="visual.focus === 'length'" d="M84 60H216" class="measure" :marker-start="`url(#${arrowId})`" :marker-end="`url(#${arrowId})`" />
+          <path v-else d="M150 39V77" class="measure" :marker-start="`url(#${arrowId})`" :marker-end="`url(#${arrowId})`" />
+        </template>
+        <template v-else-if="visual.focus === 'acrossFlats'">
+          <path d="M150 15 194 39V83L150 107 106 83V39Z" class="object" />
+          <path d="M109 61H191" class="measure" :marker-start="`url(#${arrowId})`" :marker-end="`url(#${arrowId})`" />
+        </template>
+        <template v-else-if="visual.focus === 'layout'">
           <circle cx="76" cy="58" r="38" class="object" />
           <circle cx="222" cy="58" r="38" class="object" />
           <circle v-for="(point, i) in [[76,32],[76,84],[50,58],[102,58],[222,30],[246,44],[246,72],[222,86],[198,72],[198,44]]" :key="i" :cx="point[0]" :cy="point[1]" r="5" class="accent" />
@@ -145,7 +160,7 @@ const arrowId = `guide-arrow-${useId()}`
           <path d="M192 59V88" class="measure" :marker-start="`url(#${arrowId})`" :marker-end="`url(#${arrowId})`" />
         </template>
         <template v-else>
-          <path d="M150 15 194 39V83L150 107 106 83V39Z" class="object" />
+          <circle cx="150" cy="61" r="44" class="object" />
           <circle cx="150" cy="61" r="31" class="accent" />
           <path v-if="visual.focus === 'diameter'" d="M122 61H178" class="measure" :marker-start="`url(#${arrowId})`" :marker-end="`url(#${arrowId})`" />
           <path v-else d="M184 61H192" class="measure" :marker-start="`url(#${arrowId})`" :marker-end="`url(#${arrowId})`" />

@@ -5,7 +5,7 @@ import {
   type ExportProgressCallback,
   type ModelExportFlow,
 } from "@shared/types/export";
-import { gpxExportFileName, gpxExportStem } from "@shared/export/export-artifact";
+import { modelExportFileName, modelExportStem } from "@shared/export/export-artifact";
 import { validateModelGeneration } from "@shared/utils/model-validation";
 import { trailLineWidthMmForPrint } from "@shared/utils/footprint";
 import { ensureMapZoomFitsTrail } from "@shared/utils/trail-fit";
@@ -42,9 +42,9 @@ async function generateMountainTrailFiles(
   onFile: ExportFileSink,
 ): Promise<void> {
   const names: string[] = [];
-  const fileName = (part: string) => gpxExportFileName(req.config.gpx, part);
-  async function writeBinaryStl(name: string, mesh: TerrainMeshPayload, solidName: string): Promise<void> {
-    await onFile(name, encodeBinaryStl(mesh, solidName));
+  const fileName = (part: string) => modelExportFileName(req.config, part);
+  async function writeBinaryStl(name: string, mesh: TerrainMeshPayload): Promise<void> {
+    await onFile(name, encodeBinaryStl(mesh, name.replace(/\.stl$/i, "")));
     names.push(name);
   }
   let { config, viewportWidth, viewportHeight } = req;
@@ -105,7 +105,7 @@ async function generateMountainTrailFiles(
     }
     onProgress({ phase: "stl", progress: 0.75, message: "Writing trail STL…" });
     assertTrailLineMesh(terrainWithGroove.trailMesh, "Trail_Line");
-    await writeBinaryStl(fileName(STL_FILE_NAMES.trailLine), terrainWithGroove.trailMesh, "Trail_Line");
+    await writeBinaryStl(fileName(STL_FILE_NAMES.trailLine), terrainWithGroove.trailMesh);
     return;
   }
 
@@ -175,9 +175,9 @@ async function generateMountainTrailFiles(
     assertTrailLineMesh(terrainWithGroove.trailMesh, "Trail_Line");
   }
 
-  await writeBinaryStl(terrainStl, terrainWithGroove.mesh, "Terrain_Main");
-  await writeBinaryStl(trailStl, terrainWithGroove.trailMesh, "Trail_Line");
-  await writeBinaryStl(trayStl, trayRes.mesh, "Tray_Base");
+  await writeBinaryStl(terrainStl, terrainWithGroove.mesh);
+  await writeBinaryStl(trailStl, terrainWithGroove.trailMesh);
+  await writeBinaryStl(trayStl, trayRes.mesh);
 
   if (config.tray.nfc.enabled) {
     const nfcLayout = computeTrayNfcLayout(
@@ -205,7 +205,7 @@ async function generateMountainTrailFiles(
     });
     assertWatertightMesh(coverMesh, "Tray_Cover");
     const coverStl = fileName(STL_FILE_NAMES.trayCover);
-    await writeBinaryStl(coverStl, coverMesh, "Tray_Cover");
+    await writeBinaryStl(coverStl, coverMesh);
   }
 
   if (config.moldKit?.enabled) {
@@ -222,8 +222,8 @@ async function generateMountainTrailFiles(
 
       const masterStl = fileName(STL_FILE_NAMES.moldMaster);
       const lidStl = fileName(STL_FILE_NAMES.moldLid);
-      await writeBinaryStl(masterStl, masterMesh, "Mold_Master");
-      await writeBinaryStl(lidStl, lidMesh, "Mold_Lid");
+      await writeBinaryStl(masterStl, masterMesh);
+      await writeBinaryStl(lidStl, lidMesh);
     } catch (err) {
       if (err instanceof IpcException) throw err;
       const msg =
@@ -306,7 +306,7 @@ async function generateMountainTrailFiles(
       for (const mask of maskRes.masks) {
         if (!mask.indices?.length || mask.indices.length < 3) continue;
         const maskPath = fileName(mask.fileName);
-        await writeBinaryStl(maskPath, mask, mask.fileName);
+        await writeBinaryStl(maskPath, mask);
       }
 
       if (names.length <= zipCountBeforeMasks) {
@@ -333,14 +333,14 @@ export const mountainTrailExportFlow: ModelExportFlow<MountainTrailExportRequest
   describeArtifact: (request) => request.target === "trail"
     ? {
       kind: "file",
-      fileName: gpxExportFileName(request.config.gpx, STL_FILE_NAMES.trailLine),
+      fileName: modelExportFileName(request.config, STL_FILE_NAMES.trailLine),
       extension: "stl",
       mimeType: "model/stl",
       saveDialogTitle: "Save trail STL",
     }
     : {
       kind: "zip",
-      fileName: `${gpxExportStem(request.config.gpx)}.zip`,
+      fileName: `${modelExportStem(request.config)}.zip`,
       extension: "zip",
       mimeType: "application/zip",
       saveDialogTitle: "Save TrailPrint STL archive",

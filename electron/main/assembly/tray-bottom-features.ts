@@ -2,7 +2,8 @@ import type { TerrainMeshPayload } from "@shared/types/terrain";
 import * as THREE from "three";
 import { ShapeUtils } from "three";
 import {
-  magnetHexagonVertsMm,
+  magnetPocketVertsMm,
+  type MagnetPocketProfile,
   magnetHoleInteriorSample,
 } from "../../../shared/utils/magnet-hole-geometry";
 import type { Vec2 } from "@shared/utils/tray-footprint";
@@ -54,6 +55,7 @@ function buildBottomPlateShape(
   magnetRadius: number,
   cache: VertexCache,
   indices: number[],
+  profile?: MagnetPocketProfile,
 ): void {
   if (outer.length < 3) return;
 
@@ -61,8 +63,8 @@ function buildBottomPlateShape(
   const holes: THREE.Vector2[][] = [];
 
   for (const h of magnetHoles) {
-    const hex = magnetHexagonVertsMm(h.x, h.y, magnetRadius);
-    holes.push(hex.map((v) => new THREE.Vector2(v.x, v.y)));
+    const contour = magnetPocketVertsMm(h.x, h.y, magnetRadius, profile);
+    holes.push(contour.map((v) => new THREE.Vector2(v.x, v.y)));
   }
 
   const allVerts = [...contour, ...holes.flat()];
@@ -71,10 +73,35 @@ function buildBottomPlateShape(
     const v0 = allVerts[face[0]!]!;
     const v1 = allVerts[face[1]!]!;
     const v2 = allVerts[face[2]!]!;
-    const i0 = cache.getOrCreate(v0.x, v0.y, z);
-    const i1 = cache.getOrCreate(v1.x, v1.y, z);
-    const i2 = cache.getOrCreate(v2.x, v2.y, z);
-    indices.push(i0, i2, i1);
+    const area = (v1.x - v0.x) * (v2.y - v0.y) - (v1.y - v0.y) * (v2.x - v0.x);
+    if (Math.abs(area) < 1e-10) continue;
+
+    // Earcut can bridge aligned rectangular holes with an edge that skips their
+    // collinear corners. Split those edges so the plate shares every pocket edge.
+    const boundary: THREE.Vector2[] = [];
+    const triangle = [v0, v1, v2];
+    for (let e = 0; e < 3; e++) {
+      const a = triangle[e]!, b = triangle[(e + 1) % 3]!;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const lengthSq = dx * dx + dy * dy;
+      const points = allVerts.flatMap(p => {
+        const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq;
+        if (t <= 1e-8 || t >= 1 - 1e-8) return [];
+        if (Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) > 1e-7 * Math.sqrt(lengthSq)) return [];
+        return [{ p, t }];
+      }).sort((p, q) => p.t - q.t);
+      boundary.push(a);
+      for (const { p } of points) {
+        if (p.distanceToSquared(boundary[boundary.length - 1]!) > 1e-12) boundary.push(p);
+      }
+    }
+    const ring = boundary.map(v => cache.getOrCreate(v.x, v.y, z));
+    if (ring.length === 3) {
+      indices.push(ring[0]!, ring[2]!, ring[1]!);
+    } else {
+      const center = cache.getOrCreate((v0.x + v1.x + v2.x) / 3, (v0.y + v1.y + v2.y) / 3, z);
+      for (let i = 0; i < ring.length; i++) indices.push(center, ring[(i + 1) % ring.length]!, ring[i]!);
+    }
   }
 }
 
@@ -86,14 +113,15 @@ function appendMagnetPocket(
   radius: number,
   zBottom: number,
   zTop: number,
+  profile?: MagnetPocketProfile,
 ): void {
-  const hexVerts = magnetHexagonVertsMm(cx, cy, radius);
-  const bottomRing = hexVerts.map((v) => cache.getOrCreate(v.x, v.y, zBottom));
-  const topRing = hexVerts.map((v) => cache.getOrCreate(v.x, v.y, zTop));
+  const pocketVerts = magnetPocketVertsMm(cx, cy, radius, profile);
+  const bottomRing = pocketVerts.map((v) => cache.getOrCreate(v.x, v.y, zBottom));
+  const topRing = pocketVerts.map((v) => cache.getOrCreate(v.x, v.y, zTop));
   const floorCenter = cache.getOrCreate(cx, cy, zTop);
 
-  for (let s = 0; s < hexVerts.length; s++) {
-    const sn = (s + 1) % hexVerts.length;
+  for (let s = 0; s < pocketVerts.length; s++) {
+    const sn = (s + 1) % pocketVerts.length;
     const b0 = bottomRing[s]!;
     const b1 = bottomRing[sn]!;
     const t0 = topRing[s]!;
@@ -102,8 +130,8 @@ function appendMagnetPocket(
     indices.push(b0, t0, t1);
   }
 
-  for (let s = 0; s < hexVerts.length; s++) {
-    const sn = (s + 1) % hexVerts.length;
+  for (let s = 0; s < pocketVerts.length; s++) {
+    const sn = (s + 1) % pocketVerts.length;
     indices.push(floorCenter, topRing[sn]!, topRing[s]!);
   }
 }
@@ -137,6 +165,7 @@ export function applyTrayMagnetPockets(
   holes: ReadonlyArray<{ x: number; y: number }>,
   holeRadius: number,
   holeDepth: number,
+  profile?: MagnetPocketProfile,
 ): TerrainMeshPayload {
   const positions = [...mesh.positions];
   const indices = stripBottomCapTriangles(mesh);
@@ -149,6 +178,7 @@ export function applyTrayMagnetPockets(
     holeRadius,
     cache,
     indices,
+    profile,
   );
 
   for (const h of holes) {
@@ -160,6 +190,7 @@ export function applyTrayMagnetPockets(
       holeRadius,
       mesh.bottomZ,
       mesh.bottomZ + holeDepth,
+      profile,
     );
   }
 
@@ -175,11 +206,12 @@ export function countBottomPlateOverHole(
   mesh: TerrainMeshPayload,
   holes: ReadonlyArray<{ x: number; y: number }>,
   holeRadius: number,
+  profile?: MagnetPocketProfile,
 ): number {
   let covered = 0;
   const pos = mesh.positions;
   for (const h of holes) {
-    const sample = magnetHoleInteriorSample(h.x, h.y, holeRadius);
+    const sample = magnetHoleInteriorSample(h.x, h.y, holeRadius, profile);
     const px = sample.x;
     const py = sample.y;
     let hits = 0;

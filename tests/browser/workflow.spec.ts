@@ -22,6 +22,7 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   await expect(page.getByRole('heading', { name: 'TrailPrint', exact: true })).toBeVisible()
   await page.getByPlaceholder('Paste your API key').fill('browser-test-key')
   await page.getByRole('button', { name: 'Standard', exact: true }).click()
+  await page.getByRole('switch', { name: 'Underside magnet holes', exact: true }).click()
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'))
   await expect(page.getByText('Drop a GPX track to get started')).toBeHidden()
   await expect(page.locator('.sidebar__status')).toContainText('Imported')
@@ -38,14 +39,15 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   const downloadEvent = page.waitForEvent('download', { timeout: 90_000 })
   await downloadButton.click()
   const download = await downloadEvent
-  expect(download.suggestedFilename()).toBe('sample-trail.zip')
+  expect(download.suggestedFilename()).toBe('sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm.zip')
   const files = unzipSync(await readFile((await download.path())!))
-  expect(Object.keys(files).sort()).toEqual(['sample-trail_Terrain_Main.stl', 'sample-trail_Trail_Line.stl', 'sample-trail_Tray_Base.stl'])
+  expect(Object.keys(files).sort()).toEqual(['sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Terrain_Main.stl', 'sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Trail_Line.stl', 'sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Tray_Base.stl'])
   for (const [name, bytes] of Object.entries(files)) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     const triangles = view.getUint32(80, true)
     expect(triangles, name).toBeGreaterThan(0)
     expect(bytes.byteLength, name).toBe(84 + triangles * 50)
+    expect(new TextDecoder().decode(bytes.subarray(0, 80)).replace(/\0+$/, ''), name).toBe(name.replace(/\.stl$/, ''))
     let invalidCoordinates = 0
     for (let t = 0; t < triangles; t++) for (let coordinate = 0; coordinate < 12; coordinate++) {
       if (!Number.isFinite(view.getFloat32(84 + t * 50 + coordinate * 4, true))) invalidCoordinates++
@@ -66,12 +68,12 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   const trailEvent = page.waitForEvent('download', { timeout: 90_000 })
   await page.getByRole('dialog').getByRole('button', { name: 'Download trail STL' }).click()
   const trail = await trailEvent
-  expect(trail.suggestedFilename()).toBe('sample-trail_Trail_Line.stl')
-  expect(await readFile((await trail.path())!)).toEqual(Buffer.from(files['sample-trail_Trail_Line.stl']!))
+  expect(trail.suggestedFilename()).toBe('sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Trail_Line.stl')
+  expect(await readFile((await trail.path())!)).toEqual(Buffer.from(files['sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Trail_Line.stl']!))
   await expect(downloadButton).toBeEnabled()
   const repeatTrail = page.waitForEvent('download')
   await page.evaluate(() => window.trailPrint.revealExport('last-export'))
-  expect((await repeatTrail).suggestedFilename()).toBe('sample-trail_Trail_Line.stl')
+  expect((await repeatTrail).suggestedFilename()).toBe('sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Trail_Line.stl')
   expect(errors).toEqual([])
 })
 

@@ -27,6 +27,7 @@ export function buildTrayBaseMeshForExport(
       magnet.holes,
       magnet.radiusMm,
       magnet.depthMm,
+      magnet,
     );
   }
   if (nfc?.cavityVerts.length) {

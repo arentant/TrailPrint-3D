@@ -10,11 +10,16 @@ import AccordionSection from '@/components/ui/AccordionSection.vue'
 import IosToggle from '@/components/ui/IosToggle.vue'
 import NumberField from '@/components/ui/NumberField.vue'
 import SettingLabel from '@/components/ui/SettingLabel.vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import type { MagnetHoleShape } from '@shared/types/config'
 
 const configStore = useConfigStore()
 const ui = useUiStore()
 const { config } = storeToRefs(configStore)
 const { openSections } = storeToRefs(ui)
+const magnetShapes: { value: MagnetHoleShape; label: string }[] = [
+  { value: 'circle', label: 'Round' }, { value: 'rectangle', label: 'Rectangle' }, { value: 'hexagon', label: 'Hexagon' },
+]
 
 const trayFootprint = computed(() => computeTrayFootprint(config.value))
 
@@ -25,7 +30,7 @@ const magnetHoleCountHint = computed(() => {
     return `The circular tray will have ${n} evenly spaced magnet holes on its underside.`
   }
   if (footprint.shape === 'polygon') {
-    return `The ${footprint.outer.length}-sided tray will have one hole at each corner on its underside (${n} total).`
+    return `The ${footprint.polygonSides ?? footprint.outer.length}-sided tray will have one hole at each corner on its underside (${n} total).`
   }
   return 'The rectangular tray will have one magnet hole at each corner on its underside (4 total).'
 })
@@ -80,13 +85,20 @@ const assemblyError = computed(() => {
 
     <template v-if="config.assembly.magnet.enabled">
       <p class="hint">
-        Add hexagonal magnet holes to the underside of the tray. Clearance increases hole width and depth for easier insertion and removal without moving the holes.
+        Choose the pocket shape to match your magnet. Dimensions are in millimeters; clearance adds space around the magnet and increases the pocket depth.
       </p>
+      <SettingLabel label="Magnet hole shape" guide="magnetShape" />
+      <SegmentedControl v-model="config.assembly.magnet.shape" :options="magnetShapes" aria-label="Magnet hole shape" />
       <div class="row">
+        <template v-if="config.assembly.magnet.shape === 'rectangle'">
+          <NumberField v-model="config.assembly.magnet.lengthMm" label="Magnet length" help="magnetLength" suffix="mm" :min="1" :max="30" :step="0.5" />
+          <NumberField v-model="config.assembly.magnet.widthMm" label="Magnet width" help="magnetWidth" suffix="mm" :min="1" :max="30" :step="0.5" />
+        </template>
         <NumberField
+          v-else
           v-model="config.assembly.magnet.diameterMm"
-          label="Magnet diameter"
-          help="magnetDiameter"
+          :label="config.assembly.magnet.shape === 'hexagon' ? 'Magnet width across flats' : 'Magnet diameter'"
+          :help="config.assembly.magnet.shape === 'hexagon' ? 'magnetAcrossFlats' : 'magnetDiameter'"
           suffix="mm"
           :min="2"
           :max="20"

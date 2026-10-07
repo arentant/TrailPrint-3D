@@ -16,7 +16,15 @@ export function encodeBinaryStl(
   }
 
   const buffer = new Uint8Array(HEADER_BYTES + 4 + triangleCount * TRIANGLE_RECORD_BYTES);
-  buffer.set(new TextEncoder().encode(`TrailPrint ${solidName}`.slice(0, 79)));
+  // Keep a UTF-8 name entirely inside the 80-byte header, including Unicode filenames.
+  const encoder = new TextEncoder();
+  let headerOffset = 0;
+  for (const character of solidName) {
+    const bytes = encoder.encode(character);
+    if (headerOffset + bytes.length > HEADER_BYTES) break;
+    buffer.set(bytes, headerOffset);
+    headerOffset += bytes.length;
+  }
   const view = new DataView(buffer.buffer);
   view.setUint32(HEADER_BYTES, triangleCount, true);
 

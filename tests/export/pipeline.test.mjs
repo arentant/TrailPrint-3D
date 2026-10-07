@@ -6,8 +6,10 @@ import { resolve } from 'node:path'
 const compiled = await build({
   stdin: {
     contents: `export { createExportPipeline } from './shared/export/export-pipeline';
-      export { gpxExportStem, gpxExportFileName } from './shared/export/export-artifact';
+      export { gpxExportStem, gpxExportFileName, modelExportStem, modelExportFileName } from './shared/export/export-artifact';
       export { createDefaultConfig } from './shared/types/config';
+      export { createDefaultCityConfig } from './shared/types/city';
+      export { encodeBinaryStl } from './shared/utils/binary-stl';
       export { buildSprayPaintManifest } from './shared/utils/spray-manifest';`,
     resolveDir: resolve('.'),
   },
@@ -16,7 +18,7 @@ const compiled = await build({
   platform: 'node',
   format: 'esm',
 })
-const { createExportPipeline, gpxExportStem, gpxExportFileName, createDefaultConfig, buildSprayPaintManifest } = await import(
+const { createExportPipeline, gpxExportStem, gpxExportFileName, modelExportStem, modelExportFileName, createDefaultConfig, createDefaultCityConfig, encodeBinaryStl, buildSprayPaintManifest } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].contents).toString('base64')}`
 )
 
@@ -138,7 +140,47 @@ test('export names remove unsafe characters and avoid reserved or oversized file
   assert.ok(!name.includes('\ufffd'))
 })
 
-test('paint manifests reference the GPX-named terrain and masks', async () => {
+test('export prefixes include the active dimensions, shape, mesh quality and magnet option', () => {
+  const config = createDefaultConfig(); config.gpx.fileName = 'berlin.gpx';
+  config.mapCrop.radiusMm = 80; config.terrain.meshQuality = 'high'; config.assembly.magnet.enabled = true;
+  const stem = 'berlin_circle_R80mm_mesh-high_magnets-on-circle-6x2mm';
+  assert.equal(modelExportStem(config), stem);
+  assert.equal(modelExportFileName(config, 'Tray_Base.stl'), `${stem}_Tray_Base.stl`);
+  config.mapCrop.shape = 'rectangle'; config.mapCrop.lengthMm = 200; config.mapCrop.widthMm = 150;
+  config.assembly.magnet.enabled = false;
+  assert.equal(modelExportStem(config), 'berlin_rectangle_200x150mm_mesh-high_magnets-off');
+  config.mapCrop.shape = 'polygon'; config.mapCrop.polygonSides = 6; config.mapCrop.polygonSideLengthMm = 40;
+  config.terrain.meshQuality = 'custom'; config.terrain.meshQualityCustom.maxGrid = 1536;
+  assert.equal(modelExportStem(config), 'berlin_polygon6_R40mm_mesh-custom1536_magnets-off');
+  config.assembly.magnet.enabled = true; config.assembly.magnet.shape = 'rectangle';
+  config.assembly.magnet.lengthMm = 8; config.assembly.magnet.widthMm = 4; config.assembly.magnet.thicknessMm = 1.5;
+  assert.ok(modelExportStem(config).endsWith('_magnets-on-rectangle-8x4x1.5mm'));
+  const city = createDefaultCityConfig(); city.gpx.fileName = 'berlin.gpx';
+  assert.equal(modelExportStem(city), 'berlin_circle_R60mm_mesh-high_magnets-off');
+});
+
+test('parameterized export names preserve Unicode and stay within filename byte limits', () => {
+  const config = createDefaultConfig(); config.gpx.fileName = '山'.repeat(100) + '.gpx';
+  const name = modelExportFileName(config, 'Assembly_Instructions.txt');
+  assert.ok(new TextEncoder().encode(name).length <= 255);
+  assert.ok(name.endsWith('_circle_R60mm_mesh-studio_magnets-off_Assembly_Instructions.txt'));
+  assert.ok(!name.includes('\ufffd'));
+  config.gpx.fileName = 'Արագած.gpx';
+  assert.ok(modelExportStem(config).startsWith('Արագած_'));
+});
+
+test('binary STL names omit the generic brand and long Unicode headers do not overwrite triangles', () => {
+  const mesh = { positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] };
+  const name = 'Արագած'.repeat(20);
+  const stl = encodeBinaryStl(mesh, name);
+  const header = new TextDecoder('utf-8', { fatal: true }).decode(stl.subarray(0, 80)).replace(/\0+$/, '');
+  assert.ok(name.startsWith(header)); assert.ok(header.length > 0);
+  assert.equal(stl.length, 134); assert.equal(new DataView(stl.buffer).getUint32(80, true), 1);
+  assert.equal(new DataView(stl.buffer).getFloat32(108, true), 1);
+  assert.doesNotMatch(header, /TrailPrint/);
+});
+
+test('paint manifests reference the parameterized terrain and masks', async () => {
   const config = createDefaultConfig()
   config.gpx.fileName = 'ridge-run.gpx'
   const plan = {
@@ -146,6 +188,6 @@ test('paint manifests reference the GPX-named terrain and masks', async () => {
     cellRegions: [1], gridCols: 1, gridRows: 1, generatedAt: 1,
   }
   const manifest = await buildSprayPaintManifest(config, plan)
-  assert.equal(manifest.terrainStl, 'ridge-run_Terrain_Main.stl')
-  assert.equal(manifest.colors[0].stl, 'ridge-run_Mask_Color_01.stl')
+  assert.equal(manifest.terrainStl, 'ridge-run_circle_R60mm_mesh-studio_magnets-off_Terrain_Main.stl')
+  assert.equal(manifest.colors[0].stl, 'ridge-run_circle_R60mm_mesh-studio_magnets-off_Mask_Color_01.stl')
 })

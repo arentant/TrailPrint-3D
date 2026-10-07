@@ -1,6 +1,6 @@
 import type { AppConfig } from "@shared/types/config";
 import { STL_FILE_NAMES } from "@shared/types/export";
-import { gpxExportFileName } from "@shared/export/export-artifact";
+import { modelExportFileName } from "@shared/export/export-artifact";
 import type { SprayPaintPlan } from "@shared/types/spray-paint";
 
 export const SPRAY_MANIFEST_FILE_NAME = "spray_paint_manifest.json";
@@ -53,13 +53,13 @@ export async function buildSprayPaintManifest(
       hex: slot.hex,
       label: slot.label,
       description: slot.description,
-      stl: gpxExportFileName(config.gpx, maskStlFileName(slot.index)),
+      stl: modelExportFileName(config, maskStlFileName(slot.index)),
       regionId: slot.regionId,
     })),
     maskShellThicknessMm: spray.maskShellThicknessMm,
     maskFitToleranceMm: spray.maskFitToleranceMm,
     bleedMarginMm: spray.bleedMarginMm,
-    terrainStl: gpxExportFileName(config.gpx, STL_FILE_NAMES.terrainMain),
+    terrainStl: modelExportFileName(config, STL_FILE_NAMES.terrainMain),
     maskMode: "negative",
     generatedAt: plan.generatedAt,
     gridCols: plan.gridCols,

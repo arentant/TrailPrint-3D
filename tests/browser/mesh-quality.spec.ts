@@ -44,7 +44,7 @@ test('Custom 1536 terrain data and trail STL retain full resolution across row c
   expect(result.first).toBe(0); expect(result.last).toBeGreaterThan(0)
   expect(result.exported.cancelled).toBe(false)
   const download = await downloadEvent
-  expect(download.suggestedFilename()).toBe('sample-trail_Trail_Line.stl')
+  expect(download.suggestedFilename()).toBe('sample-trail_circle_R80mm_mesh-custom1536_magnets-off_Trail_Line.stl')
   const stl = await readFile((await download.path())!)
   expect(stl.readUInt32LE(80)).toBeGreaterThan(0)
   expect(stl.length).toBe(84 + stl.readUInt32LE(80) * 50)

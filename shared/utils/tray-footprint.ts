@@ -21,6 +21,8 @@ export interface TrayFootprint {
   recessInner: Vec2[];
   outerRadius?: number;
   recessRadius?: number;
+  /** Logical polygon corners, excluding the vertices used to round them. */
+  polygonSides?: number;
   outerHw?: number;
   outerHh?: number;
   recessHw?: number;
@@ -90,6 +92,7 @@ export function computeTrayFootprint(config: AppConfig): TrayFootprint {
   const outerScale = (terrainR + tol + rim) / terrainR;
   return {
     shape: "polygon",
+    polygonSides: n,
     outer: scaleVerts(terrainVerts, outerScale),
     recessInner: scaleVerts(terrainVerts, recessScale),
     outerRadius: terrainR + tol + rim,

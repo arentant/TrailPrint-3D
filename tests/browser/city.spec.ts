@@ -39,11 +39,11 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   await expect(previewDialog).toBeVisible();
   await page.screenshot({path:'test-results/city-preview.png',fullPage:true});
   const event=page.waitForEvent('download'); await downloadButton.click(); const download=await event;
-  expect(download.suggestedFilename()).toBe('city-run.zip');
+  expect(download.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off.zip');
   const files=unzipSync(await readFile((await download.path())!));
-  expect(Object.keys(files).sort()).toEqual(['city-run_Assembly_Instructions.txt','city-run_City_Main.stl','city-run_Trail_Line.stl']);
-  expect(new TextDecoder().decode(files['city-run_Assembly_Instructions.txt'])).toContain('OpenStreetMap contributors');
-  for (const name of ['city-run_City_Main.stl','city-run_Trail_Line.stl']) {
+  expect(Object.keys(files).sort()).toEqual(['city-run_circle_R70mm_mesh-high_magnets-off_Assembly_Instructions.txt','city-run_circle_R70mm_mesh-high_magnets-off_City_Main.stl','city-run_circle_R70mm_mesh-high_magnets-off_Trail_Line.stl']);
+  expect(new TextDecoder().decode(files['city-run_circle_R70mm_mesh-high_magnets-off_Assembly_Instructions.txt'])).toContain('OpenStreetMap contributors');
+  for (const name of ['city-run_circle_R70mm_mesh-high_magnets-off_City_Main.stl','city-run_circle_R70mm_mesh-high_magnets-off_Trail_Line.stl']) {
     const bytes=files[name]!, view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength); const triangles=view.getUint32(80,true);
     expect(triangles).toBeGreaterThan(0); expect(bytes.length).toBe(84+50*triangles);
     for(let t=0;t<triangles;t++) for(let c=0;c<12;c++) expect(Number.isFinite(view.getFloat32(84+t*50+c*4,true))).toBe(true);
@@ -51,12 +51,12 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   const trailEvent = page.waitForEvent('download');
   await previewDialog.getByRole('button', { name: 'Download trail STL', exact: true }).click();
   const trailDownload = await trailEvent;
-  expect(trailDownload.suggestedFilename()).toBe('city-run_Trail_Line.stl');
-  expect(await readFile((await trailDownload.path())!)).toEqual(Buffer.from(files['city-run_Trail_Line.stl']));
+  expect(trailDownload.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off_Trail_Line.stl');
+  expect(await readFile((await trailDownload.path())!)).toEqual(Buffer.from(files['city-run_circle_R70mm_mesh-high_magnets-off_Trail_Line.stl']));
   const mapEvent = page.waitForEvent('download');
   await previewDialog.getByRole('button', { name: 'Download map picture', exact: true }).click();
   const mapDownload = await mapEvent;
-  expect(mapDownload.suggestedFilename()).toBe('city-run_City_Map.svg');
+  expect(mapDownload.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off_City_Map.svg');
   const svg = await readFile((await mapDownload.path())!, 'utf8');
   expect(svg).toContain('width="140mm" height="140mm"');
   expect(svg).not.toContain('City fixture run');
@@ -97,7 +97,7 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   await page.getByPlaceholder('Paste your API key').fill('');
   await expect(pictureButton).toBeEnabled();
   const event = page.waitForEvent('download'); await pictureButton.click(); const download = await event;
-  expect(download.suggestedFilename()).toBe('city-run_City_Map.svg');
+  expect(download.suggestedFilename()).toBe('city-run_rectangle_120x90mm_mesh-high_magnets-off_City_Map.svg');
   const svg = await readFile((await download.path())!, 'utf8');
   const parsed = await page.evaluate(source => {
     const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
@@ -138,7 +138,7 @@ test('marathon trail and map downloads bypass city geometry and work after an ov
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-marathon.gpx'));
   await expect(trailButton).toBeEnabled();
   const event = page.waitForEvent('download'); await trailButton.click(); const trail = await event;
-  expect(trail.suggestedFilename()).toBe('city-marathon_Trail_Line.stl');
+  expect(trail.suggestedFilename()).toBe('city-marathon_circle_R60mm_mesh-high_magnets-off_Trail_Line.stl');
   expect((await readFile((await trail.path())!)).length).toBeGreaterThan(84);
   expect(maps).toBe(0); expect(elevations).toBe(0);
   await page.getByRole('button', { name: 'Preview & export City STL' }).click();
@@ -241,7 +241,7 @@ test('Real terrain trail edits in the preview reuse data and export the updated 
   await page.screenshot({path:'test-results/city-trail-editor.png',fullPage:true});
   const event=page.waitForEvent('download');await downloadButton.click();const download=await event;
   const files=unzipSync(await readFile((await download.path())!));
-  const instructions=new TextDecoder().decode(files['city-run_Assembly_Instructions.txt']);
+  const instructions=new TextDecoder().decode(files['city-run_circle_R60mm_mesh-high_magnets-off_Assembly_Instructions.txt']);
   expect(instructions).toContain('Surface mode: real');
   expect(instructions).toContain('2 mm width, 0.8 mm seating depth, 1.4 mm visible relief, 0.25 mm clearance per side');
   expect(maps).toBe(1);expect(elevations).toBe(1);

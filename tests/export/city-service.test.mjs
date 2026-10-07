@@ -9,7 +9,7 @@ const xml = await readFile('fixtures/city-run.gpx','utf8');
 const compiled = await build({
   stdin: { contents: `export * from './electron/main/city/city-model-service'; export * from './electron/main/export/city-map-flow';
     export * from './shared/types/city'; export * from './shared/utils/binary-stl'; export * from './shared/utils/gpx-parser';
-    export { cityProject, cityFootprint } from './shared/city/geometry';`, resolveDir: resolve('.') },
+    export { cityProject, cityFootprint } from './shared/city/geometry'; export * from './shared/export/export-artifact';`, resolveDir: resolve('.') },
   bundle: true, write: false, platform:'node', format:'esm',
   plugins:[{ name:'runtime-fixtures', setup(build) {
     build.onResolve({ filter:/^\.\/manifold-runtime$/ }, () => ({ path:'manifold', namespace:'fixture' }));
@@ -39,22 +39,22 @@ test('Flat skips DEM, caches the finalized preview and exports the same geometry
   assert.equal(await api.generateCityModel(req),preview);
   req.config.colors = { ...req.config.colors, terrain: '#2468ac', trail: '#00ff00' };
   assert.equal(await api.generateCityModel(req),preview, 'color changes reuse the finalized geometry');
-  assert.equal(api.cityMapExportFlow.describeArtifact(req).fileName, 'city-run.zip');
+  assert.equal(api.cityMapExportFlow.describeArtifact(req).fileName, `${api.modelExportStem(req.config)}.zip`);
   const files={}; await api.cityMapExportFlow.generateFiles({...req,flow:'city-map'},()=>{},(name,value)=>files[name]=value);
-  assert.deepEqual(files['city-run_City_Main.stl'], api.encodeBinaryStl(preview.cityMesh,'City_Main'));
-  assert.deepEqual(files['city-run_Trail_Line.stl'], api.encodeBinaryStl(preview.routeMesh,'Trail_Line'));
-  assert.deepEqual(Object.keys(files),['city-run_City_Main.stl','city-run_Trail_Line.stl','city-run_Assembly_Instructions.txt']);
+  assert.deepEqual(files[api.modelExportFileName(req.config, 'City_Main.stl')], api.encodeBinaryStl(preview.cityMesh, api.modelExportFileName(req.config, 'City_Main.stl').replace(/\.stl$/, '')));
+  assert.deepEqual(files[api.modelExportFileName(req.config, 'Trail_Line.stl')], api.encodeBinaryStl(preview.routeMesh, api.modelExportFileName(req.config, 'Trail_Line.stl').replace(/\.stl$/, '')));
+  assert.deepEqual(Object.keys(files),[api.modelExportFileName(req.config, 'City_Main.stl'),api.modelExportFileName(req.config, 'Trail_Line.stl'),api.modelExportFileName(req.config, 'Assembly_Instructions.txt')]);
   const trailRequest = { ...req, flow: 'city-map', target: 'trail' };
   assert.deepEqual(api.cityMapExportFlow.describeArtifact(trailRequest), {
-    kind: 'file', fileName: 'city-run_Trail_Line.stl', extension: 'stl', mimeType: 'model/stl', saveDialogTitle: 'Save city running trail STL',
+    kind: 'file', fileName: api.modelExportFileName(req.config, 'Trail_Line.stl'), extension: 'stl', mimeType: 'model/stl', saveDialogTitle: 'Save city running trail STL',
   });
   const trailFiles = {};
   await api.cityMapExportFlow.generateFiles(trailRequest, () => {}, (name, bytes) => trailFiles[name] = bytes);
-  assert.deepEqual(Object.keys(trailFiles), ['city-run_Trail_Line.stl']);
-  assert.deepEqual(trailFiles['city-run_Trail_Line.stl'], files['city-run_Trail_Line.stl']);
-  const instructions = new TextDecoder().decode(files['city-run_Assembly_Instructions.txt']);
+  assert.deepEqual(Object.keys(trailFiles), [api.modelExportFileName(req.config, 'Trail_Line.stl')]);
+  assert.deepEqual(trailFiles[api.modelExportFileName(req.config, 'Trail_Line.stl')], files[api.modelExportFileName(req.config, 'Trail_Line.stl')]);
+  const instructions = new TextDecoder().decode(files[api.modelExportFileName(req.config, 'Assembly_Instructions.txt')]);
   assert.match(instructions,/OpenStreetMap contributors/);
-  assert.match(instructions,/city-run_City_Main\.stl and city-run_Trail_Line\.stl/);
+  assert.ok(instructions.includes(`${api.modelExportFileName(req.config, 'City_Main.stl')} and ${api.modelExportFileName(req.config, 'Trail_Line.stl')}`));
   assert.equal(maps,1); assert.equal(dems,0);
   const edits=[];
   req.config.city.routeWidthMm=1.5; const next=await api.generateCityModel(req,(p)=>edits.push(p)); assert.notEqual(next,preview); assert.equal(maps,1);
@@ -72,12 +72,13 @@ test('paper map skips elevation and solids, omits track titles and uses STL proj
     req.config.city.surface = 'real'; req.config.terrain.openTopographyApiKey = '';
     req.config.gpx.trackName = '<script>alert("track")</script> & run';
     const artifact = api.cityMapExportFlow.describeArtifact(req);
-    assert.equal(artifact.fileName, 'city-run_City_Map.svg');
+    assert.equal(artifact.fileName, api.modelExportFileName(req.config, 'City_Map.svg'));
     assert.equal(artifact.mimeType, 'image/svg+xml'); assert.equal(artifact.kind, 'file');
     for (const shape of ['circle', 'rectangle', 'polygon']) {
       req.config.mapCrop.shape = shape;
       req.config.mapCrop.polygonSides = 5;
       req.config.mapCrop.mapBearingDeg = 31;
+      const artifact = api.cityMapExportFlow.describeArtifact(req);
       const files = {};
       await api.cityMapExportFlow.generateFiles(req, () => {}, (name, bytes) => files[name] = bytes);
       assert.deepEqual(Object.keys(files), [artifact.fileName]);
@@ -119,13 +120,13 @@ test('cold trail-only export needs no map provider and matches the complete city
     globalThis.__cityMap = async () => data;
     globalThis.__cityDem = async (_crop, cols, rows) => ({ elevations: Float64Array.from({ length: cols * rows }, (_, i) => 500 + i % cols) });
     const complete = await api.generateCityModel(req);
-    const expected = api.encodeBinaryStl(complete.routeMesh, 'Trail_Line');
+    const expected = api.encodeBinaryStl(complete.routeMesh, api.modelExportFileName(req.config, 'Trail_Line.stl').replace(/\.stl$/, ''));
     api.clearCityModelCache();
     globalThis.__cityMap = async () => { throw new Error('The map download is too large'); };
     const files = {};
     await api.cityMapExportFlow.generateFiles({ ...req, flow: 'city-map', target: 'trail' }, () => {}, (name, bytes) => files[name] = bytes);
-    assert.deepEqual(Object.keys(files), ['city-run_Trail_Line.stl']);
-    assert.deepEqual(files['city-run_Trail_Line.stl'], expected);
+    assert.deepEqual(Object.keys(files), [api.modelExportFileName(req.config, 'Trail_Line.stl')]);
+    assert.deepEqual(files[api.modelExportFileName(req.config, 'Trail_Line.stl')], expected);
   }
 });
 
@@ -141,8 +142,8 @@ test('marathon trail and paper map export while the city geometry provider is un
   const files = {};
   for (const target of ['trail', 'map']) await api.cityMapExportFlow.generateFiles({ ...req, flow: 'city-map', target }, () => {}, (name, bytes) => files[name] = bytes);
   assert.equal(maps, 0);
-  assert.ok(files['berlin-marathon_Trail_Line.stl'].length > 84);
-  const svg = new TextDecoder().decode(files['berlin-marathon_City_Map.svg']);
+  assert.ok(files[api.modelExportFileName(req.config, 'Trail_Line.stl')].length > 84);
+  const svg = new TextDecoder().decode(files[api.modelExportFileName(req.config, 'City_Map.svg')]);
   assert.match(svg, /id="street-map"><image/); assert.match(svg, /id="running-route"/);
 });
 
@@ -184,8 +185,8 @@ test('Real terrain trail edits reuse map and elevation inputs and export the lat
   assert.equal(progress.filter((p)=>/Fusing city/.test(p.message)).length,0);
   assert.equal(progress.filter((p)=>/Updating the running trail/.test(p.message)).length,4);
   const files={};await api.cityMapExportFlow.generateFiles({...req,flow:'city-map'},()=>{},(name,bytes)=>files[name]=bytes);
-  assert.deepEqual(files['city-run_City_Main.stl'],api.encodeBinaryStl(latest.cityMesh,'City_Main'));
-  assert.deepEqual(files['city-run_Trail_Line.stl'],api.encodeBinaryStl(latest.routeMesh,'Trail_Line'));
+  assert.deepEqual(files[api.modelExportFileName(req.config, 'City_Main.stl')],api.encodeBinaryStl(latest.cityMesh, api.modelExportFileName(req.config, 'City_Main.stl').replace(/\.stl$/, '')));
+  assert.deepEqual(files[api.modelExportFileName(req.config, 'Trail_Line.stl')],api.encodeBinaryStl(latest.routeMesh, api.modelExportFileName(req.config, 'Trail_Line.stl').replace(/\.stl$/, '')));
   assert.equal(maps,1);assert.equal(dems,1);assert.deepEqual(raw,originalRaw);
 });
 test('elevation processing edits stay local and changed sampling inputs fetch fresh data', async () => {

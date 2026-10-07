@@ -91,7 +91,7 @@ test('Mountain guides cover every setting, optional electronics, magnets, masks,
   await page.keyboard.press('Escape')
 
   for (const shape of ['Rectangle', 'Polygon']) {
-    await page.getByRole('button', { name: shape, exact: true }).click()
+    await page.getByRole('group', { name: 'Print shape', exact: true }).getByRole('button', { name: shape, exact: true }).click()
     await checkVisibleGuides(page)
   }
   await page.getByRole('button', { name: 'Save preset', exact: true }).click()

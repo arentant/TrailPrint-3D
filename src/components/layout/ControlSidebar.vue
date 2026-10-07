@@ -230,6 +230,7 @@ function openPreviewModal(): void {
   flex-shrink: 0;
   align-self: stretch;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   background: var(--tp-bg-panel);
@@ -433,6 +434,7 @@ function openPreviewModal(): void {
   font-size: 12px;
   color: var(--tp-text-secondary);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .sidebar__cta-row {
