@@ -20,6 +20,9 @@ function applyGpxResult<T extends { gpx: GpxState }>(
       pointCount: result.pointCount,
       distanceKm: result.distanceKm,
       trackName: result.trackName ?? config.gpx.trackName,
+      activityDate: result.activityDate,
+      elapsedSeconds: result.elapsedSeconds,
+      athleteName: result.athleteName,
     },
   };
 }

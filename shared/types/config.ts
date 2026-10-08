@@ -152,6 +152,9 @@ export interface GpxState {
   /** 本机 GPX 路径（Electron 导入时有值，供主进程导出时重新读取） */
   filePath?: string;
   trackName?: string;
+  activityDate?: string;
+  elapsedSeconds?: number;
+  athleteName?: string;
   /** 当前生效轨迹（任务-04 优化后可能替换） */
   points: GpxPoint[];
   /** 原始解析轨迹，供 gpxSimplify 管道使用 */

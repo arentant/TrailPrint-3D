@@ -5,7 +5,7 @@ import { unzipSync } from 'fflate';
 import { compactCityMap } from '../city-fixture.mjs';
 import { MAX_PICTURE_TILES } from '../../shared/city/map-tiles';
 const data = JSON.stringify(compactCityMap(JSON.parse(await readFile('fixtures/city-map.osm.json','utf8'))));
-const tilePng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64');
+const tilePng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMILU/6DwAEgQIuIhp1GQAAAABJRU5ErkJggg==', 'base64');
 test.beforeEach(async ({ page }) => {
   await page.route('**/World_Topo_Map/MapServer/tile/**', route => route.fulfill({ contentType: 'image/png', body: tilePng }));
 });
@@ -53,8 +53,11 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   const trailDownload = await trailEvent;
   expect(trailDownload.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off_Trail_Line.stl');
   expect(await readFile((await trailDownload.path())!)).toEqual(Buffer.from(files['city-run_circle_R70mm_mesh-high_magnets-off_Trail_Line.stl']));
+  await previewDialog.getByRole('button', { name: 'Preview map picture', exact: true }).click();
+  const pictureDialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  await pictureDialog.getByRole('button', { name: 'Map only', exact: true }).click();
   const mapEvent = page.waitForEvent('download');
-  await previewDialog.getByRole('button', { name: 'Download map picture', exact: true }).click();
+  await pictureDialog.getByRole('button', { name: 'Download SVG', exact: true }).click();
   const mapDownload = await mapEvent;
   expect(mapDownload.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off_City_Map.svg');
   const svg = await readFile((await mapDownload.path())!, 'utf8');
@@ -62,7 +65,7 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   expect(svg).not.toContain('City fixture run');
   expect(svg).toContain('OpenStreetMap contributors');
   expect(maps).toBe(1); expect(elevations).toBe(0);
-  await page.getByRole('button',{name:'Close city preview'}).click();
+  await page.getByRole('button',{name:'Close picture preview'}).click();
   const again=page.waitForEvent('download'); await page.getByRole('button',{name:'Download again',exact:true}).click(); expect((await again).suggestedFilename()).toBe(mapDownload.suggestedFilename());
   await page.getByRole('button',{name:'Mountain',exact:true}).click();
   await expect(page.getByRole('spinbutton',{name:'Print radius'})).toHaveValue(mountainRadius);
@@ -87,7 +90,7 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   await page.route('**/api/elevation', route => { elevations++; return route.fulfill({ status: 502 }); });
   await page.goto('/'); await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'City', exact: true }).click();
-  const pictureButton = page.getByRole('button', { name: 'Download city map picture', exact: true });
+  const pictureButton = page.getByRole('button', { name: 'Preview & export map picture', exact: true });
   await expect(pictureButton).toBeDisabled();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
   await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
@@ -96,7 +99,12 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   await page.getByRole('button', { name: 'Real terrain', exact: true }).click();
   await page.getByPlaceholder('Paste your API key').fill('');
   await expect(pictureButton).toBeEnabled();
-  const event = page.waitForEvent('download'); await pictureButton.click(); const download = await event;
+  await pictureButton.click();
+  const pictureDialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  await expect(pictureDialog.getByLabel('Title', { exact: true })).toHaveValue('City fixture run');
+  await expect(pictureDialog.getByLabel('Elapsed time', { exact: true })).toHaveValue('');
+  await pictureDialog.getByRole('button', { name: 'Map only', exact: true }).click();
+  const event = page.waitForEvent('download'); await pictureDialog.getByRole('button', { name: 'Download SVG' }).click(); const download = await event;
   expect(download.suggestedFilename()).toBe('city-run_rectangle_120x90mm_mesh-high_magnets-off_City_Map.svg');
   const svg = await readFile((await download.path())!, 'utf8');
   const parsed = await page.evaluate(source => {
@@ -115,6 +123,7 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   expect(parsed.text).toEqual([]);
   expect(parsed.route).toMatch(/^M/); expect(parsed.tiles).toBeGreaterThan(0); expect(parsed.tiles).toBeLessThanOrEqual(MAX_PICTURE_TILES);
   expect(elevations).toBe(0); expect(maps).toBe(0);
+  await pictureDialog.getByRole('button', { name: 'Close picture preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.city-status')).toContainText('100% / actual size');
   const image = await context.newPage();
@@ -149,8 +158,9 @@ test('marathon trail and map downloads bypass city geometry and work after an ov
   const retryTrail = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Download trail STL', exact: true }).click();
   expect((await retryTrail).suggestedFilename()).toBe(trail.suggestedFilename());
+  await dialog.getByRole('button', { name: 'Preview map picture' }).click();
   const mapEvent = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: 'Download map picture' }).click(); const picture = await mapEvent;
+  await page.getByRole('dialog').getByRole('button', { name: 'Download SVG' }).click(); const picture = await mapEvent;
   const svg = await readFile((await picture.path())!, 'utf8');
   expect(svg).toContain('id="street-map"><image'); expect(svg).toContain('id="running-route"');
   expect(maps).toBe(1); expect(elevations).toBe(0);
@@ -257,4 +267,218 @@ test('Real terrain trail edits in the preview reuse data and export the updated 
   await page.getByRole('button',{name:'Preview & export City STL'}).click();
   await expect(downloadButton).toBeEnabled();
   expect(maps).toBe(1);expect(elevations).toBe(1);
+});
+
+
+test('picture editor imports GPX stats, previews edits immediately and exports the same poster', async ({ page }) => {
+  let geometry = 0, tileLoads = 0;
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/city', route => { geometry++; return route.fulfill({ status: 500 }); });
+  await page.route('**/World_Topo_Map/MapServer/tile/**', route => {
+    tileLoads++; return route.fulfill({ contentType: 'image/png', body: tilePng });
+  });
+  await page.goto('/'); await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'City', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
+  const opener = page.getByRole('button', { name: 'Preview & export map picture' });
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  const preview = dialog.getByAltText('City map picture preview');
+  await expect(preview).toBeVisible();
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Yerevan morning run');
+  await expect(dialog.getByLabel('Runner name')).toHaveValue('Narek Margaryan');
+  await expect(dialog.getByLabel('Date', { exact: true })).toHaveValue('2023-09-24');
+  await expect(dialog.getByLabel('Elapsed time')).toHaveValue('0:16:00');
+  await expect(dialog.getByLabel('Average pace')).not.toHaveValue('');
+  const initialTileLoads = tileLoads;
+  const initialUrl = await preview.getAttribute('src');
+  await dialog.getByLabel('Title', { exact: true }).fill('Berlin Marathon');
+  await dialog.getByLabel('Distance', { exact: true }).fill('42.20');
+  await dialog.getByLabel('Elapsed time').fill('3:55:41');
+  await dialog.getByLabel('Average pace').fill('5:31');
+  await expect(preview).not.toHaveAttribute('src', initialUrl!);
+  expect(tileLoads).toBe(initialTileLoads);
+  async function readProof() {
+    const event = page.waitForEvent('download');
+    await preview.evaluate(image => {
+      const link = document.createElement('a');
+      link.href = (image as HTMLImageElement).src; link.download = 'preview-proof.svg';
+      document.body.append(link); link.click(); link.remove();
+    });
+    return readFile((await (await event).path())!, 'utf8');
+  }
+  const proof = await page.evaluate(source => {
+    const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
+    return {
+      text: doc.querySelector('#poster-details')!.textContent,
+      width: doc.documentElement.getAttribute('width'), height: doc.documentElement.getAttribute('height'),
+      route: doc.querySelector('#running-route')!.innerHTML,
+    };
+  }, await readProof());
+  expect(proof.text).toContain('BERLIN MARATHON');
+  expect(proof.text).toContain('42.20 km'); expect(proof.text).toContain('5:31 /km');
+  await page.screenshot({ path: 'test-results/city-picture-editor.png', fullPage: true });
+  const event = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download SVG' }).click();
+  const source = await readFile((await (await event).path())!, 'utf8');
+  const exported = await page.evaluate(svg => {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    return {
+      errors: doc.querySelectorAll('parsererror').length,
+      text: doc.querySelector('#poster-details')!.textContent,
+      width: doc.documentElement.getAttribute('width'), height: doc.documentElement.getAttribute('height'),
+      route: doc.querySelector('#running-route')!.innerHTML,
+    };
+  }, source);
+  expect(exported.errors).toBe(0);
+  expect(exported.text).toBe(proof.text); expect(exported.width).toBe(proof.width);
+  expect(exported.height).toBe(proof.height); expect(exported.route).toBe(proof.route);
+  await dialog.getByRole('button', { name: 'Midnight' }).click();
+  await dialog.getByLabel('Runner name').fill('');
+  const darkSource = await readProof();
+  expect(darkSource).toContain('fill="#192b28"'); expect(darkSource).not.toContain('>RUN BY<');
+  await expect(dialog.locator('.picture-footer')).not.toContainText('City map ready');
+  await dialog.getByRole('button', { name: 'Close picture preview' }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Close picture preview' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0); await expect(opener).toBeFocused();
+  await opener.click();
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Berlin Marathon');
+  await expect(dialog.getByRole('button', { name: 'Midnight' })).toHaveAttribute('aria-pressed', 'true');
+  await dialog.getByRole('button', { name: 'Use GPX values' }).click();
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Yerevan morning run');
+  await expect(dialog.getByLabel('Runner name')).toHaveValue('Narek Margaryan');
+  await expect(dialog.getByLabel('Elapsed time')).toHaveValue('0:16:00');
+  expect(geometry).toBe(0); expect(errors).toEqual([]);
+});
+
+test('picture preview recovers from tile failures and stays usable on a narrow screen', async ({ page }) => {
+  let fail = true;
+  await page.route('**/World_Topo_Map/MapServer/tile/**', route => fail
+    ? route.fulfill({ status: 503 })
+    : route.fulfill({ contentType: 'image/png', body: tilePng }));
+  await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
+  await page.getByRole('button', { name: 'Preview & export map picture' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  await expect(dialog.getByRole('alert')).toContainText('503');
+  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeDisabled();
+  fail = false; await dialog.getByRole('button', { name: 'Retry map preview' }).click();
+  await expect(dialog.getByAltText('City map picture preview')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeEnabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await dialog.getByLabel('Title', { exact: true }).fill('A small city adventure');
+  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeVisible();
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/city-picture-mobile.png', fullPage: true });
+  await dialog.getByRole('button', { name: 'Close picture preview' }).click();
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
+  await page.getByRole('button', { name: 'Preview & export map picture' }).click();
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Yerevan morning run');
+});
+
+
+test('picture preview falls back when a missing tile is hidden by browser request errors', async ({ page }) => {
+  let supportedZoom: number | undefined;
+  const successfulZooms = new Set<number>();
+  await page.route('**/World_Topo_Map/MapServer/tile/**', route => {
+    const zoom = Number(/\/tile\/(\d+)\//.exec(route.request().url())![1]);
+    supportedZoom ??= zoom - 2;
+    if (zoom > supportedZoom) return route.abort('failed');
+    successfulZooms.add(zoom);
+    return route.fulfill({ contentType: 'image/png', body: tilePng });
+  });
+  await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
+  await page.getByRole('button', { name: 'Preview & export map picture' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  await expect(dialog.getByAltText('City map picture preview')).toBeVisible();
+  expect([...successfulZooms]).toEqual([supportedZoom]);
+  const event = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download SVG' }).click();
+  expect((await event).suggestedFilename()).toContain('City_Map.svg');
+});
+
+
+test('unavailable street map coverage shows an error while poster details stay editable', async ({ page }) => {
+  await page.route('**/World_Topo_Map/MapServer/tile/**', route => route.fulfill({ status: 404 }));
+  await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
+  await page.getByRole('button', { name: 'Preview & export map picture' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  await expect(dialog.getByRole('alert')).toContainText('Detailed street maps are unavailable');
+  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeDisabled();
+  await dialog.getByLabel('Title', { exact: true }).fill('My run');
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('My run');
+});
+
+
+test('poster layouts switch without reloading the map, keep edits and export cards directly on the map', async ({ page }) => {
+  let tileLoads = 0;
+  await page.route('**/World_Topo_Map/MapServer/tile/**', route => {
+    tileLoads++; return route.fulfill({ contentType: 'image/png', body: tilePng });
+  });
+  await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
+  await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview & export map picture' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  const preview = dialog.getByAltText('City map picture preview');
+  await expect(preview).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Map cards', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // Inspect the rendered image too: valid SVG markup can still have an empty clip mask.
+  const readPixel = () => preview.evaluate(async (image: HTMLImageElement) => {
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0);
+      return Array.from(ctx.getImageData(Math.floor(canvas.width * .5), Math.floor(canvas.height * .08), 1, 1).data);
+    });
+  const cardPixel = await readPixel();
+  expect(cardPixel[0]).toBeGreaterThan(225);
+  expect(cardPixel[1]).toBeGreaterThan(220);
+  expect(cardPixel[2]).toBeGreaterThan(210);
+  await dialog.getByRole('button', { name: 'Map only', exact: true }).click();
+  expect(await readPixel()).toEqual([85, 119, 98, 255]);
+  await dialog.getByRole('button', { name: 'Route poster', exact: true }).click();
+  await dialog.getByLabel('Title', { exact: true }).fill('My marathon');
+  await dialog.getByLabel('Runner name').fill('Narek & Co.');
+  const initialTileLoads = tileLoads;
+  for (const [label, layout] of [['Map cards', 'cards'], ['Minimal', 'minimal'], ['Editorial', 'editorial']] as const) {
+    await dialog.getByRole('button', { name: label, exact: true }).click();
+    const event = page.waitForEvent('download');
+    await preview.evaluate(image => {
+      const link = document.createElement('a');
+      link.href = (image as HTMLImageElement).src; link.download = 'layout-proof.svg';
+      document.body.append(link); link.click(); link.remove();
+    });
+    const source = await readFile((await (await event).path())!, 'utf8');
+    const parsed = await page.evaluate(svg => {
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      return {
+        errors: doc.querySelectorAll('parsererror').length,
+        layout: doc.querySelector('#poster-details')!.getAttribute('data-layout'),
+        cards: doc.querySelectorAll('[data-overlay-card]').length,
+        text: doc.querySelector('#poster-details')!.textContent,
+        width: doc.documentElement.getAttribute('width'), height: doc.documentElement.getAttribute('height'),
+      };
+    }, source);
+    expect(parsed.errors).toBe(0); expect(parsed.layout).toBe(layout);
+    expect(parsed.text).toContain('Narek & Co.');
+    if (layout !== 'editorial') { expect(parsed.width).toBe('120mm'); expect(parsed.height).toBe('80mm'); }
+    expect(parsed.cards).toBe(layout === 'cards' ? 6 : 0);
+    await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('My marathon');
+    expect(tileLoads).toBe(initialTileLoads);
+  }
+  await dialog.getByRole('button', { name: 'Map cards', exact: true }).click();
+  const event = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download SVG' }).click();
+  const exported = await readFile((await (await event).path())!, 'utf8');
+  expect(exported).toContain('data-layout="cards"');
+  expect(exported).toContain('data-overlay-card="distance"');
+  expect(exported).toContain('width="120mm" height="80mm"');
 });

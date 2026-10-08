@@ -9,6 +9,11 @@ export interface GpxImportResult {
   trackName?: string
   pointCount: number
   distanceKm: number
+  /** Date at the first recorded point, preserving the GPX's calendar date. */
+  activityDate?: string
+  /** Elapsed time between recorded points, including stops. */
+  elapsedSeconds?: number
+  athleteName?: string
   /** 建议地图中心（边界框中心） */
   suggestedCenter: { lat: number; lon: number }
 }

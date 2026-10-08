@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TrailPrint fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><author><name>Narek Margaryan</name></author></metadata>
+  <trk><name>Yerevan morning run</name><trkseg>
+    <trkpt lat="40.17640676" lon="44.50529693"><time>2023-09-24T08:00:00+04:00</time></trkpt>
+    <trkpt lat="40.18359324" lon="44.51470307"><time>2023-09-24T08:05:00+04:00</time></trkpt>
+    <trkpt lat="40.18359324" lon="44.50529693"><time>2023-09-24T08:10:00+04:00</time></trkpt>
+    <trkpt lat="40.17640676" lon="44.51470307"><time>2023-09-24T08:15:00+04:00</time></trkpt>
+    <trkpt lat="40.17640676" lon="44.51470307"><time>2023-09-24T08:16:00+04:00</time></trkpt>
+  </trkseg></trk>
+</gpx>

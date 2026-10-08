@@ -1,9 +1,9 @@
 import type { CityGenerateRequest, CityGenerateResponse, CityGenerateProgress, CityMapData } from '@shared/types/city';
 import type { ManifoldToplevel } from 'manifold-3d';
-import { computeTerrainCropRegion } from '@shared/utils/crop-region';
+import { citySelectionCrop } from '@shared/city/selection-crop';
 import { heightfieldGeoBounds } from '@shared/utils/map-mm-projection';
 import { gridResolutionForQuality, demFetchTimeoutMs } from '@shared/utils/terrain-mesh-quality';
-import { createCityGeometryBuilder, buildCityRouteGeometry, cityFootprint } from '@shared/city/geometry';
+import { createCityGeometryBuilder, buildCityRouteGeometry } from '@shared/city/geometry';
 import { validateCityMapRequest } from '@shared/city/map-provider';
 import { sampleDemGrid } from '../terrain/dem-provider';
 import { prepareElevationHeightfield } from '../terrain/prepare-heightfield';
@@ -56,17 +56,6 @@ export function clearCityModelCache(): void {
   cached = undefined; cachedMap = undefined; cachedDem = undefined; cachedHeights = undefined; cachedTrail = undefined;
   clearCityPictureTileCache();
   geometry?.builder.dispose(); geometry = undefined;
-}
-
-function citySelectionCrop(request: CityGenerateRequest): TerrainCropRegion {
-  const { config } = request;
-  const crop = computeTerrainCropRegion(config.mapCrop, request.viewportWidth, request.viewportHeight);
-  const outline = cityFootprint(request, crop);
-  if (outline) {
-    crop.widthMm = Math.max(crop.widthMm, ...outline.map(([x]) => Math.abs(x) * 2));
-    crop.heightMm = Math.max(crop.heightMm, ...outline.map(([, y]) => Math.abs(y) * 2));
-  }
-  return crop;
 }
 
 /** Only the full 3D city requires OSM feature geometry. */
@@ -123,7 +112,7 @@ export function generateCityTrailModel(request: CityGenerateRequest, onProgress?
     const config = await hydrateGpxConfig(request.config);
     const hydrated = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
     validateCityRouteGeneration(hydrated);
-    const { colors: _colors, ...geometryConfig } = config;
+    const { colors: _colors, picture: _picture, ...geometryConfig } = config;
     const previewKey = JSON.stringify({ ...hydrated, config: geometryConfig });
     if (cached?.key === previewKey) return cached.result.routeMesh;
     const crop = citySelectionCrop(hydrated);
@@ -165,7 +154,7 @@ export function generateCityModel(request: CityGenerateRequest, onProgress?: (p:
     request = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
     validateCityGeneration(request);
     // Preview colors do not affect the STL geometry or invalidate its cache.
-    const { colors: _colors, ...geometryConfig } = config;
+    const { colors: _colors, picture: _picture, ...geometryConfig } = config;
     const key = JSON.stringify({ ...request, config: geometryConfig });
     if (cached?.key === key) { onProgress?.({ phase: 'done', progress: 1, message: 'City model ready' }); return cached.result; }
     cached = undefined;

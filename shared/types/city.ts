@@ -2,9 +2,26 @@ import { createDefaultConfig, type GpxBounds, type GpxState, type MapModelConfig
 import type { TerrainCropRegion, TerrainMeshPayload } from './terrain.js';
 import { createDefaultModelColors } from './model-colors.js';
 
+export interface CityPictureConfig {
+  enabled: boolean;
+  layout: 'cards' | 'minimal' | 'editorial';
+  theme: 'paper' | 'midnight';
+  title: string;
+  athlete: string;
+  date: string;
+  distance: string;
+  duration: string;
+  pace: string;
+}
+
+export function createDefaultCityPicture(): CityPictureConfig {
+  return { enabled: true, layout: 'cards', theme: 'paper', title: '', athlete: '', date: '', distance: '', duration: '', pace: '' };
+}
+
 export interface CityMapConfig extends MapModelConfig {
   gpx: GpxState;
   terrain: TerrainConfig;
+  picture: CityPictureConfig;
   city: {
     surface: 'flat' | 'real';
     buildingsVisible: boolean;
@@ -23,6 +40,7 @@ export function createDefaultCityConfig(): CityMapConfig {
   const defaults = createDefaultConfig();
   return {
     colors: createDefaultModelColors('city'),
+    picture: createDefaultCityPicture(),
     gpx: defaults.gpx,
     mapCrop: defaults.mapCrop,
     terrain: { ...defaults.terrain, baseSolidThicknessMm: 3, zExaggeration: 1, meshQuality: 'high' },

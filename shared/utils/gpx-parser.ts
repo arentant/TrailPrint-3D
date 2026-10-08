@@ -3,7 +3,37 @@ import type { GpxImportResult } from '@shared/types/gpx'
 import { IpcException } from '@shared/ipc/types'
 import { computeTrackDistanceKm } from '../../electron/main/gpx/distance'
 
-const NAME_RE = /<name>([^<]+)<\/name>/i;
+function xmlText(xml: string, tag: string): string | undefined {
+  const value = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}\\s*>`, 'i').exec(xml)?.[1];
+  if (value === undefined) return undefined;
+  const cdata = /^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/.exec(value);
+  if (cdata) return cdata[1].trim() || undefined;
+  return value.replace(/&#(x[\da-f]+|\d+);|&(amp|lt|gt|quot|apos);/gi, (match, code: string | undefined, entity: string | undefined) => {
+      if (code) {
+        const n = code[0].toLowerCase() === 'x' ? parseInt(code.slice(1), 16) : Number(code);
+        return n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : match;
+      }
+      return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" } as Record<string, string>)[entity!.toLowerCase()]!;
+    }).trim() || undefined;
+}
+
+function activityDetails(xml: string, pointTag: string) {
+  const times = [...xml.matchAll(new RegExp(`<${pointTag}\\b[^>]*>([\\s\\S]*?)<\\/${pointTag}\\s*>`, 'gi'))]
+    .map((match) => xmlText(match[1], 'time'))
+    .filter((time): time is string => !!time && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(time) && Number.isFinite(Date.parse(time)));
+  const metadata = /<metadata\b[^>]*>([\s\S]*?)<\/metadata>/i.exec(xml)?.[1] ?? '';
+  const metadataTime = xmlText(metadata.replace(/<author\b[^>]*>[\s\S]*?<\/author>/gi, ''), 'time');
+  const firstTime = times[0] ?? (metadataTime && /^\d{4}-\d{2}-\d{2}T/.test(metadataTime) && Number.isFinite(Date.parse(metadataTime)) ? metadataTime : undefined);
+  const stamps = times.map((time) => Date.parse(time));
+  const ordered = stamps.length >= 2 && stamps.every((stamp, i) => i === 0 || stamp >= stamps[i - 1]);
+  const seconds = ordered ? (stamps.at(-1)! - stamps[0]) / 1000 : 0;
+  const author = /<author\b[^>]*>([\s\S]*?)<\/author>/i.exec(metadata)?.[1];
+  return {
+    activityDate: firstTime?.slice(0, 10),
+    elapsedSeconds: seconds > 0 ? seconds : undefined,
+    athleteName: author ? xmlText(author, 'name') : undefined,
+  };
+}
 function collectSegment(xml: string, tag: string): GpxPoint[] {
   const re = new RegExp(`<${tag}\\b([^>]*?)(?:\\/\\s*>|>([\\s\\S]*?)<\\/${tag}\\s*>)`, 'gi');
   const points: GpxPoint[] = [];
@@ -38,12 +68,11 @@ function computeBounds(points: GpxPoint[]): GpxBounds {
 }
 
 function extractTrackName(xml: string): string | undefined {
-  const trkName = xml.match(/<trk>[\s\S]*?<name>([^<]+)<\/name>/i)
-  if (trkName) return trkName[1].trim()
-  const metaName = xml.match(/<metadata>[\s\S]*?<name>([^<]+)<\/name>/i)
-  if (metaName) return metaName[1].trim()
-  const docName = xml.match(NAME_RE)
-  return docName ? docName[1].trim() : undefined
+  const track = /<(?:trk|rte)\b[^>]*>([\s\S]*?)<\/(?:trk|rte)>/i.exec(xml)?.[1];
+  const name = track ? xmlText(track.replace(/<(?:trkseg|rtept)\b[\s\S]*/i, ''), 'name') : undefined;
+  if (name) return name;
+  const metadata = /<metadata\b[^>]*>([\s\S]*?)<\/metadata>/i.exec(xml)?.[1];
+  return metadata ? xmlText(metadata.replace(/<author\b[^>]*>[\s\S]*?<\/author>/gi, ''), 'name') : undefined;
 }
 
 export function parseGpxXml(xml: string, fileName?: string): GpxImportResult {
@@ -58,8 +87,9 @@ export function parseGpxXml(xml: string, fileName?: string): GpxImportResult {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new IpcException('GPX_INVALID_FORMAT', 'GPX files with XML entities are not supported');
   let segments = [...xml.matchAll(/<trkseg\b[^>]*>([\s\S]*?)<\/trkseg>/gi)].map((m) => collectSegment(m[1], 'trkpt'));
   if (!segments.length) segments = [...xml.matchAll(/<trk\b[^>]*>([\s\S]*?)<\/trk>/gi)].map((m) => collectSegment(m[1], 'trkpt'));
-  if (!segments.some((s) => s.length)) segments = [...xml.matchAll(/<rte\b[^>]*>([\s\S]*?)<\/rte>/gi)].map((m) => collectSegment(m[1], 'rtept'));
-  if (!segments.some((s) => s.length)) segments = [collectSegment(xml, 'wpt')];
+  let pointTag = 'trkpt';
+  if (!segments.some((s) => s.length)) { pointTag = 'rtept'; segments = [...xml.matchAll(/<rte\b[^>]*>([\s\S]*?)<\/rte>/gi)].map((m) => collectSegment(m[1], 'rtept')); }
+  if (!segments.some((s) => s.length)) { pointTag = 'wpt'; segments = [collectSegment(xml, 'wpt')]; }
   segments = segments.filter((s) => s.length > 0);
   const points = segments.flat();
   if (points.length > 100_000) throw new IpcException('GPX_TOO_LARGE', 'Choose a GPX file with fewer than 100,000 points');
@@ -76,10 +106,10 @@ export function parseGpxXml(xml: string, fileName?: string): GpxImportResult {
     trackName,
     pointCount: points.length,
     distanceKm,
+    ...activityDetails(xml, pointTag),
     suggestedCenter: {
       lat: (bounds.minLat + bounds.maxLat) / 2,
       lon: (bounds.minLon + bounds.maxLon) / 2
     }
   }
 }
-

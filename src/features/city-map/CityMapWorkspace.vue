@@ -12,6 +12,7 @@ import TrailPrintLogo from '@/components/ui/TrailPrintLogo.vue';
 import CityControls from './CityControls.vue';
 import CityMeshPreview from './CityMeshPreview.vue';
 import CityTrailControls from './CityTrailControls.vue';
+import CityPictureEditor from './CityPictureEditor.vue';
 import ModelColorControls from '@/components/ui/ModelColorControls.vue';
 const api = window.trailPrint;
 const store = useCityStore(), ui = useUiStore();
@@ -26,11 +27,12 @@ const previewInputDelayMs = 1000;
 let regenerateTimer: ReturnType<typeof setTimeout> | undefined;
 const importing = ref(false), previewOpen = ref(false), previewBusy = ref(false);
 const result = shallowRef<CityGenerateResponse | null>(null);
+const pictureRequest = shallowRef<CityGenerateRequest | null>(null);
 const resultKey = ref('');
 const error = ref<string | null>(null), progress = ref(0), progressMessage = ref('');
 let revision = 0, disposed = false;
 const requestKey = computed(() => {
-  const { colors: _colors, ...geometry } = config.value;
+  const { colors: _colors, picture: _picture, ...geometry } = config.value;
   return JSON.stringify([geometry, viewport.value]);
 });
 const previewStale = computed(() => !!result.value && resultKey.value !== requestKey.value);
@@ -44,6 +46,9 @@ function schedulePreview() {
   if (regenerateTimer) clearTimeout(regenerateTimer);
   regenerateTimer = setTimeout(() => { regenerateTimer = undefined; if (previewOpen.value) void preview(); }, previewInputDelayMs);
 }
+watch(() => config.value.picture, () => {
+  ui.lastExportPath = null; ui.statusMessage = null; api.clearExportDownload();
+}, { deep: true, flush: 'sync' });
 watch(requestKey, () => {
   revision++; error.value = null;
   ui.lastExportPath = null; ui.statusMessage = null; api.clearExportDownload();
@@ -71,13 +76,24 @@ async function preview() {
   }
 }
 const exporter = useModelExport<NonNullable<CityMapExportRequest['target']>, CityMapExportRequest>({
-  prepareRequest: (target) => ({ ...snapshot(), flow: 'city-map', target }),
+  prepareRequest: (target) => ({
+    ...(target === 'map' && pictureRequest.value
+      ? { ...pictureRequest.value, config: { ...pictureRequest.value.config, picture: JSON.parse(JSON.stringify(config.value.picture)) } }
+      : snapshot()),
+    flow: 'city-map', target,
+  }),
   describeSuccess: (response, request) => request.target === 'map'
     ? `City map ready: ${response.savedPath}. Open the SVG in a browser and print at 100% / actual size.`
     : `${request.target === 'trail' ? 'Running trail STL' : 'City ZIP'} ready: ${response.savedPath}`,
 });
 async function download(target: NonNullable<CityMapExportRequest['target']> = 'all') {
   if (target === 'all' ? canExportModel.value : canExportMap.value) await exporter.generateAndSave(target);
+}
+function previewPicture() {
+  if (!canExportMap.value) return;
+  closePreview();
+  ui.statusMessage = null;
+  pictureRequest.value = snapshot();
 }
 async function importFile(file?: File) {
   if (!file || importing.value || ui.generating || previewBusy.value) return;
@@ -130,8 +146,8 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
         <progress v-if="ui.generating" :value="ui.exportProgress" max="1" />
         <button class="primary" :disabled="!mapReady || !config.gpx.imported || ui.generating || importing || previewBusy" @click="preview">Preview & export City STL</button>
         <button class="secondary" :disabled="!canExportMap" @click="download('trail')">Download trail STL</button>
-        <button class="secondary" :disabled="!canExportMap" @click="download('map')">Download city map picture</button>
-        <p class="print-hint">Trail and paper map exports work without a city preview. Print the map at 100%; choose Flat to place the trail on paper.</p>
+        <button class="secondary" :disabled="!canExportMap" @click="previewPicture">Preview & export map picture</button>
+        <p class="print-hint">Personalize a route poster or export just the map. No 3D preview needed. Print at 100%; choose Flat to place the trail on paper.</p>
         <button v-if="ui.lastExportPath && !ui.generating" class="secondary" @click="revealDownload">{{ api.runtime === 'browser' ? 'Download again' : 'Show saved export' }}</button>
       </footer>
     </aside>
@@ -170,13 +186,14 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
           <p role="status">{{ ui.generating ? ui.statusMessage : 'Download the full city, just the trail, or a city map picture to print at 100% / actual size.' }}</p>
           <div class="export-actions">
             <button v-if="error" class="secondary" :disabled="previewBusy || ui.generating" @click="preview">Retry preview</button>
-            <button class="secondary" :disabled="!canExportMap" @click="download('map')">Download map picture</button>
+            <button class="secondary" :disabled="!canExportMap" @click="previewPicture">Preview map picture</button>
             <button class="secondary" :disabled="!canExportMap" @click="download('trail')">Download trail STL</button>
             <button class="primary" :disabled="!canExportModel" @click="download()">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button>
           </div>
         </footer>
       </section>
     </div>
+    <CityPictureEditor v-if="pictureRequest" v-model="config.picture" :request="pictureRequest" :exporting="ui.generating" :export-message="ui.statusMessage" :export-progress="ui.exportProgress" @close="pictureRequest = null" @download="download('map')" />
   </div>
 </template>
 <style scoped>

@@ -39,6 +39,8 @@ test('Flat skips DEM, caches the finalized preview and exports the same geometry
   assert.equal(await api.generateCityModel(req),preview);
   req.config.colors = { ...req.config.colors, terrain: '#2468ac', trail: '#00ff00' };
   assert.equal(await api.generateCityModel(req),preview, 'color changes reuse the finalized geometry');
+  req.config.picture.title = 'My personal poster';
+  assert.equal(await api.generateCityModel(req), preview, 'picture details do not regenerate the city mesh');
   assert.equal(api.cityMapExportFlow.describeArtifact(req).fileName, `${api.modelExportStem(req.config)}.zip`);
   const files={}; await api.cityMapExportFlow.generateFiles({...req,flow:'city-map'},()=>{},(name,value)=>files[name]=value);
   assert.deepEqual(files[api.modelExportFileName(req.config, 'City_Main.stl')], api.encodeBinaryStl(preview.cityMesh, api.modelExportFileName(req.config, 'City_Main.stl').replace(/\.stl$/, '')));
@@ -69,6 +71,7 @@ test('paper map skips elevation and solids, omits track titles and uses STL proj
   globalThis.__cityWasm = undefined; // Even initialization of the solid builder would fail.
   try {
     const req = { ...request(), flow: 'city-map', target: 'map' };
+    req.config.picture.enabled = false;
     req.config.city.surface = 'real'; req.config.terrain.openTopographyApiKey = '';
     req.config.gpx.trackName = '<script>alert("track")</script> & run';
     const artifact = api.cityMapExportFlow.describeArtifact(req);
