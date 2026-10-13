@@ -7,7 +7,7 @@ const flow = ref<ModelFlowId>(DEFAULT_MODEL_FLOW);
 const ui = useUiStore();
 function switchWorkspace(next: ModelFlowId) {
   if (ui.generating || next === flow.value) return;
-  ui.terrainPreviewOpen = false; ui.statusMessage = null; ui.lastExportPath = null; ui.exportProgress = 0;
+  ui.terrainPreviewOpen = false; ui.statusMessage = null; ui.lastExportPath = null; ui.exportProgress = 0; ui.exportError = null;
   window.trailPrint.clearExportDownload();
   flow.value = next;
 }

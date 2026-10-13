@@ -18,6 +18,7 @@ export function useModelExport<Options, Request extends ExportGenerateRequest>(c
     if (generating.value) return;
     generating.value = true;
     ui.exportProgress = 0;
+    ui.exportError = null;
     try {
       ui.runPrepareExport();
       const request = controller.prepareRequest(options);
@@ -30,7 +31,8 @@ export function useModelExport<Options, Request extends ExportGenerateRequest>(c
         statusMessage.value = controller.describeSuccess(response, request);
       }
     } catch (error) {
-      statusMessage.value = formatIpcError(error);
+      ui.exportError = formatIpcError(error);
+      statusMessage.value = ui.exportError;
     } finally {
       generating.value = false;
       ui.exportProgress = 0;

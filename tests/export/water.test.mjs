@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const compiled = await build({
-  stdin: { contents: `export * from './shared/water/geometry'; export * from './shared/types/config';
+  stdin: { contents: `export * from './shared/water/geometry'; export * from './shared/water/mesh-payload'; export * from './shared/types/config';
     export * from './shared/utils/heightfield-mesh'; export * from './shared/utils/mesh-manifold';
     export * from './shared/utils/crop-region'; export * from './shared/utils/map-mm-projection';
     export * from './shared/utils/leaflet-projection'; export * from './shared/utils/model-validation';
@@ -84,6 +84,23 @@ function overlap(a, b) {
   const x = solid(a), y = solid(b), shared = x.intersect(y);
   try { return shared.volume(); } finally { shared.delete(); x.delete(); y.delete(); }
 }
+
+test('Boolean export keeps unrelated coincident edges separate instead of making them non-manifold', () => {
+  const req = request(), { terrain } = setup(req, []);
+  const a = wasm.Manifold.cube([1, 1, 1]);
+  const rawB = wasm.Manifold.cube([1, 1, 1]);
+  const b = rawB.translate([1, 1, 0]);
+  const composed = wasm.Manifold.compose([a, b]);
+  try {
+    const payload = api.waterMeshPayload(composed, terrain, 0);
+    assert.equal(api.analyzeMesh(payload).nonManifoldEdges, 0);
+    assert.equal(api.analyzeMesh(payload).boundaryEdges, 0);
+    // The old export conversion fused the touching edges and refused downloads.
+    const welded = api.weldMeshVertices(payload, 0.000001);
+    assert.equal(api.analyzeMesh(welded).nonManifoldEdges, 1);
+    assertClosed(payload);
+  } finally { composed.delete(); b.delete(); rawB.delete(); a.delete(); }
+});
 
 test('water and terrain have closed complementary pockets with loose pins and flat insert bottoms', () => {
   const req = request(), { crop, terrain, data } = setup(req, [[box(-20, -15, 20, 15)]]);

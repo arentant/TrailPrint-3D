@@ -76,7 +76,9 @@ const { config } = storeToRefs(configStore);
 
 const sprayPanelOpen = ref(true);
 const colorControlsRef = ref<InstanceType<typeof ModelColorControls> | null>(null);
+const downloadRequested = ref(false);
 function requestDownload(target: "all" | "trail" | "ams-base"): void {
+  downloadRequested.value = true;
   colorControlsRef.value?.flushColors();
   if (target === "ams-base") emit("downloadAmsBase");
   else if (target === "trail") emit("downloadTrail");
@@ -322,6 +324,7 @@ watch(open, async (isOpen) => {
     sceneProgress.value = null;
     return;
   }
+  downloadRequested.value = false;
   await Promise.resolve();
   syncViewport();
   emit("opened");
@@ -451,6 +454,16 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
               </button>
             </div>
           </header>
+
+          <div
+            v-if="downloadRequested && ui.statusMessage"
+            class="terrain-modal__export-status"
+            :class="{ 'terrain-modal__export-status--error': ui.exportError }"
+            :role="ui.exportError ? 'alert' : 'status'"
+          >
+            <p>{{ ui.statusMessage }}</p>
+            <progress v-if="downloading" :value="ui.exportProgress" max="1" aria-label="Export progress" />
+          </div>
 
           <div ref="bodyRef" class="terrain-modal__body">
             <div class="terrain-modal__main">
@@ -815,6 +828,19 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
+
+.terrain-modal__export-status {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  background: var(--tp-bg-panel);
+  color: var(--tp-text-primary);
+  border-bottom: 1px solid var(--tp-border);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.terrain-modal__export-status p { margin: 0; }
+.terrain-modal__export-status progress { display: block; width: 100%; height: 5px; margin-top: 7px; }
+.terrain-modal__export-status--error { color: #b42318; background: #fff0ee; }
 
 .terrain-modal__header {
   display: flex;

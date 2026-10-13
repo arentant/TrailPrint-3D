@@ -47,8 +47,21 @@ test('water controls, preview and ZIP provide separate inserts with printable al
   await expect(downloadButton).toBeEnabled({ timeout: 60_000 })
   await expect(page.locator('.terrain-preview__water')).toContainText('Alignment pins', { timeout: 60_000 })
   await page.screenshot({ path: 'test-results/water-preview.png' })
+  // Export errors previously appeared only in the sidebar behind this dialog,
+  // making a failed Download click look as if it had done nothing.
+  await page.evaluate(() => {
+    const generate = window.trailPrint.generateExport
+    window.trailPrint.generateExport = async (...args) => {
+      window.trailPrint.generateExport = generate
+      throw new Error('Terrain_Main is not watertight (open edges 0, non-manifold edges 1)')
+    }
+  })
+  await downloadButton.click()
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Terrain_Main is not watertight')
+  await expect(downloadButton).toBeEnabled()
   const downloadEvent = page.waitForEvent('download', { timeout: 90_000 })
   await downloadButton.click()
+  await expect(page.locator('.terrain-modal__export-status')).not.toContainText('not watertight')
   const files = unzipSync(await readFile((await (await downloadEvent).path())!))
   expect(Object.keys(files).filter(name => /Water_Insert.*\.stl$/.test(name)).length).toBeGreaterThan(0)
   const pinName = Object.keys(files).find(name => /Water_Pins\.stl$/.test(name))!
@@ -62,6 +75,7 @@ test('water controls, preview and ZIP provide separate inserts with printable al
   const guideName = Object.keys(files).find(name => /Water_Assembly\.txt$/.test(name))!
   expect(new TextDecoder().decode(files[guideName])).toContain('underside sockets')
   expect(waterRequests).toBeGreaterThanOrEqual(2)
+  await expect(page.locator('.terrain-modal__export-status')).toContainText('Download ready:')
   await expect(downloadButton).toBeEnabled()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
   await waterToggle.click()

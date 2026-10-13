@@ -4,7 +4,7 @@ import type { CityMapData } from '../types/city';
 import type { TerrainCropRegion, TerrainGenerateRequest, TerrainMeshPayload, TrailGrooveSpec } from '../types/terrain';
 import { cityProjector } from '../city/geometry';
 import { buildFootprintPolygonMm } from '../utils/footprint';
-import { weldMeshVertices } from '../utils/mesh-manifold';
+import { waterMeshPayload } from './mesh-payload';
 
 type WaterFeature = {
   geometry?: { type: string; coordinates: number[][][] | number[][][][] };
@@ -75,20 +75,7 @@ export function buildWaterGeometry(
     if (solid.status() !== 'NoError' || solid.isEmpty() || solid.volume() <= 0) {
       throw new Error('Could not build a closed water assembly. Try a lower mesh quality or a larger water area.');
     }
-    const mesh = solid.getMesh();
-    const positions: number[] = [];
-    for (let i = 0; i < mesh.vertProperties.length; i += mesh.numProp) {
-      positions.push(mesh.vertProperties[i]!, mesh.vertProperties[i + 1]!, mesh.vertProperties[i + 2]!);
-    }
-    // Boolean vertices can coincide when rounded to STL's Float32 precision.
-    // Collapse those edges and their zero-area faces together, preserving closure.
-    const welded = weldMeshVertices({ ...terrain, positions, indices: Array.from(mesh.triVerts), bottomZ }, 0.000001);
-    const indices: number[] = [];
-    for (let i = 0; i < welded.indices.length; i += 3) {
-      const a = welded.indices[i]!, b = welded.indices[i + 1]!, c = welded.indices[i + 2]!;
-      if (a !== b && b !== c && c !== a) indices.push(a, b, c);
-    }
-    return { ...welded, indices };
+    return waterMeshPayload(solid, terrain, bottomZ);
   };
   let omitted = 0;
   try {
