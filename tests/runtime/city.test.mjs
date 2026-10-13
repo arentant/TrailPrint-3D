@@ -40,6 +40,22 @@ test('complete multipolygon and road downloads are cached and contain no GPX dat
   for(let i=0;i<2;i++){const response=await invoke({method:'POST',body,headers:await headers()});assert.equal(response.status,200);assert.deepEqual(JSON.parse(gunzipSync(response.body)),fixture);}
   assert.equal(calls,1);
 });
+test('water-only requests fetch complete inland polygons and validate the layer flag',async(t)=>{
+  provider.clearCityMapCache(); let calls = 0;
+  t.mock.method(globalThis,'fetch',async (_url,init)=>{
+    calls++;
+    const query = new URLSearchParams(init.body).get('data');
+    assert.match(query,/natural=water/); assert.match(query,/waterway=riverbank/); assert.match(query,/landuse=reservoir/);
+    assert.match(query,/way\.complete;out body geom;rel\.complete;out body;/);
+    assert.doesNotMatch(query,/building|highway|gpx|trkpt/);
+    return Response.json({elements:[]});
+  });
+  const water = {...body, buildings:false, roads:false, water:true};
+  assert.equal((await invoke({method:'POST',body:water,headers:await headers()})).status,200);
+  assert.equal(calls,1);
+  assert.equal((await invoke({method:'POST',body:{...water,water:'yes'},headers:await headers()})).status,400);
+  assert.equal(calls,1);
+});
 test('empty map data succeeds and malformed, oversized and rate-limited responses are actionable',async(t)=>{
   for(const[result,status,pattern]of[[Response.json({elements:[]}),200,null],[Response.json({unexpected:[]}),502,/malformed/],[Response.json({elements:[],remark:'timeout'}),502,/could not complete/],[new Response('rate limited',{status:429}),429,/rate limited/],[new Response('oversized',{headers:{'content-length':String(50*1024*1024)}}),413,/too large/],[Response.json({elements:[{type:'node',id:1,lat:NaN,lon:44}]}),502,/invalid coordinates/]]){
     provider.clearCityMapCache();const mock=t.mock.method(globalThis,'fetch',async()=>result);

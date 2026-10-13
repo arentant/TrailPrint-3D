@@ -26,6 +26,7 @@ export type ModelValidationScope =
   | "viewport"
   | "tray"
   | "trail"
+  | "water"
   | "magnet"
   | "nfc"
   | "moldKit";
@@ -287,6 +288,24 @@ export function validateModelGeneration(
   }
 
   if (!options.trailOnly) {
+    if (config.water?.enabled) {
+      if (!Number.isFinite(config.water.thicknessMm) || config.water.thicknessMm < 0.4 || config.water.thicknessMm > 5) {
+        return fail("water", "Water insert thickness must be between 0.4 and 5 mm.");
+      }
+      if (!Number.isFinite(config.water.clearanceMm) || config.water.clearanceMm < 0 || config.water.clearanceMm > 1) {
+        return fail("water", "Water fitting clearance must be between 0 and 1 mm per side.");
+      }
+      if (!Number.isFinite(config.water.pinDiameterMm) || config.water.pinDiameterMm < 1 || config.water.pinDiameterMm > 5 ||
+          !Number.isFinite(config.water.pinDepthMm) || config.water.pinDepthMm < 0.4 || config.water.pinDepthMm > 2) {
+        return fail("water", "Water pin diameter must be between 1 and 5 mm, and socket depth between 0.4 and 2 mm.");
+      }
+      if (config.water.thicknessMm < config.water.pinDepthMm + 0.4) {
+        return fail("water", "Water insert thickness must be at least the pin socket depth plus 0.4 mm.");
+      }
+      if (config.terrain.baseSolidThicknessMm + 1e-6 < config.water.thicknessMm + config.water.pinDepthMm + 0.4) {
+        return fail("water", "Increase terrain base thickness to at least water thickness + pin socket depth + 0.4 mm to keep a solid pocket floor.");
+      }
+    }
     const trayCheck = validateTrayFromAppConfig(config);
     if (!trayCheck.valid) {
       return { ...trayCheck, scope: "tray" };

@@ -92,6 +92,7 @@ const trailMaterial = new THREE.MeshBasicMaterial({
   depthTest: true,
   depthWrite: true,
 });
+const waterMaterial = new THREE.MeshStandardMaterial({ color: '#268fbc', roughness: 0.3, metalness: 0.05 });
 
 const demLabel = computed(() => {
   const r = props.result;
@@ -330,7 +331,9 @@ async function rebuildScene(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   if (token !== rebuildToken) return;
 
-  const terrainGeo = buildTerrainGeometryFromPreview(r.crop, preview);
+  const terrainGeo = r.waterMeshes?.length && r.mesh.indices.length
+    ? payloadToBufferGeometry(r.mesh, { hardEdges: true })
+    : buildTerrainGeometryFromPreview(r.crop, preview);
   terrainGeo.computeVertexNormals();
   if (!terrainGeo.getIndex()?.count) {
     statusHint.value = "Terrain mesh is empty";
@@ -356,6 +359,11 @@ async function rebuildScene(): Promise<void> {
   }
   terrainMeshRef = terrainMesh;
   terrainRoot.add(terrainMesh);
+  for (const part of r.waterMeshes ?? []) {
+    const water = new THREE.Mesh(payloadToBufferGeometry(part, { hardEdges: true }), waterMaterial);
+    water.frustumCulled = false;
+    terrainRoot.add(water);
+  }
 
   imageryLoading.value = false;
   syncSceneLoading();
@@ -698,6 +706,7 @@ function disposeThree(): void {
   textMaterial?.dispose();
   textMaterial = null;
   trailMaterial.dispose();
+  waterMaterial.dispose();
   renderer?.dispose();
   renderer?.domElement.remove();
   renderer = null;
@@ -849,6 +858,14 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       </dl>
     </div>
     <div
+      v-if="result && !sceneBuilding && !generating && !error && (result.waterMeshes?.length || result.waterWarnings?.length)"
+      class="terrain-preview__water"
+      role="status"
+    >
+      <strong v-if="result.waterMeshes?.length">{{ result.waterMeshes.length }} water {{ result.waterMeshes.length === 1 ? 'insert' : 'inserts' }} · Alignment pins</strong>
+      <p v-for="warning in result.waterWarnings ?? []" :key="warning">{{ warning }}</p>
+    </div>
+    <div
       v-if="!overlayLoading && imageryLoading"
       class="terrain-preview__badge terrain-preview__badge--load"
     >
@@ -966,6 +983,22 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+.terrain-preview__water {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  max-width: 280px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--tp-text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+.terrain-preview__water strong { color: #166b91; }
+.terrain-preview__water p { margin: 6px 0 0; }
 
 .terrain-preview__badge {
   position: absolute;

@@ -1,6 +1,7 @@
 import osmtogeojson from 'osmtogeojson';
 import type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from 'manifold-3d';
 import type { CityGenerateRequest, CityGenerateResponse, CityMapData } from '../types/city';
+import type { MapModelConfig } from '../types/config';
 import type { TerrainCropRegion, TerrainMeshPayload } from '../types/terrain';
 import { maskMmScale } from '../utils/map-mm-projection';
 import { latLngToCrsPoint, computePixelOrigin } from '../utils/leaflet-projection';
@@ -9,7 +10,7 @@ import { buildFootprintPolygonMm } from '../utils/footprint';
 import { buildMaskGeometry } from '../utils/mask-geometry';
 import { sampleHeightBilinearMm } from '../utils/heightfield-mesh';
 
-export function cityProjector(request: CityGenerateRequest, crop: TerrainCropRegion) {
+export function cityProjector(request: { config: MapModelConfig; viewportWidth: number; viewportHeight: number }, crop: TerrainCropRegion) {
   const { mapCrop } = request.config;
   const { viewportWidth: w, viewportHeight: h } = request;
   const origin = computePixelOrigin(mapCrop, w, h);

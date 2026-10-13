@@ -190,6 +190,64 @@ async function generateMountainTrailFiles(
   await writeBinaryStl(terrainStl, terrainWithGroove.mesh);
   await writeBinaryStl(trailStl, terrainWithGroove.trailMesh);
   await writeBinaryStl(trayStl, trayRes.mesh.baseMesh ?? trayRes.mesh);
+  if (config.water?.enabled) {
+    const waterParts = terrainWithGroove.waterMeshes ?? [];
+    const waterNames: string[] = [];
+    for (let i = 0; i < waterParts.length; i++) {
+      const part = waterParts[i]!;
+      assertWatertightMesh(part, `Water insert ${i + 1}`);
+      const name = waterParts.length === 1 ? STL_FILE_NAMES.waterInsert
+        : STL_FILE_NAMES.waterInsert.replace('.stl', `_${String(i + 1).padStart(2, '0')}.stl`);
+      waterNames.push(fileName(name));
+      await writeBinaryStl(fileName(name), part);
+    }
+    const pins = terrainWithGroove.waterPinMeshes ?? [];
+    if (pins.length) {
+      // Dowels are loose parts: arrange upright on the print bed rather than
+      // leaving them suspended at their terrain assembly elevations.
+      const positions: number[] = [], indices: number[] = [];
+      const columns = Math.ceil(Math.sqrt(pins.length));
+      const spacing = config.water.pinDiameterMm + 3;
+      for (let i = 0; i < pins.length; i++) {
+        const pin = pins[i]!;
+        const offset = positions.length / 3;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let v = 0; v < pin.positions.length; v += 3) {
+          minX = Math.min(minX, pin.positions[v]!); maxX = Math.max(maxX, pin.positions[v]!);
+          minY = Math.min(minY, pin.positions[v + 1]!); maxY = Math.max(maxY, pin.positions[v + 1]!);
+        }
+        for (let v = 0; v < pin.positions.length; v += 3) {
+          positions.push(pin.positions[v]! - (minX + maxX) / 2 + i % columns * spacing,
+            pin.positions[v + 1]! - (minY + maxY) / 2 + Math.floor(i / columns) * spacing,
+            pin.positions[v + 2]! - pin.bottomZ);
+        }
+        indices.push(...pin.indices.map((index) => index + offset));
+      }
+      const printPins = { ...pins[0]!, positions, indices, bottomZ: 0, minSurfaceZ: 0 };
+      assertWatertightMesh(printPins, 'Water_Pins');
+      await writeBinaryStl(fileName(STL_FILE_NAMES.waterPins), printPins);
+    }
+    const instructions = [
+      'TrailPrint water assembly', '',
+      `Water inserts: ${waterParts.length}. Alignment pins: ${pins.length}.`,
+      `Water files: ${waterNames.join(', ') || 'None detected at this print scale.'}`,
+      '',
+      ...(waterParts.length ? [
+      '1. Print Terrain_Main and each water insert separately. Water insert files retain terrain assembly coordinates: move each part down to the print bed without scaling it.',
+      '2. Print Water_Pins.stl upright as supplied. The dowels are already arranged at Z=0.',
+      '3. Put the dowels into the sockets in each terrain pocket. Match the water outline, then lower its underside sockets onto the exposed dowels.',
+      '4. Dry-fit all parts before adding a small amount of glue if a permanent connection is wanted.',
+      ] : ['No water inserts or pins were generated. Print the terrain and trail parts as usual.']),
+      '',
+      `Minimum water thickness: ${config.water.thicknessMm} mm. Pin diameter: ${config.water.pinDiameterMm} mm. Socket depth in each part: ${config.water.pinDepthMm} mm.`,
+      `Fitting clearance: ${config.water.clearanceMm} mm per side. Pin length: ${(2 * config.water.pinDepthMm - 0.1).toFixed(2)} mm.`,
+      'Islands and the trail corridor remain part of the terrain. A 0.6 mm terrain wall protects the crop edge. Small areas that cannot hold a pin socket are omitted.',
+      'Detection uses mapped inland water polygons; unmapped water, river centerlines and ocean coastlines are not detected.',
+      ...(terrainWithGroove.waterWarnings ?? []), '',
+      'Water map data © OpenStreetMap contributors, https://www.openstreetmap.org/copyright (ODbL).', '',
+    ].join('\n');
+    await onFile(fileName('Water_Assembly.txt'), new TextEncoder().encode(instructions));
+  }
   if (trayRes.mesh.baseMesh && trayRes.mesh.textMesh) {
     assertWatertightMesh(trayRes.mesh.textMesh, "Tray_Text");
     await writeBinaryStl(fileName(STL_FILE_NAMES.trayText), trayRes.mesh.textMesh);

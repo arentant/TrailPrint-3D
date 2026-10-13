@@ -33,6 +33,7 @@ import {
 } from "@shared/utils/terrain-mesh-quality";
 
 import { elevationsToHeightMmInPlace } from "./prepare-heightfield";
+import { generateWaterAssembly } from "../city/water-model-service";
 
 const EMPTY_TERRAIN_MESH: TerrainMeshPayload = {
   positions: [],
@@ -104,6 +105,7 @@ export async function generateTerrainMain(
   const qualitySpec = terrainMeshQualitySpec(meshQuality, meshQualityCustom);
   const buildTrailMesh = Boolean(req.stlExport || req.trailOnly);
   const buildExportMesh = Boolean(req.stlExport && !req.trailOnly);
+  const buildWater = Boolean(config.water?.enabled && !req.trailOnly);
 
   reportProgress(
     onProgress,
@@ -172,7 +174,7 @@ export async function generateTerrainMain(
     0.9,
     buildExportMesh ? "Generating printable mesh…" : "Generating preview data…",
   );
-  let mesh: TerrainMeshPayload = buildExportMesh
+  let mesh: TerrainMeshPayload = buildExportMesh || buildWater
     ? buildHeightfieldTerrainMesh(crop, heightMm, cols, rows, baseThicknessMm)
     : { ...EMPTY_TERRAIN_MESH, gridCols: cols, gridRows: rows };
 
@@ -216,12 +218,32 @@ export async function generateTerrainMain(
     });
   }
 
+  let waterMeshes: TerrainMeshPayload[] = [];
+  let waterPinMeshes: TerrainMeshPayload[] = [];
+  let waterWarnings: string[] = [];
+  if (buildWater) {
+    reportProgress(onProgress, "water", 0.94, "Detecting mapped water and building alignment sockets…");
+    // Water uses the uncut DEM surface in both preview and export. The service
+    // cuts an exact trail groove in the remaining terrain after splitting water.
+    const waterSource = buildExportMesh
+      ? buildHeightfieldTerrainMesh(crop, surfaceForTrail, cols, rows, baseThicknessMm)
+      : mesh;
+    const water = await generateWaterAssembly({ ...req, config }, crop, waterSource, polylineMm, buildExportMesh ? exportGroove : undefined);
+    if (water.waterMeshes.length) mesh = water.mesh;
+    waterMeshes = water.waterMeshes;
+    waterPinMeshes = water.waterPinMeshes;
+    waterWarnings = water.waterWarnings;
+  }
+
   reportProgress(onProgress, "done", 1, "Terrain data ready");
   return {
     crop,
     mesh,
     heightPreview,
     trailMesh,
+    waterMeshes,
+    waterPinMeshes,
+    waterWarnings,
     trailPolylineMm: polylineMm,
     trailDisplayWidthMm: config.trail.trailWidthMm,
     demSource: dem.source,

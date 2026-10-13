@@ -21,6 +21,7 @@ import NumberField from "@/components/ui/NumberField.vue";
 import RangeSlider from "@/components/ui/RangeSlider.vue";
 import SettingHelp from "@/components/ui/SettingHelp.vue";
 import SettingLabel from "@/components/ui/SettingLabel.vue";
+import IosToggle from "@/components/ui/IosToggle.vue";
 
 const demTooltipText = openTopoDemTooltipText();
 
@@ -171,6 +172,26 @@ const demHint = computed(() => {
       </select>
       <p v-if="demHint" class="field-hint">{{ demHint }}</p>
     </div>
+    <div class="water-settings">
+      <div class="water-settings__heading">
+        <span>Print water separately</span>
+        <IosToggle v-model="config.water.enabled" aria-label="Print water separately" />
+      </div>
+      <p class="field-hint">Detect mapped lakes, reservoirs and river areas. Print the water in another color, then locate it in the terrain with alignment pins.</p>
+      <template v-if="config.water.enabled">
+        <div class="water-settings__row">
+          <NumberField v-model="config.water.thicknessMm" label="Water thickness" suffix="mm" :min="0.4" :max="5" :step="0.1" />
+          <NumberField v-model="config.water.clearanceMm" label="Fitting clearance" suffix="mm" :min="0" :max="1" :step="0.05" />
+        </div>
+        <div class="water-settings__row">
+          <NumberField v-model="config.water.pinDiameterMm" label="Alignment pin diameter" suffix="mm" :min="1" :max="5" :step="0.1" />
+          <NumberField v-model="config.water.pinDepthMm" label="Pin socket depth" suffix="mm" :min="0.4" :max="2" :step="0.1" />
+        </div>
+        <p class="field-hint">Clearance is added per side of each pin socket and shoreline. Water thickness must exceed socket depth by 0.4 mm; the terrain base needs at least {{ (config.water.thicknessMm + config.water.pinDepthMm + 0.4).toFixed(1) }} mm.</p>
+        <p class="field-hint">Open the 3D preview to review detected water. Export all parts to include water inserts, loose pins and an assembly guide. A 0.6 mm terrain border protects the crop edge. Narrow waterways and ocean coastlines are not included.</p>
+        <p class="field-hint">Water outlines: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
+      </template>
+    </div>
   </AccordionSection>
 </template>
 
@@ -208,5 +229,10 @@ const demHint = computed(() => {
   line-height: 1.4;
   color: var(--tp-text-secondary);
 }
+
+.water-settings { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--tp-border); }
+.water-settings__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 600; }
+.water-settings__row { display: flex; gap: 12px; }
+.water-settings a { color: var(--tp-text-accent); }
 
 </style>

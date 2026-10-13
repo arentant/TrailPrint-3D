@@ -84,6 +84,11 @@ export interface TerrainGenerateResponse {
   heightPreview: TerrainHeightPreview;
   /** Trail_Line 可打印实体；无 GPX 或点数不足时为 null */
   trailMesh: TerrainMeshPayload | null;
+  /** Individually printable, flat-bottom water parts in terrain assembly coordinates. */
+  waterMeshes?: TerrainMeshPayload[];
+  /** Loose alignment dowels, in their assembled positions. */
+  waterPinMeshes?: TerrainMeshPayload[];
+  waterWarnings?: string[];
   /** 3D 预览：模型平面轨迹折线 (mm) */
   trailPolylineMm: Array<{ x: number; y: number }>;
   /** 3D 预览：轨迹显示宽度 (mm) */
@@ -97,6 +102,7 @@ export type TerrainGeneratePhase =
   | "prepare"
   | "crop"
   | "dem"
+  | "water"
   | "process"
   | "trail"
   | "mesh"

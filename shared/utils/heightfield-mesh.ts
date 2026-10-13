@@ -135,13 +135,13 @@ function buildPolarCircleMesh(
       const tt1 = topIdx[ring]![a1]!;
       const tt2 = topIdx[ring + 1]![a1]!;
       const tt3 = topIdx[ring + 1]![a]!;
-      indices.push(tt0, tt1, tt3, tt1, tt2, tt3);
+      indices.push(tt0, tt3, tt1, tt1, tt3, tt2);
 
       const bb0 = botIdx[ring]![a]!;
       const bb1 = botIdx[ring]![a1]!;
       const bb2 = botIdx[ring + 1]![a1]!;
       const bb3 = botIdx[ring + 1]![a]!;
-      indices.push(bb0, bb3, bb1, bb1, bb3, bb2);
+      indices.push(bb0, bb1, bb3, bb1, bb2, bb3);
     }
   }
 
@@ -249,13 +249,13 @@ function buildPolygonSolidMesh(
       const tt1 = topIdx[ring]![p1]!;
       const tt2 = topIdx[ring + 1]![p1]!;
       const tt3 = topIdx[ring + 1]![p]!;
-      indices.push(tt0, tt1, tt3, tt1, tt2, tt3);
+      indices.push(tt0, tt3, tt1, tt1, tt3, tt2);
 
       const bb0 = botIdx[ring]![p]!;
       const bb1 = botIdx[ring]![p1]!;
       const bb2 = botIdx[ring + 1]![p1]!;
       const bb3 = botIdx[ring + 1]![p]!;
-      indices.push(bb0, bb3, bb1, bb1, bb3, bb2);
+      indices.push(bb0, bb1, bb3, bb1, bb2, bb3);
     }
   }
 
@@ -344,10 +344,10 @@ function buildRectGridMesh(
 
   for (let row = 0; row < rows - 1; row++) {
     wallStrip(
-      topIdx[row * cols]!,
       topIdx[(row + 1) * cols]!,
-      botIdx[row * cols]!,
+      topIdx[row * cols]!,
       botIdx[(row + 1) * cols]!,
+      botIdx[row * cols]!,
     );
     wallStrip(
       topIdx[row * cols + cols - 1]!,
@@ -364,10 +364,10 @@ function buildRectGridMesh(
       botIdx[col + 1]!,
     );
     wallStrip(
-      topIdx[(rows - 1) * cols + col]!,
       topIdx[(rows - 1) * cols + col + 1]!,
-      botIdx[(rows - 1) * cols + col]!,
+      topIdx[(rows - 1) * cols + col]!,
       botIdx[(rows - 1) * cols + col + 1]!,
+      botIdx[(rows - 1) * cols + col]!,
     );
   }
 

@@ -155,6 +155,7 @@ TRAILPRINT_HEAP_MB=8192
 - **DEM dataset:** Choose OpenTopography datasets (e.g. COP30 30m) based on region and resolution needs.
 - **Surface smoothing:** Raw, light, medium, and heavy levels to reduce noise and stair-stepping for cleaner prints.
 - **Trail filtering:** Optional GPX simplification to filter GPS drift and noise for smoother trail lines.
+- **Water inserts:** Enable **Print water separately** in **2. Terrain** to detect mapped lakes, reservoirs and river areas. The preview shows water in blue; the complete ZIP includes separate flat-bottom water inserts, matching terrain pockets, loose alignment pins and an assembly guide. Adjust water thickness, fitting clearance, pin diameter and socket depth. Islands and the trail remain clear; a 0.6 mm terrain border protects the crop edge. Detection depends on OpenStreetMap inland polygons; ocean coastlines, river centerlines and areas too small for pins are omitted.
 
 ### 🖼️ 3. Tray base
 
@@ -188,6 +189,9 @@ The Mountain archive contains:
 | `<gpx-name>_Tray_Text.stl`    | Raised text at its position on the base                 | With enabled labels |
 | `<gpx-name>_Tray_AMS.3mf`     | Base and text assembly with separate filament assignments | With enabled labels |
 | `<gpx-name>_Tray_Cover.stl`   | NFC / LED cover plate                                   | When NFC is enabled |
+| `<gpx-name>_Water_Insert.stl` (or numbered inserts) | Water parts with flat undersides and alignment sockets | With detected printable water |
+| `<gpx-name>_Water_Pins.stl` | Loose dowels arranged upright on the print bed | With detected printable water |
+| `<gpx-name>_Water_Assembly.txt` | Fit settings, assembly steps and water-detection status | When water is enabled |
 
 Import the STL files into your slicer, assign colors and print settings, and start making.
 

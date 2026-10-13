@@ -56,6 +56,8 @@ export interface CityMapDataRequest {
   bounds: GpxBounds;
   buildings: boolean;
   roads: boolean;
+  /** Mapped inland water polygons; omitted by city-only callers. */
+  water?: boolean;
 }
 export interface CityMapData {
   /** Complete OSM ways/relations and their referenced nodes, converted locally. */

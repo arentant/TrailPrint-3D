@@ -5,6 +5,8 @@ import type { CityMapConfig } from "./city.js";
 export const STL_FILE_NAMES = {
   cityMain: "City_Main.stl",
   terrainMain: "Terrain_Main.stl",
+  waterInsert: "Water_Insert.stl",
+  waterPins: "Water_Pins.stl",
   trailLine: "Trail_Line.stl",
   trayBase: "Tray_Base.stl",
   trayText: "Tray_Text.stl",

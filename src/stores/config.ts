@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import {
   createDefaultConfig,
+  createDefaultWaterConfig,
   createDefaultTrayText,
   createDefaultTrayKeychain,
   normalizeModelColors,
@@ -147,6 +148,7 @@ function extractSchemePayload(cfg: AppConfig, includeMapView = false): ConfigSch
       },
     } : {}),
     terrain: terrainRest,
+    water: cfg.water,
     trail: cfg.trail,
     tray: cfg.tray,
     assembly: cfg.assembly,
@@ -176,6 +178,7 @@ function applySchemePayload(cfg: AppConfig, payload: ConfigSchemePayload): void 
     ...deepClone(payload.terrain),
     openTopographyApiKey: apiKey,
   };
+  cfg.water = { ...createDefaultWaterConfig(), ...deepClone(payload.water ?? {}) };
   cfg.trail = deepClone(payload.trail);
   cfg.tray = deepClone(payload.tray);
   cfg.assembly = deepClone(payload.assembly);

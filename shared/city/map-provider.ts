@@ -15,7 +15,8 @@ export function validateCityMapRequest(value: unknown): asserts value is CityMap
   const b = r?.bounds;
   const finite = (n: unknown, limit: number) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= limit;
   if (!b || !finite(b.minLat, 85) || !finite(b.maxLat, 85) || !finite(b.minLon, 180) || !finite(b.maxLon, 180) ||
-      b.minLat >= b.maxLat || b.minLon >= b.maxLon || typeof r.buildings !== 'boolean' || typeof r.roads !== 'boolean') {
+      b.minLat >= b.maxLat || b.minLon >= b.maxLon || typeof r.buildings !== 'boolean' || typeof r.roads !== 'boolean' ||
+      (r.water !== undefined && typeof r.water !== 'boolean')) {
     throw new CityProviderError('Invalid city crop bounds or layer settings', 400);
   }
   const widthKm = (b.maxLon - b.minLon) * 111.32 * Math.cos((b.maxLat + b.minLat) / 2 * Math.PI / 180);
@@ -100,7 +101,7 @@ export async function fetchCityMapData(request: CityMapDataRequest, endpoint = '
   validateCityMapRequest(request);
   const url = new URL(endpoint);
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new CityProviderError('Configure a valid city map provider endpoint.');
-  if (!request.buildings && !request.roads) return { elements: [] };
+  if (!request.buildings && !request.roads && !request.water) return { elements: [] };
   const key = JSON.stringify([endpoint, request]);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.time < 10 * 60_000) { cache.delete(key); cache.set(key, hit); return hit.data; }
@@ -110,7 +111,8 @@ export async function fetchCityMapData(request: CityMapDataRequest, endpoint = '
     const b = request.bounds;
     const bbox = `${b.minLat},${b.minLon},${b.maxLat},${b.maxLon}`;
     const layers = [request.buildings ? `wr[building][building!=no](${bbox});wr["building:part"]["building:part"!=no](${bbox});` : '',
-      request.roads ? `way[highway](${bbox});` : ''].join('');
+      request.roads ? `way[highway](${bbox});` : '',
+      request.water ? `wr[natural=water](${bbox});wr[waterway=riverbank](${bbox});wr[landuse=reservoir](${bbox});` : ''].join('');
     // Keep every relation/member way, with complete coordinates on each way.
     // Individual node records are redundant for osmtogeojson and swamp dense crops.
     // Relations reference these ways instead of duplicating their coordinates again.

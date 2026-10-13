@@ -65,6 +65,21 @@ export interface TerrainConfig {
   openTopographyApiKey: string;
 }
 
+export interface WaterConfig {
+  enabled: boolean;
+  /** Minimum insert thickness, with a flat underside for printing. */
+  thicknessMm: number;
+  /** Clearance on each shoreline and island edge. */
+  clearanceMm: number;
+  pinDiameterMm: number;
+  /** Socket depth in each half of the assembly. */
+  pinDepthMm: number;
+}
+
+export function createDefaultWaterConfig(): WaterConfig {
+  return { enabled: false, thicknessMm: 1, clearanceMm: 0.2, pinDiameterMm: 2, pinDepthMm: 0.6 };
+}
+
 // ─── 模块三：轨迹模型 ─────────────────────────────────────────────────
 
 export interface TrailConfig {
@@ -242,6 +257,7 @@ export interface MapModelConfig {
 export interface MountainTrailConfig extends MapModelConfig {
   gpx: GpxState;
   terrain: TerrainConfig;
+  water: WaterConfig;
   trail: TrailConfig;
   tray: TrayConfig;
   assembly: AssemblyConfig;
@@ -261,6 +277,8 @@ export interface ConfigSchemePayload {
   mapCrop: MapCropConfig;
   mapView?: Pick<MapCropConfig, "mapCenterLat" | "mapCenterLon" | "mapZoom" | "mapBearingDeg">;
   terrain: Omit<TerrainConfig, "openTopographyApiKey">;
+  /** Optional for presets saved before water inserts were introduced. */
+  water?: WaterConfig;
   trail: TrailConfig;
   tray: TrayConfig;
   assembly: AssemblyConfig;
@@ -309,6 +327,7 @@ export function createDefaultConfig(): AppConfig {
       demDataset: "COP30",
       openTopographyApiKey: "",
     },
+    water: createDefaultWaterConfig(),
     trail: {
       gpxSimplify: false,
       trailWidthMm: 1,
