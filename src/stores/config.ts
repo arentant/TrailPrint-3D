@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import {
   createDefaultConfig,
+  createDefaultTrayText,
+  createDefaultTrayKeychain,
   normalizeModelColors,
   type AppConfig,
   type ConfigScheme,
@@ -63,6 +65,8 @@ function ensureMagnetConfigDefaults(cfg: AppConfig): void {
 
 function ensureTrayNfcDefaults(cfg: AppConfig): void {
   const tray = cfg.tray as AppConfig["tray"] & { nfc?: AppConfig["tray"]["nfc"] };
+  tray.text = { ...createDefaultTrayText(), ...tray.text };
+  tray.keychain = { ...createDefaultTrayKeychain(), ...tray.keychain };
   if (!tray.nfc) {
     tray.nfc = createDefaultConfig().tray.nfc;
     return;

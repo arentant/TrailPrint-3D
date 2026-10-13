@@ -12,9 +12,12 @@ import {
 import { IpcException } from "@shared/ipc/types";
 import { magnetCutDimensionsMm } from "@shared/utils/magnet-hole-geometry";
 import { computeTrayFootprint } from "@shared/utils/tray-footprint";
+import { buildTrayTextLayout } from "@shared/utils/tray-text-layout";
 import { computeTrayNfcLayout } from "@shared/utils/tray-nfc-layout";
 import type { TrayNfcMeshSpec } from "../assembly/tray-top-nfc-features";
 import { buildTrayBaseMeshForExport } from "./tray-export-mesh";
+import { buildTrayTextMesh } from "./tray-text-mesh";
+import type { TrayMeshPayload } from "@shared/types/tray";
 
 const DEFAULT_VIEWPORT = { w: 800, h: 600 };
 
@@ -93,7 +96,8 @@ export async function generateTrayBase(
     };
   }
 
-  const mesh = buildTrayBaseMeshForExport(
+  const textShapes = buildTrayTextLayout(config, footprint);
+  const mesh: TrayMeshPayload = buildTrayBaseMeshForExport(
     footprint,
     config.tray,
     magnetCut
@@ -103,7 +107,13 @@ export async function generateTrayBase(
         }
       : undefined,
     nfcMesh,
+    textShapes,
   );
+  if (textShapes.length) {
+    mesh.baseMesh = buildTrayBaseMeshForExport(footprint, config.tray,
+      magnetCut ? { holes: magnetHoles, ...magnetCut } : undefined, nfcMesh);
+    mesh.textMesh = buildTrayTextMesh(textShapes, config.tray.totalThicknessMm, config.tray.text.heightMm);
+  }
 
   if (config.assembly.magnet.enabled) {
     logMagnetDebug({
@@ -131,11 +141,11 @@ export async function generateTrayBase(
     });
     if (
       footprint.shape === "polygon" &&
-      magnetHoles.length !== footprint.outer.length
+      magnetHoles.length !== (footprint.polygonSides ?? footprint.outer.length)
     ) {
       throw new IpcException(
         "MAGNET_LAYOUT",
-        `Unexpected magnet hole count in polygon tray (expected ${footprint.outer.length}, actual ${magnetHoles.length})`,
+        `Unexpected magnet hole count in polygon tray (expected ${footprint.polygonSides ?? footprint.outer.length}, actual ${magnetHoles.length})`,
       );
     }
   }

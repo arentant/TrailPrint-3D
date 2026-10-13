@@ -38,15 +38,27 @@ function regularPolygonVertices(n: number, radius: number): Vec2[] {
   return verts;
 }
 
-function scaleVerts(verts: Vec2[], scale: number): Vec2[] {
-  return verts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
+/** Parallel edge offsets preserve the requested clearance, including fillets. */
+function offsetConvexPolygon(verts: Vec2[], distance: number): Vec2[] {
+  const normals = verts.map((p, i) => {
+    const q = verts[(i + 1) % verts.length]!;
+    const length = Math.hypot(q.x - p.x, q.y - p.y);
+    return { x: (q.y - p.y) / length, y: (p.x - q.x) / length };
+  });
+  return verts.map((p, i) => {
+    const a = normals[(i + verts.length - 1) % verts.length]!, b = normals[i]!;
+    const scale = distance / (1 + a.x * b.x + a.y * b.y);
+    return { x: p.x + (a.x + b.x) * scale, y: p.y + (a.y + b.y) * scale };
+  });
 }
 
 /**
  * 托盘外廓 = 地形打印轮廓外扩 rim；凹槽 = 地形轮廓外扩 trayTolerance。
  * 磁铁孔、托盘网格均以此轮廓为唯一几何来源。
  */
-export function computeTrayFootprint(config: AppConfig): TrayFootprint {
+export function computeTrayFootprint(
+  config: Pick<AppConfig, "mapCrop" | "tray"> & { assembly: Pick<AppConfig["assembly"], "trayToleranceMm"> },
+): TrayFootprint {
   const { mapCrop, tray, assembly } = config;
   const tol = assembly.trayToleranceMm;
   const rim = tray.rimWidthMm;
@@ -54,12 +66,14 @@ export function computeTrayFootprint(config: AppConfig): TrayFootprint {
 
   if (mapCrop.shape === "circle") {
     const terrainR = foot.radiusMm ?? foot.widthMm / 2;
-    const recessR = terrainR + tol;
-    const outerR = recessR + rim;
+    // Circumscribe the circle: an inscribed recess can clip large terrain inserts.
+    const segments = 128;
+    const recessR = (terrainR + tol) / Math.cos(Math.PI / segments);
+    const outerR = (terrainR + tol + rim) / Math.cos(Math.PI / segments);
     return {
       shape: "circle",
-      outer: regularPolygonVertices(48, outerR),
-      recessInner: regularPolygonVertices(48, recessR),
+      outer: regularPolygonVertices(segments, outerR),
+      recessInner: regularPolygonVertices(segments, recessR),
       outerRadius: outerR,
       recessRadius: recessR,
     };
@@ -69,14 +83,15 @@ export function computeTrayFootprint(config: AppConfig): TrayFootprint {
     const terrainHw = mapCrop.lengthMm / 2;
     const terrainHh = mapCrop.widthMm / 2;
     const cornerR = clampCornerRadiusMm(mapCrop.cornerRadiusMm, mapCrop);
+    const terrainVerts = roundedRectanglePolygon(terrainHw, terrainHh, cornerR);
     const recessHw = terrainHw + tol;
     const recessHh = terrainHh + tol;
     const outerHw = recessHw + rim;
     const outerHh = recessHh + rim;
     return {
       shape: "rectangle",
-      outer: roundedRectanglePolygon(outerHw, outerHh, cornerR + tol + rim),
-      recessInner: roundedRectanglePolygon(recessHw, recessHh, cornerR + tol),
+      outer: offsetConvexPolygon(terrainVerts, tol + rim),
+      recessInner: offsetConvexPolygon(terrainVerts, tol),
       outerHw,
       outerHh,
       recessHw,
@@ -88,14 +103,14 @@ export function computeTrayFootprint(config: AppConfig): TrayFootprint {
   const terrainR = foot.radiusMm ?? foot.widthMm / 2;
   const cornerR = clampCornerRadiusMm(mapCrop.cornerRadiusMm, mapCrop);
   const terrainVerts = roundedRegularPolygon(n, terrainR, cornerR);
-  const recessScale = (terrainR + tol) / terrainR;
-  const outerScale = (terrainR + tol + rim) / terrainR;
+  const outer = offsetConvexPolygon(terrainVerts, tol + rim);
+  const recessInner = offsetConvexPolygon(terrainVerts, tol);
   return {
     shape: "polygon",
     polygonSides: n,
-    outer: scaleVerts(terrainVerts, outerScale),
-    recessInner: scaleVerts(terrainVerts, recessScale),
-    outerRadius: terrainR + tol + rim,
-    recessRadius: terrainR + tol,
+    outer,
+    recessInner,
+    outerRadius: Math.max(...outer.map(v => Math.hypot(v.x, v.y))),
+    recessRadius: Math.max(...recessInner.map(v => Math.hypot(v.x, v.y))),
   };
 }

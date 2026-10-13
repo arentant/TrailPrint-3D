@@ -1,5 +1,6 @@
 import {
   STL_FILE_NAMES,
+  TRAY_AMS_FILE_NAME,
   type MountainTrailExportRequest,
   type ExportFileSink,
   type ExportProgressCallback,
@@ -29,6 +30,8 @@ import { buildMoldLidMesh } from "../mold/mold-lid-mesh";
 import { assertTrailLineMesh, assertWatertightMesh } from "@shared/utils/mesh-manifold";
 import { encodeBinaryStl } from "@shared/utils/binary-stl";
 import type { TerrainMeshPayload } from "@shared/types/terrain";
+import { normalizeModelColors } from "@shared/types/model-colors";
+import { encodeTrayAms3mf } from "@shared/export/tray-ams-3mf";
 import { segmentSprayPaint } from "../spray-paint/segment-service";
 import { generateSprayMasks } from "../spray-paint/mask-generate-service";
 import {
@@ -82,6 +85,15 @@ async function generateMountainTrailFiles(
       "INVALID_VIEWPORT",
       "The preview is too small. Enlarge the window and try again.",
     );
+  }
+
+  if (req.target === "ams-base") {
+    onProgress({ phase: "tray", progress: 0.3, message: "Generating base and text for AMS…" });
+    const tray = (await generateTrayBase({ config, viewportWidth, viewportHeight })).mesh;
+    if (!tray.baseMesh || !tray.textMesh) throw new IpcException("TEXT_REQUIRED", "Enable Text on base and enter a label to export the AMS base.");
+    const colors = normalizeModelColors(config.colors);
+    await onFile(fileName(TRAY_AMS_FILE_NAME), encodeTrayAms3mf(tray.baseMesh, tray.textMesh, colors.tray, colors.text));
+    return;
   }
 
   onProgress({
@@ -177,7 +189,13 @@ async function generateMountainTrailFiles(
 
   await writeBinaryStl(terrainStl, terrainWithGroove.mesh);
   await writeBinaryStl(trailStl, terrainWithGroove.trailMesh);
-  await writeBinaryStl(trayStl, trayRes.mesh);
+  await writeBinaryStl(trayStl, trayRes.mesh.baseMesh ?? trayRes.mesh);
+  if (trayRes.mesh.baseMesh && trayRes.mesh.textMesh) {
+    assertWatertightMesh(trayRes.mesh.textMesh, "Tray_Text");
+    await writeBinaryStl(fileName(STL_FILE_NAMES.trayText), trayRes.mesh.textMesh);
+    const colors = normalizeModelColors(config.colors);
+    await onFile(fileName(TRAY_AMS_FILE_NAME), encodeTrayAms3mf(trayRes.mesh.baseMesh, trayRes.mesh.textMesh, colors.tray, colors.text));
+  }
 
   if (config.tray.nfc.enabled) {
     const nfcLayout = computeTrayNfcLayout(
@@ -330,7 +348,9 @@ async function generateMountainTrailFiles(
 }
 
 export const mountainTrailExportFlow: ModelExportFlow<MountainTrailExportRequest> = {
-  describeArtifact: (request) => request.target === "trail"
+  describeArtifact: (request) => request.target === "ams-base"
+    ? { kind: "file", fileName: modelExportFileName(request.config, TRAY_AMS_FILE_NAME), extension: "3mf", mimeType: "model/3mf", saveDialogTitle: "Save AMS base with text" }
+    : request.target === "trail"
     ? {
       kind: "file",
       fileName: modelExportFileName(request.config, STL_FILE_NAMES.trailLine),

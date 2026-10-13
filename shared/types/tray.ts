@@ -2,7 +2,11 @@ import type { AppConfig } from "./config.js";
 import type { TerrainMeshPayload } from "./terrain.js";
 
 /** Tray_Base 轻量网格（与 TerrainMeshPayload 同构） */
-export type TrayMeshPayload = TerrainMeshPayload;
+export interface TrayMeshPayload extends TerrainMeshPayload {
+  /** Closed solids with a shared interface, for separate AMS filaments. */
+  baseMesh?: TerrainMeshPayload;
+  textMesh?: TerrainMeshPayload;
+}
 
 export interface TrayGenerateRequest {
   config: AppConfig;

@@ -52,7 +52,7 @@ test('map colors apply after editing, validate hex input, and restore modern and
   await expect(trail).toHaveValue('#1268d2');
   await expect(track).toHaveAttribute('stroke', '#1268d2');
   const saved = await savePreset(page, 'Custom palette');
-  expect(saved.payload.colors).toEqual({ terrain: '#c6a6ef', trail: '#1268d2', tray: '#202020' });
+  expect(saved.payload.colors).toEqual({ terrain: '#c6a6ef', trail: '#1268d2', tray: '#202020', text: '#ffffff' });
   await panel.getByRole('button', { name: 'Reset colors', exact: true }).click();
   await expect(track).toHaveAttribute('stroke', '#e84335');
   await savePreset(page, 'Legacy palette');

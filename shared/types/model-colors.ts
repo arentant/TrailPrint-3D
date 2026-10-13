@@ -2,6 +2,7 @@ export interface ModelColors {
   terrain: string;
   trail: string;
   tray: string;
+  text: string;
 }
 
 export function createDefaultModelColors(workspace: 'mountain' | 'city' = 'mountain'): ModelColors {
@@ -9,6 +10,7 @@ export function createDefaultModelColors(workspace: 'mountain' | 'city' = 'mount
     terrain: workspace === 'city' ? '#bfc8bd' : '#f3ead6',
     trail: '#e84335',
     tray: '#5c6670',
+    text: '#ffffff',
   };
 }
 

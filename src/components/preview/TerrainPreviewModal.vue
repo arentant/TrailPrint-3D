@@ -67,6 +67,7 @@ const emit = defineEmits<{
   opened: [];
   download: [];
   downloadTrail: [];
+  downloadAmsBase: [];
 }>();
 
 const configStore = useConfigStore();
@@ -74,6 +75,13 @@ const ui = useUiStore();
 const { config } = storeToRefs(configStore);
 
 const sprayPanelOpen = ref(true);
+const colorControlsRef = ref<InstanceType<typeof ModelColorControls> | null>(null);
+function requestDownload(target: "all" | "trail" | "ams-base"): void {
+  colorControlsRef.value?.flushColors();
+  if (target === "ams-base") emit("downloadAmsBase");
+  else if (target === "trail") emit("downloadTrail");
+  else emit("download");
+}
 const {
   plan: sprayPlan,
   masks: sprayMasks,
@@ -374,15 +382,24 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 type="button"
                 class="terrain-modal__trail-download"
                 :disabled="!canDownload"
-                @click="emit('downloadTrail')"
+                @click="requestDownload('trail')"
               >
                 Download trail STL
+              </button>
+              <button
+                v-if="trayMesh?.textMesh?.indices.length"
+                type="button"
+                class="terrain-modal__trail-download"
+                :disabled="!canDownload"
+                @click="requestDownload('ams-base')"
+              >
+                Download base for AMS
               </button>
               <button
                 type="button"
                 class="terrain-modal__download"
                 :disabled="!canDownload"
-                @click="emit('download')"
+                @click="requestDownload('all')"
               >
                 <svg
                   width="16"
@@ -518,7 +535,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             >
               <div class="spray-panel__section">
                 <p class="spray-panel__colors-title">Model colors</p>
-                <ModelColorControls v-model="config.colors" :disabled="downloading" />
+                <ModelColorControls ref="colorControlsRef" v-model="config.colors" :show-text="config.tray.text.enabled" :disabled="downloading" />
                 <p v-if="sprayEnabled && sprayPlan" class="spray-panel__paint-hint">Painted regions override the terrain's base color.</p>
               </div>
               <div class="spray-panel__section">

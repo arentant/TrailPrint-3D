@@ -22,6 +22,59 @@ presets keep their existing format and behavior; City has no presets or accessor
 - `src/composables/useModelExport.ts` owns shared export progress and delivery;
   workspaces own their inputs and preview lifecycles.
 
+## Mountain base and labels
+
+The terrain and tray are separate printed parts. The tray has a recessed seat;
+its floor is at `totalThicknessMm - recessDepthMm`. The preview lifts the terrain
+and trail by that floor height plus `baseSolidThicknessMm`, putting the terrain's
+bottom directly on the seat. Defaults leave a 2 mm recess, 3 mm floor and 0.2 mm
+clearance per side. The rim locates the terrain; glue provides permanent attachment.
+Underside magnet pockets mount the tray rather than coupling it to the terrain.
+STLs retain each part's local coordinates for separate printing. To view them as
+an assembly in a slicer, move terrain and trail together upward by the preview
+offset (5 mm with defaults), preserving their shared XY center.
+
+The recess uses parallel offsets of the terrain's polygon/rounded outline, so the
+clearance is measured perpendicular to each edge. Circle recesses circumscribe
+the terrain instead of clipping it with inscribed facets. The 2D tray outline,
+3D preview and STL share this footprint.
+
+`tray.text` stores an enable switch, size, raised height and up to one label per
+rim edge (four positions around a circle). Text follows circular rims and fits
+within the available space; labels that would be under 1.5 mm tall are rejected.
+The bundled bold fonts support Armenian uppercase/lowercase letters, և,
+Armenian punctuation and presentation ligatures, plus Latin/Greek letters,
+numbers, punctuation and ↑. Armenian glyphs come from Noto Sans Armenian Bold;
+both local JSON assets are embedded in browser and Electron builds for offline use.
+Unsupported characters report an error without silently replacing glyphs. Layout
+is shared by validation and generation. The combined mesh replaces the rim cap
+and joins letter walls/top faces, preserving glyph counters and a closed shell.
+Generation also returns an unlabeled `baseMesh` and closed `textMesh`; their
+volumes meet at the rim without overlap. Preview uses separate materials from
+`colors.tray` and `colors.text`. Color edits update materials without regenerating
+geometry, and download flushes any pending valid color edit.
+
+With labels enabled, the full archive includes `Tray_Base.stl`, `Tray_Text.stl`
+and `Tray_AMS.3mf`. The standalone **Download base for AMS** target generates
+only the tray and text, without fetching elevation. The 3MF builds one component
+assembly with Base and Text parts, standard color groups, and Bambu part metadata
+assigning Base to filament 1 and Text to filament 2. Users select printer/filament
+profiles and map these parts to their AMS slots in the slicer. The two STLs can
+also be imported together as parts of one object, preserving their coordinates.
+Presets save labels and text color; older palettes default to white text and
+older tray presets load with labels disabled. NFC and underside magnet pockets
+remain compatible, with pocket walls oriented into their cavities.
+
+`tray.keychain` enables one round through-hole in the base rim, with a 4 mm
+default diameter, an edge selection and an offset along that edge. Circle offsets
+follow the rim's arc; polygon/rectangle offsets run along the selected side.
+Layout validates a minimum 2 mm wall to both the outside and terrain recess,
+2 mm separation from magnet/NFC/LED pockets, and 0.6 mm from raised text contours.
+The final mesh rebuilds both rim and underside caps with the hole opening and
+joins an inward-facing bore wall, retaining magnet openings and letter counters.
+Preview and STL use that same mesh. Disabling the feature restores the original
+base geometry; older presets load with the feature disabled.
+
 ## City generation
 
 `generateCityModel` is exposed through Electron IPC and the browser worker, with

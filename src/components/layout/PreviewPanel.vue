@@ -24,7 +24,7 @@ const viewport = ref({ w: 800, h: 600 });
 
 const { terrainPreviewOpen } = storeToRefs(ui);
 const modalViewport = ref({ w: 960, h: 640 });
-const { generateAndSave, downloadTrail, generating: exporting } = useStlExport();
+const { generateAndSave, downloadTrail, downloadAmsBase, generating: exporting } = useStlExport();
 
 function syncViewportToStore(): void {
   ui.previewViewport = { ...viewport.value };
@@ -233,6 +233,7 @@ async function onDownloadStl(): Promise<void> {
       @opened="onTerrainModalOpened"
       @download="onDownloadStl"
       @download-trail="downloadTrail"
+      @download-ams-base="downloadAmsBase"
     />
   </section>
 </template>

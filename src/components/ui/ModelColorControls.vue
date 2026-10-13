@@ -6,8 +6,9 @@ const colors = defineModel<ModelColors>({ required: true });
 const props = withDefaults(defineProps<{
   workspace?: 'mountain' | 'city';
   showTray?: boolean;
+  showText?: boolean;
   disabled?: boolean;
-}>(), { workspace: 'mountain', showTray: true });
+}>(), { workspace: 'mountain', showTray: true, showText: false });
 const id = useId();
 const draft = ref<ModelColors>({ ...colors.value });
 const pending = ref(false);
@@ -18,6 +19,7 @@ const fields = computed(() => [
   { part: 'trail' as const, label: 'Trail' },
   { part: 'terrain' as const, label: props.workspace === 'city' ? 'City base' : 'Terrain' },
   ...(props.showTray ? [{ part: 'tray' as const, label: 'Tray' }] : []),
+  ...(props.showText ? [{ part: 'text' as const, label: 'Text' }] : []),
 ]);
 
 function clearPending(): void {
@@ -83,6 +85,7 @@ onBeforeUnmount(() => {
   if (pending.value) applyDraft();
   clearPending();
 });
+defineExpose({ flushColors: applyDraft });
 </script>
 
 <template>
@@ -101,7 +104,8 @@ onBeforeUnmount(() => {
     </div>
     <p class="model-colors__delay" :aria-busy="pending">{{ pending ? 'Applying after you stop editing…' : 'Updates 1 second after you stop editing.' }}</p>
     <button type="button" class="model-colors__reset" @click="resetColors">Reset colors</button>
-    <p>Preview colors only. Assign filament colors in your slicer.</p>
+    <p v-if="showText">Base and text colors are included in the AMS 3MF. Map them to your AMS filaments in the slicer.</p>
+    <p v-else>Preview colors only. Assign filament colors in your slicer.</p>
   </fieldset>
 </template>
 

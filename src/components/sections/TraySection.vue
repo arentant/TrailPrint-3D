@@ -8,11 +8,15 @@ import AccordionSection from "@/components/ui/AccordionSection.vue";
 import NumberField from "@/components/ui/NumberField.vue";
 import IosToggle from "@/components/ui/IosToggle.vue";
 import SettingLabel from "@/components/ui/SettingLabel.vue";
+import TrayTextControls from "./TrayTextControls.vue";
+import TrayKeychainControls from "./TrayKeychainControls.vue";
 
 const configStore = useConfigStore();
 const ui = useUiStore();
 const { config } = storeToRefs(configStore);
 const { openSections } = storeToRefs(ui);
+const floorThickness = computed(() => config.value.tray.totalThicknessMm - config.value.tray.recessDepthMm);
+const terrainAboveRim = computed(() => config.value.terrain.baseSolidThicknessMm - config.value.tray.recessDepthMm);
 
 const trayError = computed(() => {
   const v = validateTraySection(config.value, {
@@ -56,6 +60,22 @@ const trayError = computed(() => {
       :max="30"
       :step="0.5"
     />
+
+    <div class="fit-summary" aria-label="Terrain and base fit">
+      <p class="group-title">Terrain seat</p>
+      <dl>
+        <div><dt>Recess depth</dt><dd>{{ config.tray.recessDepthMm.toFixed(2) }} mm</dd></div>
+        <div><dt>Solid floor below</dt><dd>{{ floorThickness.toFixed(2) }} mm</dd></div>
+        <div><dt>Clearance per side</dt><dd>{{ config.assembly.trayToleranceMm.toFixed(2) }} mm</dd></div>
+      </dl>
+      <p>The terrain rests on the recess floor, with the rim locating it sideways. Glue it in place for a permanent attachment.</p>
+      <p v-if="terrainAboveRim === 0">The terrain’s flat surface sits flush with the rim; mountains rise above it.</p>
+      <p v-else-if="terrainAboveRim > 0">The terrain’s flat surface sits {{ terrainAboveRim.toFixed(2) }} mm above the rim.</p>
+      <p v-else>The rim rises {{ Math.abs(terrainAboveRim).toFixed(2) }} mm above the terrain’s flat surface.</p>
+    </div>
+
+    <TrayTextControls v-model="config.tray.text" :config="config" />
+    <TrayKeychainControls v-model="config.tray.keychain" :config="config" />
 
     <div class="subsection">
       <div class="toggle-row">
@@ -170,6 +190,13 @@ const trayError = computed(() => {
 </template>
 
 <style scoped>
+.fit-summary { padding: 12px; border: 1px solid var(--tp-border); border-radius: 10px; }
+.fit-summary .group-title { margin: 0; }
+.fit-summary dl { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; font-size: 12px; }
+.fit-summary dl div { display: flex; justify-content: space-between; gap: 8px; }
+.fit-summary dt { color: var(--tp-text-secondary); }
+.fit-summary dd { margin: 0; font-variant-numeric: tabular-nums; }
+.fit-summary > p:not(.group-title) { margin: 6px 0 0; color: var(--tp-text-secondary); font-size: 12px; line-height: 1.5; }
 .subsection {
   display: flex;
   flex-direction: column;

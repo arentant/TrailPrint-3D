@@ -7,6 +7,7 @@ export const STL_FILE_NAMES = {
   terrainMain: "Terrain_Main.stl",
   trailLine: "Trail_Line.stl",
   trayBase: "Tray_Base.stl",
+  trayText: "Tray_Text.stl",
   trayCover: "Tray_Cover.stl",
   moldMaster: "Mold_Master.stl",
   moldLid: "Mold_Lid.stl",
@@ -25,6 +26,8 @@ export type ExportPhase =
   | "done";
 
 export type ExportTarget = "all" | "trail";
+export type MountainExportTarget = ExportTarget | "ams-base";
+export const TRAY_AMS_FILE_NAME = "Tray_AMS.3mf";
 
 export interface MapModelExportRequest<Config extends MapModelConfig> {
   config: Config;
@@ -36,7 +39,7 @@ export interface MountainTrailExportRequest extends MapModelExportRequest<Mounta
   /** Omitted by older callers; resolves to the mountain trail flow. */
   flow?: "mountain-trail";
   /** Defaults to the complete ZIP; trail downloads a standalone STL. */
-  target?: ExportTarget;
+  target?: MountainExportTarget;
   /** 预览已分色时传入，避免导出时重复分色 */
   sprayPaintPlan?: SprayPaintPlan | null;
 }

@@ -9,14 +9,14 @@ import { ensureMapZoomFitsTrail } from "@shared/utils/trail-fit";
 import { computeTrayBottomMagnetHoles } from "@shared/utils/magnet-hole-layout";
 import { logMagnetDebug } from "@shared/utils/magnet-debug-log";
 import { computeTrayFootprint } from "@shared/utils/tray-footprint";
-import type { ExportTarget, MountainTrailExportRequest } from "@shared/types/export";
+import type { MountainExportTarget, MountainTrailExportRequest } from "@shared/types/export";
 
 export function useMountainTrailExport() {
   const ui = useUiStore();
   const configStore = useConfigStore();
   const { plan: sprayPlan } = useSpraySegmentation();
 
-  const exporter = useModelExport<ExportTarget, MountainTrailExportRequest>({
+  const exporter = useModelExport<MountainExportTarget, MountainTrailExportRequest>({
     prepareRequest(target) {
       const vw = Math.round(ui.previewViewport.w);
       const vh = Math.round(ui.previewViewport.h);
@@ -73,7 +73,8 @@ export function useMountainTrailExport() {
     },
   });
 
-  const generateAndSave = (target: ExportTarget = "all") => exporter.generateAndSave(target);
+  const generateAndSave = (target: MountainExportTarget = "all") => exporter.generateAndSave(target);
   const downloadTrail = () => generateAndSave("trail");
-  return { generateAndSave, downloadTrail, generating: exporter.generating };
+  const downloadAmsBase = () => generateAndSave("ams-base");
+  return { generateAndSave, downloadTrail, downloadAmsBase, generating: exporter.generating };
 }

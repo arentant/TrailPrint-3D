@@ -50,7 +50,7 @@ Use **Grid on/off** above the map for positioning guides. **Save preset** can al
 
 ![Frame and tune parameters](docs/images/readme/02-compose-framing.webp)
 
-Open **Colors** below the rotation controls to choose the trail, terrain, and tray colors (or the city base in City view). Changes apply to the map and 3D preview one second after you stop editing. Mountain presets save the palette. STL files contain geometry; assign filament colors in your slicer.
+Open **Colors** below the rotation controls to choose the trail, terrain, and tray colors (or the city base in City view). Enabling **Text on base** adds a separate **Text** color. Changes apply to the map and 3D preview one second after you stop editing. Mountain presets save the palette. STL files contain geometry; the AMS 3MF includes the base and text colors as separate parts.
 
 ### 3. Preview and export
 
@@ -63,6 +63,8 @@ To export the trail separately, choose **Download trail STL** in Trail settings 
 ### 4. Import into Bambu Studio and assign colors
 
 Unzip the archive and drag `<gpx-name>_Terrain_Main.stl`, `<gpx-name>_Trail_Line.stl`, and `<gpx-name>_Tray_Base.stl` into [Bambu Studio](https://bambulab.com/en/download/studio). Assign filament colors to terrain, trail, and base, preview the multi-color assembly, then slice and print.
+
+For a base with colored text, choose **Download base for AMS** in the preview and open `<gpx-name>_Tray_AMS.3mf`. It contains one object with **Base** and **Text** parts assigned to filament 1 and 2. Select your printer and filament profiles, map the two parts to your AMS filaments, then slice and print them together. The same 3MF is included in the full archive. Alternatively, import `Tray_Base.stl` and `Tray_Text.stl` together as parts of one object and preserve their positions. Print terrain and trail separately and assemble them into the recessed base.
 
 ![Import into Bambu Studio](docs/images/readme/04-bambu-studio-import.webp)
 
@@ -158,6 +160,9 @@ TRAILPRINT_HEAP_MB=8192
 
 - **Inset frame structure:** Automatically generates a picture-frame base that wraps the main terrain mesh.
 - **Adjustable parameters:** Set total thickness, inset depth, and border width for different print and display needs.
+- **Text on base:** Enable raised rim labels in **4. Tray base**. Add custom text, choose each edge, and adjust size and relief. Circular labels follow the rim curve. Choose a separate **Text** color in **Colors** and export the base for AMS; Base and Text remain separate selectable parts in the 3MF. Presets retain labels and colors. The bundled bold fonts support Armenian (uppercase, lowercase, և and punctuation), Latin/Greek letters, numbers and an elevation arrow (↑); unsupported characters show an error.
+- **Keychain hole:** Enable a round through-hole in **4. Tray base**, set its diameter (default 4 mm), choose a rim edge and adjust its offset along that edge. The hole keeps at least 2 mm of material around it and checks for conflicts with labels and magnet/NFC/LED pockets. It appears in the 3D preview and base STL, and presets retain the settings.
+- **Terrain seat:** The terrain rests on the recess floor. Defaults are a 2 mm recess, a 3 mm solid floor and 0.2 mm clearance per side. The terrain's 2 mm base puts its flat surface flush with the rim. The rim locates the insert; use glue for permanent attachment. Underside magnets mount the tray and do not lock the terrain into it.
 - **NFC & LED:** Reserve NFC chip pockets and 0805 LED indicator slots in the tray recess, with an optional `<gpx-name>_Tray_Cover.stl` cover plate.
 
 ### 🧩 4. Split printing and assembly
@@ -165,7 +170,7 @@ TRAILPRINT_HEAP_MB=8192
 Built for multi-color printing and post-print assembly:
 
 - **Print tolerances:** Separate clearance settings for trail grooves and base slots (e.g. 0.15mm) to compensate for filament expansion.
-- **Magnet holes:** Enter magnet diameter and thickness to auto-generate aligned holes on the tray bottom (2–12 for circles, 4 corners for rectangles, 1 per vertex for polygons) for snap-together assembly and display.
+- **Magnet holes:** Enter magnet dimensions to generate holes on the tray bottom (2–12 for circles, 4 corners for rectangles, 1 per vertex for polygons) for mounting and display.
 
 ---
 
@@ -180,6 +185,8 @@ The Mountain archive contains:
 | `<gpx-name>_Terrain_Main.stl` | Main terrain mesh with base thickness and trail grooves | Always              |
 | `<gpx-name>_Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | Always              |
 | `<gpx-name>_Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Always              |
+| `<gpx-name>_Tray_Text.stl`    | Raised text at its position on the base                 | With enabled labels |
+| `<gpx-name>_Tray_AMS.3mf`     | Base and text assembly with separate filament assignments | With enabled labels |
 | `<gpx-name>_Tray_Cover.stl`   | NFC / LED cover plate                                   | When NFC is enabled |
 
 Import the STL files into your slicer, assign colors and print settings, and start making.

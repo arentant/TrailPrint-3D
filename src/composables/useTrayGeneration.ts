@@ -97,6 +97,8 @@ export function useTrayGeneration() {
       config.value.tray.totalThicknessMm,
       config.value.tray.recessDepthMm,
       config.value.tray.rimWidthMm,
+      JSON.stringify(config.value.tray.text),
+      JSON.stringify(config.value.tray.keychain),
       config.value.tray.nfc.enabled,
       config.value.tray.nfc.wallClearanceMm,
       config.value.tray.nfc.recessDepthMm,

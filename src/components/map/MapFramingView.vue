@@ -31,6 +31,7 @@ const props = defineProps<{
   points: GpxPoint[];
   segments?: GpxPoint[][];
   tray?: TrayConfig;
+  trayToleranceMm?: number;
   fitNonce: number;
   gridVisible?: boolean;
   restoreView?: boolean;
@@ -159,6 +160,7 @@ const trayOverlay = computed(() => {
     props.tray,
     maskW.value,
     maskH.value,
+    props.trayToleranceMm,
   );
 });
 
@@ -562,10 +564,11 @@ defineExpose({
             <i :style="{ backgroundColor: colors.trail }" />
             <i :style="{ backgroundColor: colors.terrain }" />
             <i v-if="tray" :style="{ backgroundColor: colors.tray }" />
+            <i v-if="tray?.text?.enabled" :style="{ backgroundColor: colors.text }" />
           </span>
         </summary>
         <ModelColorControls :model-value="colors" :workspace="tray ? 'mountain' : 'city'"
-          :show-tray="!!tray" @update:model-value="emit('update:colors', $event)" />
+          :show-tray="!!tray" :show-text="!!tray?.text?.enabled" @update:model-value="emit('update:colors', $event)" />
       </details>
     </div>
     <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
@@ -598,7 +601,7 @@ defineExpose({
         :style="trayOuterStyle"
       />
       <svg
-        v-else-if="polygonDimPath"
+        v-else-if="polygonDimPath || trayPolygonOutline"
         class="map-mask__svg"
         :viewBox="`0 0 ${maskW} ${maskH}`"
       >

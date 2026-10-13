@@ -72,6 +72,7 @@ let maskRoot: THREE.Group | null = null;
 let overlayRoot: THREE.Group | null = null;
 let terrainMaterial: THREE.MeshStandardMaterial | null = null;
 let trayMaterial: THREE.MeshLambertMaterial | null = null;
+let textMaterial: THREE.MeshLambertMaterial | null = null;
 let terrainMeshRef: THREE.Mesh | null = null;
 let animationId = 0;
 let resizeObserver: ResizeObserver | null = null;
@@ -159,6 +160,10 @@ function ensureTrayMaterial(): THREE.MeshLambertMaterial {
     });
   }
   return trayMaterial;
+}
+
+function ensureTextMaterial(): THREE.MeshLambertMaterial {
+  return textMaterial ??= new THREE.MeshLambertMaterial({ color: config.value.colors.text, flatShading: true, side: THREE.DoubleSide });
 }
 
 function reportScene(
@@ -368,11 +373,16 @@ async function rebuildScene(): Promise<void> {
     reportScene("tray", 0.65, "Loading tray base…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (token !== rebuildToken) return;
-    const trayGeo = payloadToBufferGeometry(tray, { hardEdges: true });
+    const trayGeo = payloadToBufferGeometry(tray.baseMesh ?? tray, { hardEdges: true });
     const trayObj = new THREE.Mesh(trayGeo, ensureTrayMaterial());
     trayObj.frustumCulled = false;
     trayObj.renderOrder = -1;
     trayRoot.add(trayObj);
+    if (tray.textMesh?.indices.length) {
+      const textObj = new THREE.Mesh(payloadToBufferGeometry(tray.textMesh, { hardEdges: true }), ensureTextMaterial());
+      textObj.frustumCulled = false;
+      trayRoot.add(textObj);
+    }
   }
 
   const polyline = r.trailPolylineMm ?? [];
@@ -685,6 +695,8 @@ function disposeThree(): void {
   terrainMaterial = null;
   trayMaterial?.dispose();
   trayMaterial = null;
+  textMaterial?.dispose();
+  textMaterial = null;
   trailMaterial.dispose();
   renderer?.dispose();
   renderer?.domElement.remove();
@@ -698,6 +710,7 @@ watch(
   (colors) => {
     trailMaterial.color.set(colors.trail);
     trayMaterial?.color.set(colors.tray);
+    textMaterial?.color.set(colors.text);
     if (terrainMaterial && !terrainMaterial.vertexColors) terrainMaterial.color.set(colors.terrain);
   },
   { deep: true },

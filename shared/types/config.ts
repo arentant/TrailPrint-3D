@@ -96,10 +96,43 @@ export interface TrayNfcConfig {
   coverInsetMm: number;
 }
 
+export interface TrayTextLabel {
+  text: string;
+  /** Zero-based rim edge; circles use four evenly spaced positions. */
+  edge: number;
+}
+
+export interface TrayTextConfig {
+  enabled: boolean;
+  sizeMm: number;
+  /** Raised lettering above the rim top. */
+  heightMm: number;
+  labels: TrayTextLabel[];
+}
+
+export function createDefaultTrayText(): TrayTextConfig {
+  return { enabled: false, sizeMm: 5, heightMm: 0.6, labels: [{ text: "", edge: 0 }] };
+}
+
+export interface TrayKeychainConfig {
+  enabled: boolean;
+  diameterMm: number;
+  /** Zero-based rim edge; circles use four evenly spaced positions. */
+  edge: number;
+  /** Distance along the rim from the selected edge's midpoint. */
+  offsetMm: number;
+}
+
+export function createDefaultTrayKeychain(): TrayKeychainConfig {
+  return { enabled: false, diameterMm: 4, edge: 1, offsetMm: 0 };
+}
+
 export interface TrayConfig {
   totalThicknessMm: number;
   recessDepthMm: number;
   rimWidthMm: number;
+  text: TrayTextConfig;
+  keychain: TrayKeychainConfig;
   nfc: TrayNfcConfig;
 }
 
@@ -286,6 +319,8 @@ export function createDefaultConfig(): AppConfig {
       totalThicknessMm: 5,
       recessDepthMm: 2,
       rimWidthMm: 9,
+      text: createDefaultTrayText(),
+      keychain: createDefaultTrayKeychain(),
       nfc: {
         enabled: false,
         wallClearanceMm: 1,

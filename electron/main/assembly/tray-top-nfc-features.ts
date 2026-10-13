@@ -81,8 +81,9 @@ function appendPolyPocketWalls(
     const t1 = topRing[sn]!;
     const b0 = bottomRing[s]!;
     const b1 = bottomRing[sn]!;
-    indices.push(t0, b1, t1);
-    indices.push(t0, b0, b1);
+    // Pocket walls face into the cavity; both caps face upward.
+    indices.push(t0, t1, b1);
+    indices.push(t0, b1, b0);
   }
 }
 

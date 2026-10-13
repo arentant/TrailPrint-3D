@@ -22,6 +22,7 @@ defineExpose({ syncStoreFromMap, fitTrackInView, resetMapView });
   <MapFramingView ref="map" :crop="config.mapCrop" :gpx="config.gpx" :points="effectivePoints"
     v-model:colors="config.colors"
     :tray="config.tray" :fit-nonce="ui.gpxMapFitNonce" :grid-visible="ui.mapGridVisible"
+    :tray-tolerance-mm="config.assembly.trayToleranceMm"
     :restore-view="!!store.schemes.find(s => s.id === store.activeSchemeId)?.payload.mapView"
     @update:crop="config.mapCrop = $event" />
 </template>

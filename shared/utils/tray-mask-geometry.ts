@@ -2,9 +2,11 @@ import type { MapCropConfig, TrayConfig } from "../types/config";
 import {
   buildMaskGeometry,
   maskPolygonPoints,
+  MASK_FILL_RATIO,
   type MaskScreenGeometry,
 } from "./mask-geometry";
 import { roundedRectanglePolygon } from "./rounded-footprint";
+import { computeTrayFootprint } from "./tray-footprint";
 
 export interface TrayMaskOverlay {
   /** 托盘最外缘（屏幕像素） */
@@ -25,73 +27,29 @@ function terrainRadiusMm(mapCrop: MapCropConfig): number {
   return side / (2 * Math.sin(Math.PI / n));
 }
 
-function scaleMaskGeometry(
-  inner: MaskScreenGeometry,
-  scaleX: number,
-  scaleY: number,
-): MaskScreenGeometry {
-  if (inner.kind === "circle" && inner.r) {
-    const s = (scaleX + scaleY) / 2;
-    return {
-      kind: "circle",
-      cx: inner.cx,
-      cy: inner.cy,
-      r: inner.r * s,
-    };
-  }
-  if (inner.kind === "rect" && inner.hw && inner.hh) {
-    const cornerScale = Math.min(scaleX, scaleY);
-    return {
-      kind: "rect",
-      cx: inner.cx,
-      cy: inner.cy,
-      hw: inner.hw * scaleX,
-      hh: inner.hh * scaleY,
-      cornerR: inner.cornerR ? inner.cornerR * cornerScale : 0,
-    };
-  }
-  if (inner.vertices?.length) {
-    return {
-      kind: "polygon",
-      cx: inner.cx,
-      cy: inner.cy,
-      vertices: inner.vertices.map((v) => ({
-        x: inner.cx + (v.x - inner.cx) * scaleX,
-        y: inner.cy + (v.y - inner.cy) * scaleY,
-      })),
-    };
-  }
-  return inner;
-}
-
 export function buildTrayMaskOverlay(
   mapCrop: MapCropConfig,
   tray: TrayConfig,
   canvasW: number,
   canvasH: number,
+  trayToleranceMm = 0.2,
 ): TrayMaskOverlay | null {
   const inner = buildMaskGeometry(mapCrop, canvasW, canvasH);
   const tR = Math.max(terrainRadiusMm(mapCrop), 1);
-  const rim = tray.rimWidthMm;
-
-  let scaleX = 1;
-  let scaleY = 1;
-  if (mapCrop.shape === "rectangle") {
-    const terrainHw = mapCrop.lengthMm / 2;
-    const terrainHh = mapCrop.widthMm / 2;
-    scaleX = (terrainHw + rim) / terrainHw;
-    scaleY = (terrainHh + rim) / terrainHh;
-  } else {
-    const s = (tR + rim) / tR;
-    scaleX = s;
-    scaleY = s;
+  const footprint = computeTrayFootprint({ mapCrop, tray, assembly: { trayToleranceMm } });
+  if (inner.kind === "circle" && inner.r) {
+    const scale = footprint.outerRadius! / tR;
+    return { outer: { ...inner, r: inner.r * scale }, outerScale: scale };
   }
-
-  const outer = scaleMaskGeometry(inner, scaleX, scaleY);
-
+  const scaleX = inner.kind === "rect" ? inner.hw! / (mapCrop.lengthMm / 2) : Math.min(canvasW, canvasH) * MASK_FILL_RATIO / tR;
+  const scaleY = inner.kind === "rect" ? inner.hh! / (mapCrop.widthMm / 2) : scaleX;
+  const outer: MaskScreenGeometry = {
+    kind: "polygon", cx: inner.cx, cy: inner.cy,
+    vertices: footprint.outer.map(v => ({ x: inner.cx + v.x * scaleX, y: inner.cy + v.y * scaleY })),
+  };
   return {
     outer,
-    outerScale: (scaleX + scaleY) / 2,
+    outerScale: (footprint.outerRadius ?? Math.max(footprint.outerHw!, footprint.outerHh!)) / tR,
   };
 }
 

@@ -7,12 +7,15 @@ import { computeTrayFootprint, type Vec2 } from "./tray-footprint";
 import {
   computeTrayNfcCavityPolygon,
   computeTrayNfcLedPockets,
+  ledPocketRect,
   pointInPolygon,
+  rectCorners,
 } from "./tray-nfc-layout";
 import { projectTrailToModelMm } from "./trail-coords";
 import { resolveTrailPoints } from "./trail-resolve";
 import { validateTrayFromAppConfig } from "./tray-validation";
 import { validateMoldKitFromAppConfig } from "./mold-kit-validation";
+import { assertKeychainClearance, computeTrayKeychainHole, KEYCHAIN_MIN_WALL_MM } from "./tray-keychain-layout";
 
 const MIN_BOTTOM_FLOOR_MM = 0.3;
 const MIN_MAGNET_WALL_MM = 0.8;
@@ -233,6 +236,17 @@ export function validateTrayNfcLayout(
       "nfc",
       "Cannot position the LEDs. Move the trail inside the white print outline before enabling NFC.",
     );
+  }
+
+  try {
+    const keychain = computeTrayKeychainHole(footprint, config.tray);
+    if (keychain) {
+      assertKeychainClearance(keychain, ledPockets.map(p => rectCorners(ledPocketRect(p,
+        config.tray.nfc.ledPocketLengthMm, config.tray.nfc.ledPocketWidthMm))), KEYCHAIN_MIN_WALL_MM,
+      "Keep at least 2 mm between the keychain hole and LED pockets. Move the hole or reduce the LED pocket size.");
+    }
+  } catch (error) {
+    return fail("nfc", error instanceof Error ? error.message : "Check keychain and LED pocket positions.");
   }
 
   return { valid: true };
