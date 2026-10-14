@@ -15,6 +15,7 @@ export const useUiStore = defineStore("ui", () => {
   const statusMessage = ref<string | null>(null);
   /** 预览区像素尺寸，供 STL 导出裁剪与预览一致 */
   const previewViewport = ref({ w: 800, h: 600 });
+  const mapReady = ref(false);
   /** 每次成功导入 GPX 后递增，驱动 2D 地图自动居中并缩放到遮罩内 */
   const gpxMapFitNonce = ref(0);
   const exportProgress = ref(0);
@@ -53,6 +54,7 @@ export const useUiStore = defineStore("ui", () => {
     generating,
     statusMessage,
     previewViewport,
+    mapReady,
     gpxMapFitNonce,
     requestGpxMapFit,
     exportProgress,

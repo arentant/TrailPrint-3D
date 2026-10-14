@@ -386,7 +386,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
               <button
                 type="button"
                 class="terrain-modal__trail-download"
-                :disabled="!canDownload"
+                :disabled="!canDownload || !config.gpx.imported"
                 @click="requestDownload('trail')"
               >
                 Download trail STL

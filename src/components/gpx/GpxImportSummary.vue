@@ -2,8 +2,11 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConfigStore } from '@/stores/config'
+import { useUiStore } from '@/stores/ui'
 
-const { config } = storeToRefs(useConfigStore())
+const store = useConfigStore()
+const ui = useUiStore()
+const { config } = storeToRefs(store)
 const gpx = computed(() => config.value.gpx)
 </script>
 
@@ -19,6 +22,11 @@ const gpx = computed(() => config.value.gpx)
         · {{ gpx.bounds.minLat.toFixed(2) }}°–{{ gpx.bounds.maxLat.toFixed(2) }}°
       </template>
     </p>
+    <button type="button" class="gpx-summary__remove" :disabled="ui.generating" @click="store.clearGpx()">Remove GPX</button>
+  </div>
+  <div v-else class="gpx-summary">
+    <p class="gpx-summary__title">Choose a place on the map</p>
+    <p class="gpx-summary__meta">Pan and zoom to frame your terrain. Import a GPX only if you want to add a trail.</p>
   </div>
 </template>
 
@@ -54,5 +62,11 @@ const gpx = computed(() => config.value.gpx)
   color: var(--tp-text-secondary);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.gpx-summary__remove {
+  color: var(--tp-text-accent);
+  font-size: 12px;
+  padding: 4px 0;
 }
 </style>

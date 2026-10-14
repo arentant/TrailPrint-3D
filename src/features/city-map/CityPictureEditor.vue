@@ -101,7 +101,7 @@ onUnmounted(() => {
         </div>
         <aside class="picture-settings" aria-label="Picture settings">
           <fieldset :disabled="exporting">
-            <div class="section-heading"><h3>Make it yours</h3><span class="gpx-badge">FROM GPX</span></div>
+            <div class="section-heading"><h3>Make it yours</h3><span v-if="request.config.gpx.imported" class="gpx-badge">FROM GPX</span></div>
             <p class="settings-intro">Your track starts the story. You add the personal touches.</p>
             <div class="layout-picker" role="group" aria-label="Picture layout">
               <button :aria-pressed="picture.enabled" @click="picture.enabled = true"><svg viewBox="0 0 24 28" aria-hidden="true"><rect x="2" y="1" width="20" height="26" rx="1"/><path d="M6 6h12M6 9h8M6 22h12"/><rect x="6" y="12" width="12" height="7"/></svg><span>Route poster</span></button>
@@ -137,8 +137,8 @@ onUnmounted(() => {
                   <div class="input-wrap"><input v-model="picture[field.key]" :type="field.key === 'date' ? 'date' : 'text'" :placeholder="field.placeholder" :maxlength="field.limit" :aria-label="field.label" :spellcheck="field.key === 'title' || field.key === 'athlete'" /><span v-if="'unit' in field" class="field-unit">{{ field.unit }}</span></div>
                 </label>
               </div>
-              <p class="data-note">{{ missingTime ? 'Time and pace aren’t available in this GPX. Add any missing details if you know them.' : 'Date, elapsed time and average pace come from your GPX. Elapsed time includes stops.' }} Clear any field to leave it off the poster.</p>
-              <button class="reset-button" @click="resetDetails">↺ Use GPX values</button>
+              <p class="data-note">{{ !request.config.gpx.imported ? 'Add your own title and details.' : missingTime ? 'Time and pace aren’t available in this GPX. Add any missing details if you know them.' : 'Date, elapsed time and average pace come from your GPX. Elapsed time includes stops.' }} Clear any field to leave it off the poster.</p>
+              <button v-if="request.config.gpx.imported" class="reset-button" @click="resetDetails">↺ Use GPX values</button>
             </template>
             <div class="print-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8V3h10v5M7 17H4V8h16v9h-3M7 14h10v7H7zM16 11h1"/></svg><div><strong>Made to print</strong><p>The map stays {{ crop.widthMm.toFixed(1) }} × {{ crop.heightMm.toFixed(1) }} mm. Print at 100% / actual size to match your trail STL.</p></div></div>
           </fieldset>

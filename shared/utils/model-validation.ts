@@ -39,7 +39,7 @@ export interface ModelValidationResult extends TrayValidationResult {
 export interface ModelValidationOptions {
   viewportWidth?: number;
   viewportHeight?: number;
-  /** 未导入 GPX 时是否视为错误（侧栏托盘区可设为 false） */
+  /** Require an imported route for targets such as a standalone trail. */
   requireGpx?: boolean;
   /** A standalone trail does not require valid tray, magnet, NFC, or mold settings. */
   trailOnly?: boolean;
@@ -219,6 +219,9 @@ export function validateTrayNfcLayout(
     );
   }
 
+  // Without a route, NFC still has its recess and cover, but no endpoint LEDs.
+  if (!config.gpx.imported) return { valid: true };
+
   const trailCheck = validateTrailInPrintArea(
     config,
     viewportWidth,
@@ -263,7 +266,7 @@ export function validateModelGeneration(
   options: ModelValidationOptions = {},
 ): ModelValidationResult {
   if (config.printMode && !['separate', 'fused'].includes(config.printMode)) return fail('water', 'Choose separate inserts or fused multicolor printing.');
-  const requireGpx = options.requireGpx ?? true;
+  const requireGpx = options.requireGpx ?? options.trailOnly ?? false;
 
   if (requireGpx && !config.gpx.imported) {
     return fail("gpx", "Import a GPX track first");
@@ -273,7 +276,7 @@ export function validateModelGeneration(
     config.gpx.points.length,
     config.gpx.rawPoints.length,
   );
-  if (requireGpx && pointCount < 2) {
+  if (config.gpx.imported && pointCount < 2) {
     return fail("gpx", "Not enough track points to generate the model");
   }
 
@@ -326,14 +329,14 @@ export function validateModelGeneration(
     }
   }
 
-  if (requireGpx && hasViewport) {
+  if (config.gpx.imported && hasViewport) {
     const trailCheck = validateTrailInPrintArea(config, vw, vh);
     if (!trailCheck.valid) return trailCheck;
+  }
 
-    if (!options.trailOnly && config.tray.nfc.enabled) {
-      const nfcCheck = validateTrayNfcLayout(config, vw, vh);
-      if (!nfcCheck.valid) return nfcCheck;
-    }
+  if (!options.trailOnly && config.tray.nfc.enabled && hasViewport) {
+    const nfcCheck = validateTrayNfcLayout(config, vw, vh);
+    if (!nfcCheck.valid) return nfcCheck;
   }
 
   return { valid: true };

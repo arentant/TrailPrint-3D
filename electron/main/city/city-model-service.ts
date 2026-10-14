@@ -14,22 +14,24 @@ import { renderPrintableCityMap } from '@shared/city/printable-map';
 import { loadCityPictureTiles, clearCityPictureTileCache } from '@shared/city/map-tiles';
 import type { TerrainCropRegion, TerrainMeshPayload } from '@shared/types/terrain';
 
-function validateCityFraming(request: CityGenerateRequest): void {
+function validateCityFraming(request: CityGenerateRequest, requireRoute = false): void {
   const config = request?.config;
-  if (!config?.gpx?.imported || !(config.gpx.segments?.some((s) => s.length >= 2) || config.gpx.points?.length >= 2 || config.gpx.rawPoints?.length >= 2)) throw new Error('Import a GPX running route with at least two points.');
+  if (!config?.gpx) throw new Error('A city configuration is required.');
+  if ((requireRoute || config.gpx.imported) && (!config.gpx.imported || !(config.gpx.segments?.some((s) => s.length >= 2) || config.gpx.points?.length >= 2 || config.gpx.rawPoints?.length >= 2))) throw new Error('Import a GPX running route with at least two points.');
   const valid = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
   const t = config.terrain, c = config.city, m = config.mapCrop;
   if (!t || !c || !m || !['flat', 'real'].includes(c.surface)) throw new Error('Choose Flat or Real terrain.');
   if (!valid(request.viewportWidth, 64, 16384) || !valid(request.viewportHeight, 64, 16384)) throw new Error('The map viewport is too small. Resize the window.');
   if (!['circle', 'rectangle', 'polygon'].includes(m.shape) || ![m.radiusMm, m.lengthMm, m.widthMm, m.polygonSideLengthMm].every((v) => valid(v, 10, 500)) || !valid(m.polygonSides, 3, 8) || !Number.isInteger(m.polygonSides) || !valid(m.cornerRadiusMm, 0, 250) || !valid(m.mapZoom, 1, 22) || !valid(m.mapBearingDeg, -360, 360)) throw new Error('Check the city footprint dimensions and map framing.');
-  if (!valid(c.routeWidthMm, 0.4, 10)) throw new Error('Check the route width.');
+  if (config.gpx.imported && !valid(c.routeWidthMm, 0.4, 10)) throw new Error('Check the route width.');
 }
 
-function validateCityRouteGeneration(request: CityGenerateRequest): void {
-  validateCityFraming(request);
+function validateCityRouteGeneration(request: CityGenerateRequest, requireRoute = false): void {
+  validateCityFraming(request, requireRoute);
   const valid = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
   const { terrain: t, city: c } = request.config;
-  if (!valid(t.baseSolidThicknessMm, 1, 20) || !valid(c.routeSeatDepthMm, 0.1, t.baseSolidThicknessMm - 0.4) || !valid(c.routeWidthMm, 0.4, 10) || !valid(c.routeReliefMm, 0.2, 10) || !valid(c.routeClearanceMm, 0, 1)) throw new Error('Check route dimensions. Keep at least 0.4 mm of base below the route seat.');
+  if (!valid(t.baseSolidThicknessMm, 1, 20)) throw new Error('City base thickness must be between 1 and 20 mm.');
+  if (request.config.gpx.imported && (!valid(c.routeSeatDepthMm, 0.1, t.baseSolidThicknessMm - 0.4) || !valid(c.routeWidthMm, 0.4, 10) || !valid(c.routeReliefMm, 0.2, 10) || !valid(c.routeClearanceMm, 0, 1))) throw new Error('Check route dimensions. Keep at least 0.4 mm of base below the route seat.');
   if (c.surface === 'real') {
     if (!t.openTopographyApiKey?.trim()) throw new Error('Enter your OpenTopography API key to use Real terrain.');
     if (!valid(t.zExaggeration, 0.1, 10) || !['standard', 'high', 'ultra', 'extreme', 'studio', 'custom'].includes(t.meshQuality) || !['raw', 'light', 'medium', 'heavy'].includes(t.smoothing)) throw new Error('Check terrain quality, smoothing and elevation scale.');
@@ -111,10 +113,10 @@ export function generateCityTrailModel(request: CityGenerateRequest, onProgress?
   const job = queue.then(async () => {
     const config = await hydrateGpxConfig(request.config);
     const hydrated = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
-    validateCityRouteGeneration(hydrated);
+    validateCityRouteGeneration(hydrated, true);
     const { colors: _colors, picture: _picture, ...geometryConfig } = config;
     const previewKey = JSON.stringify({ ...hydrated, config: geometryConfig });
-    if (cached?.key === previewKey) return cached.result.routeMesh;
+    if (cached?.key === previewKey && cached.result.routeMesh) return cached.result.routeMesh;
     const crop = citySelectionCrop(hydrated);
     const key = JSON.stringify([crop, config.mapCrop, config.gpx, config.terrain, hydrated.viewportWidth, hydrated.viewportHeight,
       config.city.surface, config.city.routeWidthMm, config.city.routeSeatDepthMm, config.city.routeReliefMm]);

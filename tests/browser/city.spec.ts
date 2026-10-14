@@ -91,7 +91,7 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   await page.goto('/'); await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'City', exact: true }).click();
   const pictureButton = page.getByRole('button', { name: 'Preview & export map picture', exact: true });
-  await expect(pictureButton).toBeDisabled();
+  await expect(pictureButton).toBeEnabled();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
   await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Print length', exact: true }).fill('120');

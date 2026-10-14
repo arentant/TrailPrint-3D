@@ -28,9 +28,23 @@ export const cityMapExportFlow: ModelExportFlow<CityMapExportRequest> = {
     const cityStl = modelExportFileName(request.config, STL_FILE_NAMES.cityMain);
     const trailStl = modelExportFileName(request.config, STL_FILE_NAMES.trailLine);
     await file(cityStl, encodeBinaryStl(result.cityMesh, cityStl.replace(/\.stl$/i, '')));
-    await file(trailStl, encodeBinaryStl(result.routeMesh, trailStl.replace(/\.stl$/i, '')));
+    if (result.routeMesh) await file(trailStl, encodeBinaryStl(result.routeMesh, trailStl.replace(/\.stl$/i, '')));
     const c = request.config.city;
-    const instructions = `TrailPrint City — Assembly\n\n${cityStl} and ${trailStl} use millimeters and matching XYZ coordinates.\nImport both as parts of one assembly; preserve their relative positions. Do not center each STL independently.\nPrint the city base flat. The route follows the terrain and may contain separate islands; use appropriate supports or print in assembly coordinates.\nSeat the route in the groove: ${c.routeWidthMm} mm width, ${c.routeSeatDepthMm} mm seating depth, ${c.routeReliefMm} mm visible relief, ${c.routeClearanceMm} mm clearance per side, with 0.01 mm extra vertical floor clearance.\nBuildings use flat roofs and solid support. Heights: mapped height, then levels × 3 m, then ${c.fallbackBuildingHeightM} m fallback.\nSurface mode: ${c.surface}. Route coordinates retain the supplied GPX; no snapping.\n\nMap data © OpenStreetMap contributors. https://www.openstreetmap.org/copyright\nOpenStreetMap data is available under the Open Database License (ODbL).\n\n${result.warnings.length ? 'Model notes:\n' + result.warnings.map((w) => '- ' + w).join('\n') : ''}\n`;
+    const instructions = [
+      'TrailPrint City — Assembly', '',
+      ...(result.routeMesh ? [
+        `${cityStl} and ${trailStl} use millimeters and matching XYZ coordinates.`,
+        'Import both as parts of one assembly; preserve their relative positions. Do not center each STL independently.',
+        'Print the city base flat. The route follows the terrain and may contain separate islands; use appropriate supports or print in assembly coordinates.',
+        `Seat the route in the groove: ${c.routeWidthMm} mm width, ${c.routeSeatDepthMm} mm seating depth, ${c.routeReliefMm} mm visible relief, ${c.routeClearanceMm} mm clearance per side, with 0.01 mm extra vertical floor clearance.`,
+        'Route coordinates retain the supplied GPX; no snapping.',
+      ] : [`${cityStl} uses millimeters. Print the city base flat.`, 'Generated from the selected map area without a route or seating groove.']),
+      `Buildings use flat roofs and solid support. Heights: mapped height, then levels × 3 m, then ${c.fallbackBuildingHeightM} m fallback.`,
+      `Surface mode: ${c.surface}.`, '',
+      'Map data © OpenStreetMap contributors. https://www.openstreetmap.org/copyright',
+      'OpenStreetMap data is available under the Open Database License (ODbL).', '',
+      ...(result.warnings.length ? ['Model notes:', ...result.warnings.map(w => '- ' + w)] : []), '',
+    ].join('\n');
     await file(modelExportFileName(request.config, 'Assembly_Instructions.txt'), new TextEncoder().encode(instructions));
   },
 };

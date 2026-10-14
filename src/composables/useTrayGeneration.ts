@@ -32,16 +32,9 @@ export function useTrayGeneration() {
   async function runGeneration(): Promise<void> {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = null;
-    if (!config.value.gpx.imported) {
-      mesh.value = null;
-      error.value = null;
-      return;
-    }
-
     const validation = validateModelGeneration(config.value, {
       viewportWidth: previewViewport.value.w,
       viewportHeight: previewViewport.value.h,
-      requireGpx: true,
     });
     if (!validation.valid) {
       error.value = validation.message ?? "Check the settings in the sidebar";

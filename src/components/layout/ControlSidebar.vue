@@ -73,10 +73,7 @@ async function onGpxSelected(e: Event): Promise<void> {
 }
 
 function openPreviewModal(): void {
-  if (!configStore.config.gpx.imported) {
-    statusMessage.value = 'Import a GPX track first'
-    return
-  }
+  ui.runPrepareExport()
   const check = validateModelGeneration(configStore.config, {
     viewportWidth: ui.previewViewport.w,
     viewportHeight: ui.previewViewport.h,
@@ -85,7 +82,6 @@ function openPreviewModal(): void {
     statusMessage.value = check.message ?? 'Check the settings and try again'
     return
   }
-  ui.runPrepareExport()
   ui.terrainPreviewOpen = true
 }
 
@@ -211,7 +207,7 @@ function openPreviewModal(): void {
         <button
           type="button"
           class="sidebar__cta"
-          :disabled="generating || importing"
+          :disabled="!ui.mapReady || generating || importing"
           @click="openPreviewModal"
         >
           Preview & export STL

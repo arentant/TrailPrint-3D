@@ -71,8 +71,8 @@ const demTooltipText = openTopoDemTooltipText();
     </section>
     <section aria-labelledby="city-route">
       <h2 id="city-route">4. Running route</h2>
-      <CityTrailControls v-model="config.city" :base-thickness="config.terrain.baseSolidThicknessMm" />
-      <p>Your GPX stays in place. Buildings and roads leave clearance for the route insert.</p>
+      <CityTrailControls v-model="config.city" :base-thickness="config.terrain.baseSolidThicknessMm" :disabled="!config.gpx.imported" />
+      <p>{{ config.gpx.imported ? 'Your GPX stays in place. Buildings and roads leave clearance for the route insert.' : 'GPX is optional. Import a running route to add a trail insert to your city model.' }}</p>
     </section>
   </fieldset>
 </template>

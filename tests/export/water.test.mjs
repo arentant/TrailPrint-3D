@@ -87,6 +87,67 @@ function overlap(a, b) {
   try { return shared.volume(); } finally { shared.delete(); x.delete(); y.delete(); }
 }
 
+test('terrain generation without GPX validates accessories and still requires GPX for a trail target', async () => {
+  const req = request(); req.config.water.enabled = false;
+  assert.equal(api.validateModelGeneration(req.config).valid, true);
+  assert.equal(api.validateModelGeneration(req.config, { trailOnly: true }).scope, 'gpx');
+  await assert.rejects(api.generateTerrainMain({ ...req, trailOnly: true }), /Import a GPX/);
+  await assert.rejects(api.mountainTrailExportFlow.generateFiles({ ...req, target: 'trail' }, () => {}, () => assert.fail('Unexpected file')), /Import a GPX/);
+  req.config.gpx.imported = true;
+  assert.match(api.validateModelGeneration(req.config).message, /Not enough track points/);
+  req.config.gpx.imported = false;
+  req.config.tray.recessDepthMm = req.config.tray.totalThicknessMm + 1;
+  assert.equal(api.validateModelGeneration(req.config).scope, 'tray');
+});
+
+for (const shape of ['circle', 'rectangle', 'polygon']) test(`${shape} terrain preview and ZIP work without GPX and omit trail parts`, async () => {
+  const req = request(shape, 31); req.config.water.enabled = false;
+  const preview = await api.generateTerrainMain(req);
+  assert.ok(preview.heightPreview.heights.length > 0);
+  assert.equal(preview.trailMesh, null);
+  assert.deepEqual(preview.trailPolylineMm, []);
+  const exported = await api.generateTerrainMain({ ...req, stlExport: true });
+  assertClosed(exported.mesh);
+  const files = {};
+  await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, bytes) => { files[name] = bytes; });
+  assert.ok(Object.keys(files).some(name => name.endsWith('_Terrain_Main.stl')));
+  assert.ok(Object.keys(files).some(name => name.endsWith('_Tray_Base.stl')));
+  assert.ok(!Object.keys(files).some(name => name.includes('Trail_Line')));
+  assert.ok(Object.keys(files).every(name => name.startsWith('TrailPrint_')));
+});
+
+for (const mode of ['separate', 'fused']) test(`${mode} water and 3MF export work without GPX`, async () => {
+  const req = request(); req.config.printMode = mode;
+  const { crop } = setup(req, []);
+  req.waterCatalog = catalogFor(req, crop, [[box(-25, -18, 25, 18)]]);
+  const preview = await api.generateTerrainMain({ ...req, stlExport: true });
+  assert.equal(preview.trailMesh, null);
+  assert.ok(preview.waterMeshes.length > 0);
+  [preview.mesh, ...preview.waterMeshes].forEach(assertClosed);
+  const files = {};
+  await api.mountainTrailExportFlow.generateFiles({ ...req, target: 'model-3mf' }, () => {}, (name, bytes) => { files[name] = bytes; });
+  assert.equal(Object.keys(files).length, 1);
+  const model = strFromU8(unzipSync(Object.values(files)[0])['3D/3dmodel.model']);
+  assert.match(model, /name="Terrain"/);
+  assert.match(model, /name="Water 1:/);
+  assert.doesNotMatch(model, /name="Trail"/);
+});
+
+test('NFC cover and AMS base labels export without GPX or endpoint LED pockets', async () => {
+  const req = request(); req.config.water.enabled = false;
+  req.config.tray.nfc.enabled = true;
+  req.config.tray.text.enabled = true;
+  req.config.tray.text.labels = [{ text: 'MY PLACE', edge: 0 }];
+  const files = {};
+  await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, bytes) => { files[name] = bytes; });
+  assert.ok(Object.keys(files).some(name => name.endsWith('_Tray_Cover.stl')));
+  assert.ok(Object.keys(files).some(name => name.endsWith('_Tray_Text.stl')));
+  const ams = {};
+  await api.mountainTrailExportFlow.generateFiles({ ...req, target: 'ams-base' }, () => {}, (name, bytes) => { ams[name] = bytes; });
+  assert.equal(Object.keys(ams).length, 1);
+  assert.ok(Object.keys(ams)[0].endsWith('_Tray_AMS.3mf'));
+});
+
 test('Boolean export keeps unrelated coincident edges separate instead of making them non-manifold', () => {
   const req = request(), { terrain } = setup(req, []);
   const a = wasm.Manifold.cube([1, 1, 1]);

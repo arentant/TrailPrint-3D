@@ -82,6 +82,7 @@ type PreparedCity = {
   warnings: string[];
 };
 type GeometryResult = Omit<CityGenerateResponse, 'generationMs'>;
+type RouteGeometryResult = { routeMesh: TerrainMeshPayload };
 type GeometryInputs = [request: CityGenerateRequest, crop: TerrainCropRegion, data: CityMapData, heights: Float64Array, cols: number, rows: number];
 
 /** Cold build for callers that do not retain native geometry between requests. */
@@ -119,8 +120,8 @@ export function createCityGeometryBuilder(wasm: ManifoldToplevel) {
 }
 
 function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared?: PreparedCity, retain?: (city: PreparedCity) => void, onTrail?: () => void, trailOnly?: false]): GeometryResult;
-function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared: undefined, retain: undefined, onTrail: undefined, trailOnly: true]): Pick<GeometryResult, 'routeMesh'>;
-function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared?: PreparedCity, retain?: (city: PreparedCity) => void, onTrail?: () => void, trailOnly?: boolean]): GeometryResult | Pick<GeometryResult, 'routeMesh'> {
+function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared: undefined, retain: undefined, onTrail: undefined, trailOnly: true]): RouteGeometryResult;
+function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prepared?: PreparedCity, retain?: (city: PreparedCity) => void, onTrail?: () => void, trailOnly?: boolean]): GeometryResult | RouteGeometryResult {
   let [request, crop, data, heights, cols, rows, prepared, retain, onTrail, trailOnly] = args;
   const { CrossSection: CS, Manifold: Solid, Mesh } = wasm;
   const allocations = new Set<Scoped>();
@@ -276,6 +277,18 @@ function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prep
       }
     }
     const { footprint, terrain, city } = prepared;
+    const payload = (solid: Manifold, name: string): TerrainMeshPayload => {
+      if (solid.status() !== 'NoError' || solid.isEmpty() || solid.volume() <= 0) throw new Error(`${name} is not a closed printable solid. Adjust the crop or route settings.`);
+      const mesh = solid.getMesh();
+      const positions: number[] = [];
+      for (let i = 0; i < mesh.vertProperties.length; i += mesh.numProp) positions.push(mesh.vertProperties[i]!, mesh.vertProperties[i + 1]!, mesh.vertProperties[i + 2]!);
+      if (!positions.every(Number.isFinite) || mesh.triVerts.length > 6_000_000) throw new Error('The model is too complex. Choose a smaller area or lower mesh quality.');
+      return { positions, indices: Array.from(mesh.triVerts), minSurfaceZ: 0, bottomZ: -baseThickness, gridCols: cols, gridRows: rows };
+    };
+    if (!request.config.gpx.imported) {
+      if (trailOnly) throw new Error('Import a GPX running route to generate a trail.');
+      return { crop, cityMesh: payload(city, 'City'), routeMesh: null, featureCounts: counts, warnings };
+    }
     onTrail?.();
     const rawSegments = request.config.gpx.segments ?? [request.config.gpx.rawPoints?.length ? request.config.gpx.rawPoints : request.config.gpx.points];
     const segments = rawSegments.filter((s) => s.length >= 2).map((s) => s.map((p) => project(p.lon, p.lat)));
@@ -287,14 +300,6 @@ function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prep
     const slab = own(aboveRoute.subtract(belowSeat));
     const routePrism = extrusion(routeSection, -baseThickness, maxSurface + settings.routeReliefMm + 1);
     const route = own(routePrism.intersect(slab));
-    const payload = (solid: Manifold, name: string): TerrainMeshPayload => {
-      if (solid.status() !== 'NoError' || solid.isEmpty() || solid.volume() <= 0) throw new Error(`${name} is not a closed printable solid. Adjust the crop or route settings.`);
-      const mesh = solid.getMesh();
-      const positions: number[] = [];
-      for (let i = 0; i < mesh.vertProperties.length; i += mesh.numProp) positions.push(mesh.vertProperties[i]!, mesh.vertProperties[i + 1]!, mesh.vertProperties[i + 2]!);
-      if (!positions.every(Number.isFinite) || mesh.triVerts.length > 6_000_000) throw new Error('The model is too complex. Choose a smaller area or lower mesh quality.');
-      return { positions, indices: Array.from(mesh.triVerts), minSurfaceZ: 0, bottomZ: -baseThickness, gridCols: cols, gridRows: rows };
-    };
     if (trailOnly) return { routeMesh: payload(route, 'Route') };
     const grooveSection = stroke(segments, settings.routeWidthMm + settings.routeClearanceMm * 2, footprint);
     const groovePrism = extrusion(grooveSection, -baseThickness, maxSurface + 2000);

@@ -901,7 +901,7 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       {{ statusHint }}
     </div>
     <div v-else-if="!overlayLoading && !result" class="terrain-preview__badge">
-      Import a GPX track, then open the 3D preview to see the terrain model.
+      Choose an area on the map, then open the 3D preview to see the terrain model.
     </div>
     <div
       v-else-if="

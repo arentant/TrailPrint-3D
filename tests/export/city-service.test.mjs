@@ -31,6 +31,43 @@ function request() {
   Object.assign(config.mapCrop,{mapCenterLat:40.18,mapCenterLon:44.51,mapZoom:15});
   return { config,viewportWidth:800,viewportHeight:600 };
 }
+
+for (const surface of ['flat', 'real']) test(`${surface} city preview and export work without GPX, retaining buildings and roads`, async () => {
+  api.clearCityModelCache();
+  const req = request(); req.config.gpx = api.createDefaultCityConfig().gpx;
+  req.config.city.surface = surface;
+  req.config.terrain.openTopographyApiKey = 'test';
+  req.config.terrain.meshQuality = 'custom'; req.config.terrain.meshQualityCustom.maxGrid = 64;
+  let maps = 0, dems = 0;
+  globalThis.__cityMap = async () => { maps++; return data; };
+  globalThis.__cityDem = async (_crop, cols, rows) => { dems++; return { elevations: Float64Array.from({ length: cols * rows }, (_, i) => 500 + i % cols) }; };
+  const preview = await api.generateCityModel(req);
+  assert.equal(preview.routeMesh, null);
+  assert.equal(preview.featureCounts.routeSegments, 0);
+  assert.ok(preview.featureCounts.buildings > 0);
+  assert.ok(preview.cityMesh.indices.length > 0);
+  assert.equal(await api.generateCityModel(req), preview);
+  const files = {};
+  await api.cityMapExportFlow.generateFiles(req, () => {}, (name, bytes) => { files[name] = bytes; });
+  assert.deepEqual(Object.keys(files), [api.modelExportFileName(req.config, 'City_Main.stl'), api.modelExportFileName(req.config, 'Assembly_Instructions.txt')]);
+  assert.deepEqual(files[api.modelExportFileName(req.config, 'City_Main.stl')], api.encodeBinaryStl(preview.cityMesh, api.modelExportFileName(req.config, 'City_Main.stl').replace(/\.stl$/, '')));
+  assert.doesNotMatch(new TextDecoder().decode(files[api.modelExportFileName(req.config, 'Assembly_Instructions.txt')]), /Trail_Line/);
+  await assert.rejects(api.generateCityTrailModel(req), /Import a GPX/);
+  assert.equal(maps, 1); assert.equal(dems, surface === 'real' ? 1 : 0);
+  const withoutRoute = preview.cityMesh;
+  req.config.gpx = request().config.gpx;
+  assert.ok((await api.generateCityModel(req)).routeMesh);
+  req.config.gpx = api.createDefaultCityConfig().gpx;
+  assert.deepEqual((await api.generateCityModel(req)).cityMesh, withoutRoute, 'removing a route restores the uncut city');
+  assert.equal(maps, 1);
+});
+
+test('paper map works without GPX and ignores leftover unimported route data', async () => {
+  const req = request(); req.config.gpx.imported = false; req.config.picture.enabled = false;
+  const svg = new TextDecoder().decode(await api.generateCityMapPicture(req));
+  assert.match(svg, /id="street-map"><image/);
+  assert.doesNotMatch(svg, /id="running-route"[^>]*><path/);
+});
 test('Flat skips DEM, caches the finalized preview and exports the same geometry', async () => {
   api.clearCityModelCache(); let maps=0, dems=0;
   globalThis.__cityMap=async (req) => { maps++; assert.deepEqual(Object.keys(req).sort(),['bounds','buildings','roads']); return data; };

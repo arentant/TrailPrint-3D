@@ -66,10 +66,6 @@ async function generateMountainTrailFiles(
     message: "Validating settings…",
   });
 
-  if (!config.gpx.imported) {
-    throw new IpcException("GPX_REQUIRED", "Import a GPX track first");
-  }
-
   const modelCheck = validateModelGeneration(config, {
     viewportWidth,
     viewportHeight,
@@ -80,10 +76,6 @@ async function generateMountainTrailFiles(
       "MODEL_INVALID",
       modelCheck.message ?? "Cannot generate the model. Check the settings.",
     );
-  }
-
-  if (config.gpx.points.length < 2) {
-    throw new IpcException("GPX_INVALID", "Not enough track points to generate the model");
   }
 
   if (viewportWidth < 64 || viewportHeight < 64) {
@@ -105,7 +97,7 @@ async function generateMountainTrailFiles(
   onProgress({
     phase: "terrain",
     progress: 0.1,
-    message: req.target === "trail" ? "Generating trail model…" : "Generating terrain and trail models…",
+    message: req.target === "trail" ? "Generating trail model…" : "Generating terrain model…",
   });
 
   const terrainWithGroove = await generateTerrainMain({
@@ -167,7 +159,7 @@ async function generateMountainTrailFiles(
 
   const trailPoints = config.gpx.points.length || config.gpx.rawPoints.length;
   const trailPolylinePts = terrainWithGroove.trailPolylineMm?.length ?? 0;
-  if (!terrainWithGroove.trailMesh) {
+  if (config.gpx.imported && !terrainWithGroove.trailMesh) {
     throw new IpcException(
       "TRAIL_EMPTY",
       trailPoints < 2
@@ -195,7 +187,7 @@ async function generateMountainTrailFiles(
   }
 
   await writeBinaryStl(terrainStl, terrainWithGroove.mesh);
-  await writeBinaryStl(trailStl, terrainWithGroove.trailMesh);
+  if (terrainWithGroove.trailMesh) await writeBinaryStl(trailStl, terrainWithGroove.trailMesh);
   await writeBinaryStl(trayStl, trayRes.mesh.baseMesh ?? trayRes.mesh);
   if (config.water?.enabled) {
     const waterParts = terrainWithGroove.waterMeshes ?? [];
@@ -239,7 +231,7 @@ async function generateMountainTrailFiles(
   const colors = normalizeModelColors(config.colors);
   const groups: PrintableGroup[] = [{ name: 'Terrain, trail and water', parts: [
     { name: 'Terrain', color: colors.terrain, mesh: terrainWithGroove.mesh },
-    { name: 'Trail', color: colors.trail, mesh: terrainWithGroove.trailMesh },
+    ...(terrainWithGroove.trailMesh ? [{ name: 'Trail', color: colors.trail, mesh: terrainWithGroove.trailMesh }] : []),
     ...(terrainWithGroove.waterMeshes ?? []).map((mesh, i) => {
       const mapping = terrainWithGroove.waterPartMappings?.find(part => part.partIndex === i);
       const names = [...new Set(mapping?.featureIds.map(id => terrainWithGroove.waterFeatureDetails?.find(feature => feature.id === id)?.name).filter(Boolean))];

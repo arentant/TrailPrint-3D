@@ -36,6 +36,7 @@ const trailHeightAboveMain = computed({
     :open="openSections.trail"
     @toggle="ui.toggleSection('trail')"
   >
+    <p v-if="!config.gpx.imported" class="hint">GPX is optional. Import a track to add a trail; these settings apply when a track is loaded.</p>
     <div class="toggle-row">
       <SettingLabel label="Reduce noise and smooth the trail" guide="simplify" />
       <IosToggle v-model="config.trail.gpxSimplify" aria-label="Reduce noise and smooth the trail" />

@@ -39,7 +39,8 @@ const requestKey = computed(() => {
 });
 const previewStale = computed(() => !!result.value && resultKey.value !== requestKey.value);
 const canExportModel = computed(() => !!result.value && !previewStale.value && !previewBusy.value && !ui.generating && !error.value);
-const canExportMap = computed(() => mapReady.value && config.value.gpx.imported && !ui.generating && !importing.value && !previewBusy.value);
+const canExportMap = computed(() => mapReady.value && !ui.generating && !importing.value && !previewBusy.value);
+const canExportTrail = computed(() => canExportMap.value && config.value.gpx.imported);
 function snapshot(): CityGenerateRequest {
   map.value?.syncStoreFromMap();
   return { config: JSON.parse(JSON.stringify(config.value)), viewportWidth: viewport.value.w, viewportHeight: viewport.value.h };
@@ -89,7 +90,7 @@ const exporter = useModelExport<NonNullable<CityMapExportRequest['target']>, Cit
     : `${request.target === 'trail' ? 'Running trail STL' : 'City ZIP'} ready: ${response.savedPath}`,
 });
 async function download(target: NonNullable<CityMapExportRequest['target']> = 'all') {
-  if (target === 'all' ? canExportModel.value : canExportMap.value) await exporter.generateAndSave(target);
+  if (target === 'all' ? canExportModel.value : target === 'trail' ? canExportTrail.value : canExportMap.value) await exporter.generateAndSave(target);
 }
 function previewPicture() {
   if (!canExportMap.value) return;
@@ -137,33 +138,33 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
     <aside class="city-sidebar">
       <header>
         <div class="brand"><TrailPrintLogo :size="32" /><h1>TrailPrint <span>City</span></h1></div>
-        <p>Turn your city run into a printable keepsake.</p>
+        <p>Frame a city on the map and turn it into a printable keepsake. Add a GPX route if you want one.</p>
         <button class="secondary" :disabled="importing || ui.generating || previewBusy" @click="fileInput?.click()">{{ importing ? 'Reading…' : 'Import GPX' }}</button>
         <input ref="fileInput" class="sr-only" type="file" accept=".gpx,application/gpx+xml" @change="importFile(($event.target as HTMLInputElement).files?.[0])" />
         <p v-if="config.gpx.imported" class="track-summary">{{ config.gpx.trackName }} · {{ config.gpx.distanceKm.toFixed(2) }} km</p>
+        <button v-if="config.gpx.imported" class="secondary" :disabled="importing || ui.generating || previewBusy" @click="store.clearGpx()">Remove GPX</button>
       </header>
       <div class="scroll"><CityControls /></div>
       <footer>
         <p v-if="ui.statusMessage" class="city-status" role="status">{{ ui.statusMessage }}</p>
         <progress v-if="ui.generating" :value="ui.exportProgress" max="1" />
-        <button class="primary" :disabled="!mapReady || !config.gpx.imported || ui.generating || importing || previewBusy" @click="preview">Preview & export City STL</button>
-        <button class="secondary" :disabled="!canExportMap" @click="download('trail')">Download trail STL</button>
+        <button class="primary" :disabled="!mapReady || ui.generating || importing || previewBusy" @click="preview">Preview & export City STL</button>
+        <button class="secondary" :disabled="!canExportTrail" @click="download('trail')">Download trail STL</button>
         <button class="secondary" :disabled="!canExportMap" @click="previewPicture">Preview & export map picture</button>
         <p class="print-hint">Personalize a route poster or export just the map. No 3D preview needed. Print at 100%; choose Flat to place the trail on paper.</p>
         <button v-if="ui.lastExportPath && !ui.generating" class="secondary" @click="revealDownload">{{ api.runtime === 'browser' ? 'Download again' : 'Show saved export' }}</button>
       </footer>
     </aside>
     <main class="city-panel">
-      <div class="map-tools"><span>City / {{ config.city.surface === 'flat' ? 'Flat base' : 'Real terrain' }}</span><button class="secondary" @click="map?.resetMapView()">Fit track</button></div>
+      <div class="map-tools"><span>City / {{ config.city.surface === 'flat' ? 'Flat base' : 'Real terrain' }}</span><button class="secondary" @click="map?.resetMapView()">{{ config.gpx.imported ? 'Fit track' : 'Reset map view' }}</button></div>
       <div class="city-map" :class="{ locked: ui.generating }" @dragover.prevent @drop.prevent="onDrop">
-        <MapFramingView ref="map" :crop="config.mapCrop" v-model:colors="config.colors" :gpx="config.gpx" :points="config.gpx.points" :segments="config.gpx.segments" :fit-nonce="store.fitNonce" :restore-view="config.gpx.imported" @update:crop="config.mapCrop = $event" @viewport="viewportChanged" @ready="mapReady = $event" />
-        <div v-if="!config.gpx.imported" class="empty"><strong>A city. A run. Your story.</strong><p>Drop a GPX running route to get started.</p></div>
+        <MapFramingView ref="map" :crop="config.mapCrop" v-model:colors="config.colors" :gpx="config.gpx" :points="config.gpx.points" :segments="config.gpx.segments" :fit-nonce="store.fitNonce" :restore-view="config.gpx.imported || config.mapCrop.mapCenterLat !== 0 || config.mapCrop.mapCenterLon !== 0" @update:crop="config.mapCrop = $event" @viewport="viewportChanged" @ready="mapReady = $event" />
       </div>
       <p class="attribution">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p>
     </main>
     <div v-if="previewOpen" class="modal-backdrop" @click.self="!ui.generating && closePreview()" @keydown.esc="!ui.generating && closePreview()">
       <section ref="previewDialog" class="city-modal" @keydown="trapPreviewFocus" role="dialog" aria-modal="true" aria-labelledby="city-preview-title" tabindex="-1">
-        <div class="modal-head"><div><h2 id="city-preview-title">Your city run, in 3D</h2><p>Adjust the route, inspect the fit, then download your model.</p></div><button class="secondary" aria-label="Close city preview" :disabled="ui.generating" @click="closePreview">Close</button></div>
+        <div class="modal-head"><div><h2 id="city-preview-title">{{ config.gpx.imported ? 'Your city run, in 3D' : 'Your city, in 3D' }}</h2><p>Inspect your city and download the model.</p></div><button class="secondary" aria-label="Close city preview" :disabled="ui.generating" @click="closePreview">Close</button></div>
         <div class="preview-layout">
           <div class="preview-model">
             <div class="preview-stage" :aria-busy="previewBusy || (previewStale && !error)">
@@ -177,9 +178,9 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
           <aside class="trail-editor" aria-labelledby="city-preview-trail-title" @input="schedulePreview">
             <h3 id="city-preview-trail-title"><span class="trail-dot" :style="{ backgroundColor: config.colors.trail }" aria-hidden="true"></span>Running route</h3>
             <p>Updates 1 second after you stop typing.</p>
-            <CityTrailControls v-model="config.city" :base-thickness="config.terrain.baseSolidThicknessMm" :disabled="ui.generating" stacked />
+            <CityTrailControls v-model="config.city" :base-thickness="config.terrain.baseSolidThicknessMm" :disabled="ui.generating || !config.gpx.imported" stacked />
             <p class="trail-help">Width shapes the insert. Clearance gives it room to fit. Seating depth sinks it into the base; relief sets its height above the surface.</p>
-            <p class="trail-note">Your GPX stays in place.</p>
+            <p class="trail-note">{{ config.gpx.imported ? 'Your GPX stays in place.' : 'No route added. Import a GPX to include a running trail.' }}</p>
             <h3>Model colors</h3>
             <ModelColorControls v-model="config.colors" workspace="city" :show-tray="false" :disabled="ui.generating" @input.stop />
           </aside>
@@ -189,7 +190,7 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
           <div class="export-actions">
             <button v-if="error" class="secondary" :disabled="previewBusy || ui.generating" @click="preview">Retry preview</button>
             <button class="secondary" :disabled="!canExportMap" @click="previewPicture">Preview map picture</button>
-            <button class="secondary" :disabled="!canExportMap" @click="download('trail')">Download trail STL</button>
+            <button class="secondary" :disabled="!canExportTrail" @click="download('trail')">Download trail STL</button>
             <button class="primary" :disabled="!canExportModel" @click="download()">{{ ui.generating ? 'Exporting…' : 'Download City ZIP' }}</button>
           </div>
         </footer>

@@ -146,7 +146,7 @@ async function onDownloadStl(): Promise<void> {
     <div ref="surfaceRef" class="preview__surface">
       <MapLeafletView ref="mapRef" />
 
-      <div v-if="!config.gpx.imported" class="preview__placeholder">
+      <div v-if="dragOver" class="preview__placeholder">
         <svg
           class="preview__icon"
           width="48"
@@ -161,25 +161,25 @@ async function onDownloadStl(): Promise<void> {
           <path d="M16 6v16" />
         </svg>
         <p class="preview__title">
-          {{ dragOver ? "Drop to import GPX" : "Drop a GPX track to get started" }}
+          Drop to import GPX
         </p>
         <p class="preview__hint">
           {{
             importing
               ? "Reading track…"
-              : "Drop a GPX file here or choose Import GPX in the sidebar."
+              : "Add a route to your terrain model."
           }}
         </p>
       </div>
 
-      <div v-if="config.gpx.imported" class="preview__hint-bar">
+      <div class="preview__hint-bar">
         <span
           >Drag to pan · Scroll to zoom · Alt / Option + drag to rotate · White = terrain · Yellow = tray ·
           Reset the view at the top right</span
         >
       </div>
 
-      <div v-if="config.gpx.imported" class="preview__top-actions">
+      <div class="preview__top-actions">
         <button
           type="button"
           class="preview__grid-btn"

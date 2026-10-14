@@ -17,7 +17,7 @@ const syncStoreFromMap = () => map.value?.syncStoreFromMap();
 const fitTrackInView = () => map.value?.fitTrackInView();
 const resetMapView = () => map.value?.resetMapView();
 onMounted(() => { unsubscribe = ui.registerPrepareExportHook(syncStoreFromMap); });
-onUnmounted(() => unsubscribe?.());
+onUnmounted(() => { unsubscribe?.(); ui.mapReady = false; });
 defineExpose({ syncStoreFromMap, fitTrackInView, resetMapView });
 </script>
 <template>
@@ -28,5 +28,6 @@ defineExpose({ syncStoreFromMap, fitTrackInView, resetMapView });
     :water-review="water.review"
     @toggle-water="water.toggleFeature"
     :restore-view="!!store.schemes.find(s => s.id === store.activeSchemeId)?.payload.mapView"
+    @ready="ui.mapReady = $event"
     @update:crop="config.mapCrop = $event" />
 </template>

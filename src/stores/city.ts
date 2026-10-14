@@ -28,5 +28,8 @@ export const useCityStore = defineStore('city', () => {
     config.value.mapCrop.mapZoom = zoomToFitBoundsInMask(result.bounds, Math.max(view.w, 64), Math.max(view.h, 64), config.value.mapCrop);
     fitNonce.value++;
   }
-  return { config, fitNonce, applyImport };
+  function clearGpx() {
+    config.value.gpx = createDefaultCityConfig().gpx;
+  }
+  return { config, fitNonce, applyImport, clearGpx };
 });

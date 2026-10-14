@@ -101,7 +101,7 @@ onUnmounted(() => {
       <div class="sign-in__intro">
         <p class="sign-in__eyebrow">A trail worth keeping.</p>
         <h1>Your adventures,<br>in three dimensions.</h1>
-        <p>Turn the places you’ve explored into terrain you can hold. Import a GPX track, shape your model, and make it yours.</p>
+        <p>Turn the places you’ve explored into terrain you can hold. Choose a place on the map, add an optional GPX track, and make it yours.</p>
       </div>
       <svg class="sign-in__contours" viewBox="0 0 760 350" fill="none" aria-hidden="true">
         <g stroke="currentColor" stroke-width="1.2">

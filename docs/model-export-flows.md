@@ -6,6 +6,16 @@ settings for the session. Switching disposes its preview and clears progress and
 download status. Switching is disabled while an export is running. Mountain
 presets keep their existing format and behavior; City has no presets or accessories.
 
+GPX is optional in both workspaces. Frame an area on the map and generate a
+terrain/tray or city model without a route. Importing a GPX adds the trail and
+matching groove; **Remove GPX** keeps the current map framing and restores the
+surface without a groove. Imported routes still need valid points within the
+print area. Standalone trail downloads require GPX. ZIPs and complete model 3MFs
+omit the trail part when no route is imported, and filenames use `TrailPrint`
+as their fallback prefix. Water, tray labels, magnets and mold kits remain
+available without a route; NFC has a recess and cover but no endpoint LED pockets.
+City map pictures also work without GPX and contain no route overlay.
+
 ## Shared boundaries
 
 - `shared/types/export.ts` registers both request types. A request without `flow`
@@ -159,7 +169,7 @@ the 80-byte header. Paint-manifest references use the same prefix.
 Names preserve spaces and Unicode, sanitize unsupported filesystem characters,
 and fall back to the desktop path, track title or `TrailPrint` if needed.
 
-City ZIPs contain `<prefix>_City_Main.stl`, `<prefix>_Trail_Line.stl` and
+City ZIPs contain `<prefix>_City_Main.stl`, an optional `<prefix>_Trail_Line.stl` and
 `<prefix>_Assembly_Instructions.txt`. Both STL parts use millimeters and shared XYZ
 assembly coordinates. Instructions include OpenStreetMap attribution and ODbL
 information. Separate route islands may need supports when printed individually.

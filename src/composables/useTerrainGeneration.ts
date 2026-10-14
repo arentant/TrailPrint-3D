@@ -71,15 +71,6 @@ export function useTerrainGeneration(
     const { w, h } = viewport.value;
     if (w < 64 || h < 64) return;
 
-    if (!config.value.gpx.imported) {
-      mesh.value = null;
-      trailMesh.value = null;
-      lastResult.value = null;
-      error.value = null;
-      progress.value = null;
-      return;
-    }
-
     const validation = validateModelGeneration(config.value, {
       viewportWidth: w,
       viewportHeight: h,

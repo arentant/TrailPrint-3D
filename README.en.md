@@ -30,7 +30,7 @@ TrailPrint 3D is an open-source desktop app that combines GPX activity tracks wi
 
 ## 🛠️ Workflow
 
-### 0. Get a GPX file
+### 0. Get a GPX file (optional)
 
 Export your target track as a `.gpx` file from your GPS app or platform of choice (e.g. Garmin, Strava, AllTrails, or [2bulu](https://www.2bulu.com/) for Chinese hiking communities).
 
@@ -38,7 +38,11 @@ Export your target track as a `.gpx` file from your GPS app or platform of choic
 
 ### 1. Import the track
 
-Launch the app and upload the `.gpx` file from the previous step.
+Launch the app and frame a place on the map. You can generate Mountain terrain
+and City models without a GPX. To add a trail, upload the `.gpx` file from the
+previous step. **Remove GPX** returns to a model without a route and keeps your
+map framing. Trail-only downloads require a GPX; other downloads omit the trail
+part when no track is imported.
 
 ![Import GPX track](docs/images/readme/01-import-gpx.webp)
 
@@ -184,7 +188,7 @@ The Mountain archive contains:
 | File               | Description                                             | Condition           |
 | ------------------ | ------------------------------------------------------- | ------------------- |
 | `<gpx-name>_Terrain_Main.stl` | Main terrain mesh with base thickness and trail grooves | Always              |
-| `<gpx-name>_Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | Always              |
+| `<gpx-name>_Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | With an imported GPX |
 | `<gpx-name>_Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Always              |
 | `<gpx-name>_Tray_Text.stl`    | Bed-ready raised text; assembly placement in the guide                 | With enabled labels |
 | `<gpx-name>_Tray_AMS.3mf`     | Base and text assembly with separate filament assignments | With enabled labels |

@@ -98,7 +98,7 @@ export function renderPrintableCityMap(request: CityGenerateRequest, crop: Terra
     return `<image width="256" height="256" transform="matrix(${matrix.join(' ')})" href="${tile.dataUrl}"/>`;
   }).join('\n');
   const gpx = request.config.gpx;
-  const segments = (gpx.segments ?? [gpx.rawPoints?.length ? gpx.rawPoints : gpx.points]).filter((s) => s.length >= 2);
+  const segments = gpx.imported ? (gpx.segments ?? [gpx.rawPoints?.length ? gpx.rawPoints : gpx.points]).filter((s) => s.length >= 2) : [];
   const routes = segments.map((s) => `<path d="${path(s.map((p) => [p.lon, p.lat]))}"/>`).join('\n');
   const picture = request.config.picture;
   const { width, height, margin, header } = cityPictureLayout(crop, picture);

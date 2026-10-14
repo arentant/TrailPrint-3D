@@ -33,7 +33,7 @@ function build(resetView = false) {
   cityMaterial = new THREE.MeshStandardMaterial({ color: props.colors.terrain, roughness: 0.8, flatShading: true });
   routeMaterial = new THREE.MeshStandardMaterial({ color: props.colors.trail, roughness: 0.5 });
   group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.cityMesh, { hardEdges: true }), cityMaterial));
-  group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.routeMesh, { hardEdges: true }), routeMaterial));
+  if (props.result.routeMesh) group.add(new THREE.Mesh(payloadToBufferGeometry(props.result.routeMesh, { hardEdges: true }), routeMaterial));
   scene.add(group);
   const box = new THREE.Box3().setFromObject(group), size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
   const span = Math.max(size.x, size.y, size.z, 20);

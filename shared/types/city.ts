@@ -78,7 +78,8 @@ export interface CityGenerateProgress {
 export interface CityGenerateResponse {
   crop: TerrainCropRegion;
   cityMesh: TerrainMeshPayload;
-  routeMesh: TerrainMeshPayload;
+  /** Absent when the city is generated without an imported GPX route. */
+  routeMesh: TerrainMeshPayload | null;
   featureCounts: { buildings: number; roads: number; routeSegments: number; omitted: number };
   warnings: string[];
   generationMs: number;

@@ -36,12 +36,14 @@ function testTrailOutsidePrintArea(): void {
   assert.match(result.message ?? "", /print area/);
 }
 
-function testModelGenerationRequiresGpx(): void {
+function testGpxIsOptionalExceptForTrail(): void {
   const config = createDefaultConfig();
   config.gpx.imported = false;
   const result = validateModelGeneration(config);
-  assert.equal(result.valid, false);
-  assert.equal(result.scope, "gpx");
+  assert.equal(result.valid, true);
+  assert.equal(validateModelGeneration(config, { trailOnly: true }).scope, 'gpx');
+  config.gpx.imported = true;
+  assert.equal(validateModelGeneration(config).scope, 'gpx', 'an imported but empty route is still invalid');
 }
 
 function testAssemblySectionPassesDefault(): void {
@@ -51,6 +53,6 @@ function testAssemblySectionPassesDefault(): void {
 
 testMagnetDepthConflict();
 testTrailOutsidePrintArea();
-testModelGenerationRequiresGpx();
+testGpxIsOptionalExceptForTrail();
 testAssemblySectionPassesDefault();
 console.log("model-validation tests passed");

@@ -229,7 +229,6 @@ export async function generateTerrainMain(
   }
 
   if (fused) {
-    if (!trailMesh) throw new Error('A printable trail is required for the fused model.');
     const materials = fuseModelMaterials(await getManifold(), mesh, trailMesh, waterMeshes);
     mesh = materials.mesh; trailMesh = materials.trailMesh; waterMeshes = materials.waterMeshes;
     waterMetadata.waterPartMappings = waterMetadata.waterPartMappings?.flatMap(mapping => {
