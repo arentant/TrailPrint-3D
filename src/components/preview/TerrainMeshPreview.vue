@@ -376,7 +376,7 @@ async function rebuildScene(): Promise<void> {
   overlayRoot.position.z = assemblyOffsetZ;
   rebuildMaskMeshes(assemblyOffsetZ);
 
-  const tray = props.trayMesh;
+  const tray = config.value.tray.enabled ? props.trayMesh : null;
   if (tray?.positions?.length && tray.indices?.length) {
     reportScene("tray", 0.65, "Loading tray base…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -802,6 +802,7 @@ watch(
   () => [
     props.result,
     props.trayMesh,
+    config.value.tray.enabled,
     props.generating,
     config.value.tray.totalThicknessMm,
     config.value.tray.recessDepthMm,
@@ -915,7 +916,7 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       class="terrain-preview__badge terrain-preview__badge--dim"
     >
       {{ demLabel }}
-      <span> · Tray base included · Drag to rotate</span>
+      <span v-if="config.tray.enabled"> · Tray base included</span><span> · Drag to rotate</span>
     </div>
   </div>
 </template>

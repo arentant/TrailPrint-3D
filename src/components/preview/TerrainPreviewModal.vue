@@ -395,7 +395,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                 Download model 3MF
               </button>
               <button
-                v-if="trayMesh?.textMesh?.indices.length"
+                v-if="config.tray.enabled && trayMesh?.textMesh?.indices.length"
                 type="button"
                 class="terrain-modal__trail-download"
                 :disabled="!canDownload"
@@ -553,7 +553,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             >
               <div class="spray-panel__section">
                 <p class="spray-panel__colors-title">Model colors</p>
-                <ModelColorControls ref="colorControlsRef" v-model="config.colors" :show-text="config.tray.text.enabled" :show-water="config.water.enabled" :disabled="downloading" />
+                <ModelColorControls ref="colorControlsRef" v-model="config.colors" :show-tray="config.tray.enabled" :show-text="config.tray.enabled && config.tray.text.enabled" :show-water="config.water.enabled" :disabled="downloading" />
                 <p v-if="sprayEnabled && sprayPlan" class="spray-panel__paint-hint">Painted regions override the terrain's base color.</p>
               </div>
               <div class="spray-panel__section">

@@ -1,4 +1,4 @@
-import type { GpxState, MapCropConfig, TerrainConfig, AssemblyConfig } from "../types/config.js";
+import type { GpxState, MapCropConfig, TerrainConfig, AssemblyConfig, TrayConfig } from "../types/config.js";
 import { physicalFootprintMm } from "../utils/crop-region.js";
 
 type GpxFileSource = Pick<GpxState, "fileName" | "filePath" | "trackName">;
@@ -40,6 +40,7 @@ interface ExportNamingConfig {
   mapCrop: MapCropConfig;
   terrain: TerrainConfig;
   assembly?: AssemblyConfig;
+  tray?: Pick<TrayConfig, 'enabled'>;
 }
 
 /** One prefix for the archive, every part, and manifest references. Dimensions are millimeters. */
@@ -57,7 +58,7 @@ export function modelExportStem(config: ExportNamingConfig): string {
   const magnetSize = magnetShape === "rectangle"
     ? `${mm(magnet?.lengthMm ?? 6)}x${mm(magnet?.widthMm ?? 4)}x${mm(magnet?.thicknessMm ?? 2)}mm`
     : `${mm(magnet?.diameterMm ?? 6)}x${mm(magnet?.thicknessMm ?? 2)}mm`;
-  const magnets = magnet?.enabled ? `on-${magnetShape}-${magnetSize}` : "off";
+  const magnets = config.tray?.enabled && magnet?.enabled ? `on-${magnetShape}-${magnetSize}` : "off";
   const suffix = safeStem(`_${shape}_${size}_mesh-${quality}_magnets-${magnets}`);
   const name = safeStem(gpxExportStem(config.gpx), 180 - new TextEncoder().encode(suffix).length);
   return `${name}${suffix}`;

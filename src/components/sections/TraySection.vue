@@ -33,6 +33,14 @@ const trayError = computed(() => {
     :open="openSections.tray"
     @toggle="ui.toggleSection('tray')"
   >
+    <div class="toggle-row">
+      <div class="toggle-copy">
+        <span class="toggle-label">Generate base</span>
+        <span class="toggle-desc">Add a separate tray beneath the terrain</span>
+      </div>
+      <IosToggle v-model="config.tray.enabled" :disabled="ui.generating" aria-label="Generate base" />
+    </div>
+    <template v-if="config.tray.enabled">
     <NumberField
       v-model="config.tray.totalThicknessMm"
       label="Total thickness"
@@ -186,6 +194,7 @@ const trayError = computed(() => {
     </div>
 
     <p v-if="trayError" class="error">{{ trayError }}</p>
+    </template>
   </AccordionSection>
 </template>
 

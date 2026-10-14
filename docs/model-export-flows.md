@@ -34,6 +34,13 @@ City map pictures also work without GPX and contain no route overlay.
 
 ## Mountain base and labels
 
+The separate tray base is optional and defaults to off. Enable **Generate base**
+in **4. Tray base** to include its outline, preview and exported parts. While off,
+base dimensions, labels, keychain holes, NFC and magnets remain saved but do not
+block terrain generation or add files/3MF parts. Presets retain the toggle;
+older presets without the setting default to off. Terrain keeps its own solid
+thickness and rests at Z = 0 in the preview when the tray is disabled.
+
 The terrain and tray are separate printed parts. The tray has a recessed seat;
 its floor is at `totalThicknessMm - recessDepthMm`. The preview lifts the terrain
 and trail by that floor height plus `baseSolidThicknessMm`, putting the terrain's

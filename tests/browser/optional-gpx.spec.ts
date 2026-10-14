@@ -9,6 +9,45 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/MapServer/tile/**', route => route.fulfill({ contentType: 'image/png', body: tile }));
 });
 
+test('base toggle persists in presets and legacy presets default to off', async ({ page }) => {
+  await page.goto('/');
+  const toggle = page.getByRole('switch', { name: 'Generate base', exact: true });
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  async function save(name: string) {
+    await page.getByRole('button', { name: 'Save preset', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('textbox', { name: 'Preset name', exact: true }).fill(name);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+  async function apply(name: string) {
+    await page.getByTitle('Apply a saved preset', { exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: new RegExp(name) }).click();
+    await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+  await save('Without base');
+  await toggle.click();
+  await page.getByRole('spinbutton', { name: 'Total thickness', exact: true }).fill('6');
+  await save('With base');
+  await apply('Without base');
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await apply('With base');
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('spinbutton', { name: 'Total thickness', exact: true })).toHaveValue('6');
+  await page.evaluate(() => {
+    const presets = JSON.parse(localStorage.getItem('trailprint.configSchemes')!);
+    delete presets.find((preset: { name: string }) => preset.name === 'With base').payload.tray.enabled;
+    localStorage.setItem('trailprint.configSchemes', JSON.stringify(presets));
+  });
+  await page.reload();
+  await apply('With base');
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await toggle.click();
+  await expect(page.getByRole('spinbutton', { name: 'Total thickness', exact: true })).toHaveValue('6');
+});
+
 test('Mountain previews and exports the selected area without GPX, then allows adding and removing a track', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -20,8 +59,17 @@ test('Mountain previews and exports the selected area without GPX, then allows a
   });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('switch', { name: 'Generate base', exact: true })).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByText('Choose a place on the map', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Grid off', exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const generate = window.trailPrint.generateTray;
+    Object.assign(window, { baseGenerations: 0 });
+    window.trailPrint.generateTray = request => {
+      (window as unknown as { baseGenerations: number }).baseGenerations++;
+      return generate(request);
+    };
+  });
   await page.getByPlaceholder('Paste your API key').fill('test-key');
   await page.getByRole('button', { name: 'Standard', exact: true }).click();
   await page.getByRole('button', { name: 'Preview & export STL', exact: true }).click();
@@ -37,11 +85,27 @@ test('Mountain previews and exports the selected area without GPX, then allows a
   const files = unzipSync(await readFile((await artifact.path())!));
   const stls = Object.keys(files).filter(name => name.endsWith('.stl'));
   expect(stls.some(name => name.endsWith('_Terrain_Main.stl'))).toBe(true);
-  expect(stls.some(name => name.endsWith('_Tray_Base.stl'))).toBe(true);
+  expect(stls.some(name => name.endsWith('_Tray_Base.stl'))).toBe(false);
   expect(stls.some(name => name.endsWith('_Trail_Line.stl'))).toBe(false);
+  expect(await page.evaluate(() => (window as unknown as { baseGenerations: number }).baseGenerations)).toBe(0);
   await expect(download).toBeEnabled();
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toBeHidden();
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Total thickness', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Preview & export STL', exact: true }).click();
+  await expect(download).toBeEnabled({ timeout: 60_000 });
+  await expect(dialog.getByText('With tray', { exact: true })).toBeVisible();
+  const baseEvent = page.waitForEvent('download');
+  await download.click();
+  const baseArtifact = await baseEvent;
+  const baseFiles = unzipSync(await readFile((await baseArtifact.path())!));
+  expect(Object.keys(baseFiles).some(name => name.endsWith('_Tray_Base.stl'))).toBe(true);
+  await expect(download).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Total thickness', exact: true })).toBeHidden();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
   await expect(page.locator('.gpx-summary__title')).not.toHaveText('Choose a place on the map');
   await expect(page.locator('.sidebar').getByRole('button', { name: 'Download trail STL', exact: true })).toBeEnabled();
@@ -49,6 +113,7 @@ test('Mountain previews and exports the selected area without GPX, then allows a
   await expect(page.locator('.sidebar').getByRole('button', { name: 'Download trail STL', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Preview & export STL', exact: true }).click();
   await expect(download).toBeEnabled({ timeout: 60_000 });
+  await expect(dialog.getByText('With tray', { exact: true })).toBeHidden();
   expect(errors).toEqual([]);
 });
 

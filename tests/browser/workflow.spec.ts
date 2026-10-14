@@ -22,6 +22,7 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   await expect(page.getByRole('heading', { name: 'TrailPrint', exact: true })).toBeVisible()
   await page.getByPlaceholder('Paste your API key').fill('browser-test-key')
   await page.getByRole('button', { name: 'Standard', exact: true }).click()
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.getByRole('switch', { name: 'Underside magnet holes', exact: true }).click()
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'))
   await expect(page.getByText('Drop a GPX track to get started')).toBeHidden()
@@ -41,8 +42,8 @@ test('GPX import, terrain preview, validated STL ZIP, and repeat download', asyn
   const download = await downloadEvent
   expect(download.suggestedFilename()).toBe('sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm.zip')
   const files = unzipSync(await readFile((await download.path())!))
-  expect(Object.keys(files).sort()).toEqual(['sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Terrain_Main.stl', 'sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Trail_Line.stl', 'sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Tray_Base.stl'])
-  for (const [name, bytes] of Object.entries(files)) {
+  expect(Object.keys(files).filter(name => name.endsWith('.stl')).sort()).toEqual(['sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Terrain_Main.stl', 'sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Trail_Line.stl', 'sample-trail_circle_R60mm_mesh-standard_magnets-on-circle-6x2mm_Tray_Base.stl'])
+  for (const [name, bytes] of Object.entries(files).filter(([name]) => name.endsWith('.stl'))) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     const triangles = view.getUint32(80, true)
     expect(triangles, name).toBeGreaterThan(0)

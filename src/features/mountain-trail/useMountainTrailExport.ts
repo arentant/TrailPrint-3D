@@ -37,7 +37,7 @@ export function useMountainTrailExport() {
         configStore.config.mapCrop.mapZoom = exportConfig.mapCrop.mapZoom;
       }
 
-      if (target === "all") {
+      if (target === "all" && exportConfig.tray.enabled) {
         const footprint = computeTrayFootprint(exportConfig);
         const holes = computeTrayBottomMagnetHoles(exportConfig, footprint);
         logMagnetDebug({

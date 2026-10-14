@@ -126,9 +126,19 @@ test('polygon and rounded rectangle recesses leave the configured gap along ever
 
 test('terrain bottom contacts the recess floor at any base thickness', () => {
   const config = api.createDefaultConfig();
+  config.tray.enabled = true;
   for (const thickness of [1, 2, 5]) for (const depth of [0.5, 2, 4]) {
     config.terrain.baseSolidThicknessMm = thickness; config.tray.recessDepthMm = depth;
     assert.equal(-thickness + api.computeTerrainAssemblyOffsetZMm(config), api.trayRecessFloorZMm(config));
+  }
+});
+
+test('terrain rests on the print bed without a tray and ignores unused tray thickness', () => {
+  const config = api.createDefaultConfig();
+  config.tray.totalThicknessMm = 100;
+  for (const thickness of [1, 2, 5]) {
+    config.terrain.baseSolidThicknessMm = thickness;
+    assert.equal(-thickness + api.computeTerrainAssemblyOffsetZMm(config), 0);
   }
 });
 

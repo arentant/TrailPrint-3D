@@ -72,7 +72,7 @@ test('Mountain guides cover every setting, optional electronics, magnets, masks,
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/')
   await page.getByRole('button', { name: 'Custom', exact: true }).click()
-  for (const name of ['NFC & LED indicators', 'Underside magnet holes']) {
+  for (const name of ['Generate base', 'NFC & LED indicators', 'Underside magnet holes']) {
     const toggle = page.getByRole('switch', { name, exact: true })
     if (await toggle.getAttribute('aria-checked') === 'false') await toggle.click()
   }

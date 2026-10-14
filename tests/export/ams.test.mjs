@@ -29,6 +29,7 @@ const api = await import(pathToFileURL(modulePath).href);
 
 function config(shape = 'circle', corner = 0) {
   const cfg = api.createDefaultConfig();
+  cfg.tray.enabled = true;
   Object.assign(cfg.mapCrop, { shape, cornerRadiusMm: corner });
   Object.assign(cfg.tray.text, { enabled: true, labels: [{ text: 'B8O TRAIL', edge: 0 }, { text: '42.80 km', edge: 2 }] });
   cfg.tray.keychain.enabled = true; cfg.assembly.magnet.enabled = true;

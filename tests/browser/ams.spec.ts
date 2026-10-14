@@ -19,6 +19,7 @@ test('text has an independent preview color and AMS download preserves the lates
     await route.fulfill({ contentType: 'application/octet-stream', body: values })
   })
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.getByPlaceholder('Paste your API key').fill('ams-test-key')
   await page.getByRole('button', { name: 'Standard', exact: true }).click()
   await page.getByRole('switch', { name: 'Text on base', exact: true }).click()

@@ -43,11 +43,40 @@ before(async () => { wasm = await Module(); wasm.setup(); globalThis.__waterWasm
 
 function request(shape = 'rectangle', bearing = 0) {
   const config = api.createDefaultConfig();
+  config.tray.enabled = true;
   Object.assign(config.mapCrop, { shape, mapCenterLat: 40.18, mapCenterLon: 44.51, mapZoom: 15, mapBearingDeg: bearing });
   Object.assign(config.terrain, { meshQuality: 'custom', meshQualityCustom: { maxGrid: 64 } });
   config.water.enabled = true;
   return { config, viewportWidth: 800, viewportHeight: 600 };
 }
+
+for (const imported of [false, true]) test(`base defaults off and is omitted from ZIP and 3MF ${imported ? 'with' : 'without'} GPX`, async () => {
+  assert.equal(api.createDefaultConfig().tray.enabled, false);
+  const req = request(); req.config.tray.enabled = false; req.config.water.enabled = false;
+  req.config.tray.text.enabled = true; req.config.tray.text.labels = [{ text: 'UNUSED 🏔', edge: 0 }];
+  req.config.tray.nfc.enabled = true; req.config.tray.recessDepthMm = 100;
+  req.config.assembly.magnet.enabled = true; req.config.assembly.magnet.thicknessMm = 100;
+  if (imported) req.config.gpx = { ...req.config.gpx, imported: true, points: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }],
+    rawPoints: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }], pointCount: 2 };
+  assert.equal(api.validateModelGeneration(req.config).valid, true, 'unused base settings must not block terrain');
+  assert.ok(api.modelExportStem(req.config).endsWith('_magnets-off'));
+  const files = {};
+  await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, bytes) => { files[name] = bytes; });
+  const stls = Object.keys(files).filter(name => name.endsWith('.stl'));
+  assert.equal(stls.length, imported ? 2 : 1);
+  assert.ok(!Object.keys(files).some(name => /Tray_|Cover|Text/.test(name)));
+  for (const mode of ['separate', 'fused']) {
+    req.config.printMode = mode;
+    const colored = {};
+    await api.mountainTrailExportFlow.generateFiles({ ...req, target: 'model-3mf' }, () => {}, (name, bytes) => { colored[name] = bytes; });
+    const model = strFromU8(unzipSync(Object.values(colored)[0])['3D/3dmodel.model']);
+    assert.equal((model.match(/<item /g) ?? []).length, 1);
+    assert.doesNotMatch(model, /name="Tray"|name="Text"/);
+  }
+  await assert.rejects(api.mountainTrailExportFlow.generateFiles({ ...req, target: 'ams-base' }, () => {}, () => assert.fail('No base file')), /Enable Generate base/);
+  req.config.tray.enabled = true;
+  assert.equal(api.validateModelGeneration(req.config).scope, 'tray', 'enabling the base restores its validation');
+});
 const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
 function dataFor(req, crop, polygons) {
   const scale = api.maskMmScale(req.config.mapCrop, crop, req.viewportWidth, req.viewportHeight);

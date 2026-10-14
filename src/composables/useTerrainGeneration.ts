@@ -141,6 +141,7 @@ export function useTerrainGeneration(
       config.value.water.thicknessMm,
       JSON.stringify(config.value.water),
       config.value.printMode,
+      config.value.tray.enabled,
       waterStore.currentCatalog,
       config.value.mapCrop.shape,
       config.value.mapCrop.radiusMm,

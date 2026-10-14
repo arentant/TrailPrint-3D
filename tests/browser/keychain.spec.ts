@@ -33,6 +33,7 @@ test('keychain hole opens through the rim in the preview and STL and updates on 
     await route.fulfill({ contentType: 'application/octet-stream', body: values })
   })
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.waitForLoadState('networkidle')
   await page.getByPlaceholder('Paste your API key').fill('browser-test-key')
   await page.getByRole('button', { name: 'Standard', exact: true }).click()
@@ -97,6 +98,7 @@ test('keychain hole opens through the rim in the preview and STL and updates on 
 
 test('keychain presets persist, old presets load disabled, and conflicts are explained', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.waitForLoadState('networkidle')
   await page.getByRole('switch', { name: 'Keychain hole', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Keychain hole diameter', exact: true }).fill('10')

@@ -142,6 +142,7 @@ test('export names remove unsafe characters and avoid reserved or oversized file
 
 test('export prefixes include the active dimensions, shape, mesh quality and magnet option', () => {
   const config = createDefaultConfig(); config.gpx.fileName = 'berlin.gpx';
+  config.tray.enabled = true;
   config.mapCrop.radiusMm = 80; config.terrain.meshQuality = 'high'; config.assembly.magnet.enabled = true;
   const stem = 'berlin_circle_R80mm_mesh-high_magnets-on-circle-6x2mm';
   assert.equal(modelExportStem(config), stem);

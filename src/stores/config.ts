@@ -66,6 +66,7 @@ function ensureMagnetConfigDefaults(cfg: AppConfig): void {
 
 function ensureTrayNfcDefaults(cfg: AppConfig): void {
   const tray = cfg.tray as AppConfig["tray"] & { nfc?: AppConfig["tray"]["nfc"] };
+  tray.enabled ??= false;
   tray.text = { ...createDefaultTrayText(), ...tray.text };
   tray.keychain = { ...createDefaultTrayKeychain(), ...tray.keychain };
   if (!tray.nfc) {

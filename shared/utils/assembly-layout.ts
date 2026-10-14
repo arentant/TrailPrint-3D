@@ -10,5 +10,5 @@ export function trayRecessFloorZMm(config: AppConfig): number {
  * 地形网格底面在 Z = -baseSolidThicknessMm，平移后底面落在凹槽底面。
  */
 export function computeTerrainAssemblyOffsetZMm(config: AppConfig): number {
-  return trayRecessFloorZMm(config) + config.terrain.baseSolidThicknessMm;
+  return (config.tray.enabled ? trayRecessFloorZMm(config) : 0) + config.terrain.baseSolidThicknessMm;
 }

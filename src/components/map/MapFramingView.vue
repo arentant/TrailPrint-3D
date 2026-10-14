@@ -221,7 +221,7 @@ const polygonOutlinePoints = computed(() => {
 });
 
 const trayOverlay = computed(() => {
-  if (!props.tray || maskW.value < 1 || maskH.value < 1) return null;
+  if (!props.tray?.enabled || maskW.value < 1 || maskH.value < 1) return null;
   if (shapeSelected.value && mapInstance.value) {
     // maskGeom tracks camera movement so the tray projection updates with it.
     void maskGeom.value;
@@ -742,12 +742,12 @@ defineExpose({
           <span class="map-colors__swatches" aria-hidden="true">
             <i :style="{ backgroundColor: colors.trail }" />
             <i :style="{ backgroundColor: colors.terrain }" />
-            <i v-if="tray" :style="{ backgroundColor: colors.tray }" />
-            <i v-if="tray?.text?.enabled" :style="{ backgroundColor: colors.text }" />
+            <i v-if="tray?.enabled" :style="{ backgroundColor: colors.tray }" />
+            <i v-if="tray?.enabled && tray.text.enabled" :style="{ backgroundColor: colors.text }" />
           </span>
         </summary>
         <ModelColorControls :model-value="colors" :workspace="tray ? 'mountain' : 'city'"
-          :show-tray="!!tray" :show-text="!!tray?.text?.enabled" :show-water="!!waterReview?.length" @update:model-value="emit('update:colors', $event)" />
+          :show-tray="!!tray?.enabled" :show-text="!!tray?.enabled && tray.text.enabled" :show-water="!!waterReview?.length" @update:model-value="emit('update:colors', $event)" />
       </details>
     </div>
     <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
@@ -817,7 +817,7 @@ defineExpose({
       </template>
       <div class="mask-legend">
         <span class="mask-legend__item mask-legend__item--terrain">White · {{ props.tray ? 'Terrain' : 'City' }}</span>
-        <span v-if="props.tray" class="mask-legend__item mask-legend__item--tray">Yellow · Tray edge</span>
+        <span v-if="props.tray?.enabled" class="mask-legend__item mask-legend__item--tray">Yellow · Tray edge</span>
       </div>
     </div>
   </div>

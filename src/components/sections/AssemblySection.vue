@@ -68,6 +68,7 @@ const assemblyError = computed(() => {
         :step="0.01"
       />
       <NumberField
+        v-if="config.tray.enabled"
         v-model="config.assembly.trayToleranceMm"
         label="Base recess clearance"
         help="trayClearance"
@@ -78,12 +79,12 @@ const assemblyError = computed(() => {
       />
     </div>
 
-    <div class="toggle-row">
+    <div v-if="config.tray.enabled" class="toggle-row">
       <SettingLabel label="Underside magnet holes" guide="magnets" />
       <IosToggle v-model="config.assembly.magnet.enabled" aria-label="Underside magnet holes" />
     </div>
 
-    <template v-if="config.assembly.magnet.enabled">
+    <template v-if="config.tray.enabled && config.assembly.magnet.enabled">
       <p class="hint">
         Choose the pocket shape to match your magnet. Dimensions are in millimeters; clearance adds space around the magnet and increases the pocket depth.
       </p>

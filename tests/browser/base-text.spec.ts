@@ -17,6 +17,7 @@ test('base text reaches the preview and downloaded STL, and updates when edited'
     await route.fulfill({ contentType: 'application/octet-stream', body: values })
   })
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.waitForLoadState('networkidle')
   await expect(page.getByLabel('Terrain and base fit')).toContainText('0.20 mm')
   await expect(page.getByLabel('Terrain and base fit')).toContainText('flush with the rim')
@@ -73,6 +74,7 @@ test('base text reaches the preview and downloaded STL, and updates when edited'
 
 test('text presets persist, old presets load, and invalid labels give useful errors', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.waitForLoadState('networkidle')
   await page.getByRole('switch', { name: 'Text on base', exact: true }).click()
   await page.getByRole('textbox', { name: 'Base label 1', exact: true }).fill('Արագած և Արարատ')

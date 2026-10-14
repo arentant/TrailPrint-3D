@@ -174,7 +174,7 @@ async function onDownloadStl(): Promise<void> {
 
       <div class="preview__hint-bar">
         <span
-          >Drag to pan · Scroll to zoom · Alt / Option + drag to rotate · White = terrain · Yellow = tray ·
+          >Drag to pan · Scroll to zoom · Alt / Option + drag to rotate · White = terrain<span v-if="config.tray.enabled"> · Yellow = tray</span> ·
           Reset the view at the top right</span
         >
       </div>

@@ -17,6 +17,7 @@ test('magnet shape and sizes reach preview and the downloaded STL with clearance
     await route.fulfill({ contentType: 'application/octet-stream', body: values })
   })
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.getByPlaceholder('Paste your API key').fill('browser-test-key')
   await page.getByRole('button', { name: 'Standard', exact: true }).click()
   await page.getByRole('switch', { name: 'Underside magnet holes', exact: true }).click()
@@ -77,7 +78,7 @@ test('magnet shape and sizes reach preview and the downloaded STL with clearance
     const stem = `sample-trail_circle_R60mm_mesh-standard_magnets-on-${shapeName}-${size}mm`
     expect(download.suggestedFilename()).toBe(`${stem}.zip`)
     const files = unzipSync(await readFile((await download.path())!))
-    expect(Object.keys(files)).toHaveLength(3)
+    expect(Object.keys(files).filter(name => name.endsWith('.stl'))).toHaveLength(3)
     const bytes = files[`${stem}_Tray_Base.stl`]!
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     const exported: number[][] = []
@@ -106,6 +107,7 @@ test('magnet shape and sizes reach preview and the downloaded STL with clearance
 
 test('presets retain magnet shape and size; older presets load as round pockets', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.getByRole('switch', { name: 'Underside magnet holes', exact: true }).click()
   const shapes = page.getByRole('group', { name: 'Magnet hole shape', exact: true })
   await shapes.getByRole('button', { name: 'Rectangle', exact: true }).click()

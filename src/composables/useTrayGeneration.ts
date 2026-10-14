@@ -32,6 +32,13 @@ export function useTrayGeneration() {
   async function runGeneration(): Promise<void> {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = null;
+    const id = ++requestId;
+    generating.value = false;
+    error.value = null;
+    if (!config.value.tray.enabled) {
+      mesh.value = null;
+      return;
+    }
     const validation = validateModelGeneration(config.value, {
       viewportWidth: previewViewport.value.w,
       viewportHeight: previewViewport.value.h,
@@ -42,7 +49,6 @@ export function useTrayGeneration() {
       return;
     }
 
-    const id = ++requestId;
     generating.value = true;
     error.value = null;
 
@@ -87,6 +93,7 @@ export function useTrayGeneration() {
 
   watch(
     () => [
+      config.value.tray.enabled,
       config.value.tray.totalThicknessMm,
       config.value.tray.recessDepthMm,
       config.value.tray.rimWidthMm,
@@ -130,6 +137,10 @@ export function useTrayGeneration() {
       // Synchronizing the map can replace the crop object without changing any
       // geometry settings. Keep the existing tray and preview in that case.
       if (previous && values.every((value, i) => value === previous[i])) return;
+      if (!config.value.tray.enabled) {
+        void runGeneration();
+        return;
+      }
       scheduleGeneration();
     },
     { immediate: true },

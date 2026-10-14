@@ -315,13 +315,12 @@ export function validateModelGeneration(
         return fail("water", "Increase terrain base thickness to at least water thickness + 0.4 mm to keep a solid pocket floor.");
       }
     }
-    const trayCheck = validateTrayFromAppConfig(config);
-    if (!trayCheck.valid) {
-      return { ...trayCheck, scope: "tray" };
+    if (config.tray.enabled) {
+      const trayCheck = validateTrayFromAppConfig(config);
+      if (!trayCheck.valid) return { ...trayCheck, scope: "tray" };
+      const magnetCheck = validateMagnetAssembly(config);
+      if (!magnetCheck.valid) return magnetCheck;
     }
-
-    const magnetCheck = validateMagnetAssembly(config);
-    if (!magnetCheck.valid) return magnetCheck;
 
     const moldCheck = validateMoldKitFromAppConfig(config);
     if (!moldCheck.valid) {
@@ -334,7 +333,7 @@ export function validateModelGeneration(
     if (!trailCheck.valid) return trailCheck;
   }
 
-  if (!options.trailOnly && config.tray.nfc.enabled && hasViewport) {
+  if (!options.trailOnly && config.tray.enabled && config.tray.nfc.enabled && hasViewport) {
     const nfcCheck = validateTrayNfcLayout(config, vw, vh);
     if (!nfcCheck.valid) return nfcCheck;
   }
@@ -347,6 +346,7 @@ export function validateTraySection(
   config: AppConfig,
   viewport?: { width: number; height: number },
 ): ModelValidationResult {
+  if (!config.tray.enabled) return { valid: true };
   const trayCheck = validateTrayFromAppConfig(config);
   if (!trayCheck.valid) {
     return { ...trayCheck, scope: "tray" };
@@ -388,6 +388,7 @@ export function validateTraySection(
 export function validateAssemblySection(
   config: AppConfig,
 ): ModelValidationResult {
+  if (!config.tray.enabled) return { valid: true };
   return validateMagnetAssembly(config);
 }
 

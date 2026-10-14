@@ -29,6 +29,9 @@ export async function generateTrayBase(
   if (!config) {
     throw new IpcException("INVALID_REQUEST", "A configuration snapshot is required");
   }
+  if (!config.tray.enabled) {
+    throw new IpcException("BASE_DISABLED", "Enable Generate base in Tray base settings to generate a base.");
+  }
 
   const viewportWidth = req.viewportWidth ?? DEFAULT_VIEWPORT.w;
   const viewportHeight = req.viewportHeight ?? DEFAULT_VIEWPORT.h;

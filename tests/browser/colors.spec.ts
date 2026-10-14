@@ -36,6 +36,7 @@ test('map colors apply after editing, validate hex input, and restore modern and
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
   const track = page.locator('.leaflet-interactive');
   await expect(track).toBeVisible();
@@ -77,6 +78,7 @@ test('map colors apply after editing, validate hex input, and restore modern and
 
 test('color edits wait one second after the last input and reset cancels pending changes', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
   const track = page.locator('.leaflet-interactive');
   await expect(track).toBeVisible();
@@ -120,6 +122,7 @@ test('color edits wait one second after the last input and reset cancels pending
 
 test('Mountain and City palettes remain independent when switching workspaces', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
   await page.locator('.map-colors summary').click();
   const panel = page.locator('.map-colors');
   await panel.getByRole('textbox', { name: 'Trail color', exact: true }).fill('#1268d2');
@@ -155,6 +158,7 @@ test('Mountain and City preview colors update without regenerating geometry', as
   const data = compactCityMap(JSON.parse(await readFile('fixtures/city-map.osm.json', 'utf8')));
   await page.route('**/api/city', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(data) }));
   await page.goto('/');
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
   await page.getByPlaceholder('Paste your API key').fill('color-test-key');
   await page.getByRole('button', { name: 'Standard', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
@@ -231,6 +235,7 @@ test('water palette edits preserve map outlines and uploaded preview geometry', 
     }) });
   });
   await page.goto('/');
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
   await page.getByPlaceholder('Paste your API key').fill('water-color-test-key');
   await page.getByRole('button', { name: 'Standard', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));

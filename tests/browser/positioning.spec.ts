@@ -261,6 +261,7 @@ test('the sidebar downloads only the trail, independent of invalid tray settings
   await page.getByRole('button', { name: 'Standard', exact: true }).click()
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'))
   await expect(page.locator('.leaflet-interactive')).toBeVisible()
+  await page.getByRole('switch', { name: 'Generate base', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Total thickness' }).fill('0.1')
   const event = page.waitForEvent('download')
   await trailButton.click()

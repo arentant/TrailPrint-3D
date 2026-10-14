@@ -162,6 +162,8 @@ export function createDefaultTrayKeychain(): TrayKeychainConfig {
 }
 
 export interface TrayConfig {
+  /** Generate the optional tray base and its accessories. */
+  enabled: boolean;
   totalThicknessMm: number;
   recessDepthMm: number;
   rimWidthMm: number;
@@ -357,6 +359,7 @@ export function createDefaultConfig(): AppConfig {
       heightAboveMainMm: 0.12,
     },
     tray: {
+      enabled: false,
       totalThicknessMm: 5,
       recessDepthMm: 2,
       rimWidthMm: 9,

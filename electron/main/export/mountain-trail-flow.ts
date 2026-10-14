@@ -120,14 +120,10 @@ async function generateMountainTrailFiles(
     return;
   }
 
-  onProgress({
-    phase: "tray",
-    progress: 0.45,
-    message: "Generating tray base…",
-  });
+  if (config.tray.enabled) onProgress({ phase: "tray", progress: 0.45, message: "Generating tray base…" });
 
-  const trayFootprint = computeTrayFootprint(config);
-  if (config.assembly.magnet.enabled) {
+  const trayFootprint = config.tray.enabled ? computeTrayFootprint(config) : null;
+  if (trayFootprint && config.assembly.magnet.enabled) {
     const previewHoles = computeTrayBottomMagnetHoles(config, trayFootprint);
     const summary = magnetDebugSummary({
       phase: "export-preview",
@@ -151,11 +147,11 @@ async function generateMountainTrailFiles(
     });
   }
 
-  const trayRes = await generateTrayBase({
+  const tray = config.tray.enabled ? (await generateTrayBase({
     config,
     viewportWidth,
     viewportHeight,
-  });
+  })).mesh : null;
 
   const trailPoints = config.gpx.points.length || config.gpx.rawPoints.length;
   const trailPolylinePts = terrainWithGroove.trailPolylineMm?.length ?? 0;
@@ -181,14 +177,14 @@ async function generateMountainTrailFiles(
   const trayStl = fileName(STL_FILE_NAMES.trayBase);
 
   assertWatertightMesh(terrainWithGroove.mesh, "Terrain_Main");
-  assertWatertightMesh(trayRes.mesh, "Tray_Base");
+  if (tray) assertWatertightMesh(tray, "Tray_Base");
   if (terrainWithGroove.trailMesh) {
     assertTrailLineMesh(terrainWithGroove.trailMesh, "Trail_Line");
   }
 
   await writeBinaryStl(terrainStl, terrainWithGroove.mesh);
   if (terrainWithGroove.trailMesh) await writeBinaryStl(trailStl, terrainWithGroove.trailMesh);
-  await writeBinaryStl(trayStl, trayRes.mesh.baseMesh ?? trayRes.mesh);
+  if (tray) await writeBinaryStl(trayStl, tray.baseMesh ?? tray);
   if (config.water?.enabled) {
     const waterParts = terrainWithGroove.waterMeshes ?? [];
     const waterNames: string[] = [];
@@ -221,11 +217,11 @@ async function generateMountainTrailFiles(
     ].join('\n');
     if (req.target !== 'model-3mf') await onFile(fileName('Water_Assembly.txt'), new TextEncoder().encode(instructions));
   }
-  if (trayRes.mesh.baseMesh && trayRes.mesh.textMesh) {
-    assertWatertightMesh(trayRes.mesh.textMesh, "Tray_Text");
-    await writeBinaryStl(fileName(STL_FILE_NAMES.trayText), trayRes.mesh.textMesh);
+  if (tray?.baseMesh && tray.textMesh) {
+    assertWatertightMesh(tray.textMesh, "Tray_Text");
+    await writeBinaryStl(fileName(STL_FILE_NAMES.trayText), tray.textMesh);
     const colors = normalizeModelColors(config.colors);
-    if (req.target !== "model-3mf") await onFile(fileName(TRAY_AMS_FILE_NAME), encodeTrayAms3mf(trayRes.mesh.baseMesh, trayRes.mesh.textMesh, colors.tray, colors.text));
+    if (req.target !== "model-3mf") await onFile(fileName(TRAY_AMS_FILE_NAME), encodeTrayAms3mf(tray.baseMesh, tray.textMesh, colors.tray, colors.text));
   }
 
   const colors = normalizeModelColors(config.colors);
@@ -237,10 +233,10 @@ async function generateMountainTrailFiles(
       const names = [...new Set(mapping?.featureIds.map(id => terrainWithGroove.waterFeatureDetails?.find(feature => feature.id === id)?.name).filter(Boolean))];
       return { name: `Water ${i + 1}: ${names?.join(', ') || 'Water'}`, color: colors.water, mesh };
     }),
-  ] }, { name: 'Tray and text', parts: [
-    { name: 'Tray', color: colors.tray, mesh: trayRes.mesh.baseMesh ?? trayRes.mesh },
-    ...(trayRes.mesh.textMesh ? [{ name: 'Text', color: colors.text, mesh: trayRes.mesh.textMesh }] : []),
-  ] }];
+  ] }, ...(tray ? [{ name: 'Tray and text', parts: [
+    { name: 'Tray', color: colors.tray, mesh: tray.baseMesh ?? tray },
+    ...(tray.textMesh ? [{ name: 'Text', color: colors.text, mesh: tray.textMesh }] : []),
+  ] }] : [])];
   const waterManifest = { printMode: config.printMode ?? 'separate',
     sources: terrainWithGroove.waterAttribution ?? [], coverageErrors: terrainWithGroove.waterCoverageErrors ?? [],
     featureStatuses: terrainWithGroove.waterFeatureStatuses ?? [], features: terrainWithGroove.waterFeatureDetails ?? [], partMappings: terrainWithGroove.waterPartMappings ?? [] };
@@ -254,7 +250,7 @@ async function generateMountainTrailFiles(
     await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
   }
 
-  if (config.tray.nfc.enabled) {
+  if (trayFootprint && config.tray.nfc.enabled) {
     const nfcLayout = computeTrayNfcLayout(
       config,
       trayFootprint,

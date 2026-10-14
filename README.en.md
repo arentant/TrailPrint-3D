@@ -48,6 +48,10 @@ part when no track is imported.
 
 ### 2. Frame and tune parameters
 
+The tray base is optional and off by default. Turn on **Generate base** in
+**4. Tray base** to include it in previews and downloads, then configure its
+dimensions, labels, keychain hole, NFC or magnets.
+
 Choose a base shape (circle, rectangle, or regular polygon). The shape stays anchored to the same geographic area while you zoom and pan. Drag its center handle to move it or its edge handle to resize it. **Place shape here** creates a selection in the current view; **Show shape** brings an existing selection back into view. Print dimensions set the physical model size independently of map zoom. Use **Map rotation** at the top left: the arrow buttons turn the map by 15°, the slider adjusts the angle, and **Reset north** restores north without changing position or zoom. You can also hold **Alt / Option** and drag to rotate. These controls work in both Mountain and City views. Use the sidebar to set print dimensions, corner radius, elevation exaggeration, surface smoothing, tray base, and assembly tolerances.
 
 Use **Grid on/off** above the map for positioning guides. **Save preset** can also save the map coordinates, zoom, and rotation; leave **Save map coordinates and framing** unchecked to reuse only the print settings. Presets are stored locally on this device and do not include GPX data or your API key.
@@ -189,7 +193,7 @@ The Mountain archive contains:
 | ------------------ | ------------------------------------------------------- | ------------------- |
 | `<gpx-name>_Terrain_Main.stl` | Main terrain mesh with base thickness and trail grooves | Always              |
 | `<gpx-name>_Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | With an imported GPX |
-| `<gpx-name>_Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Always              |
+| `<gpx-name>_Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Generate base enabled |
 | `<gpx-name>_Tray_Text.stl`    | Bed-ready raised text; assembly placement in the guide                 | With enabled labels |
 | `<gpx-name>_Tray_AMS.3mf`     | Base and text assembly with separate filament assignments | With enabled labels |
 | `<gpx-name>_Tray_Cover.stl`   | NFC / LED cover plate                                   | When NFC is enabled |
