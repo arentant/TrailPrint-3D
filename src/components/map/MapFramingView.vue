@@ -61,12 +61,18 @@ const mapInstance = shallowRef<L.Map | null>(null);
 const trackLayer = shallowRef<L.Polyline | null>(null);
 const tileLayer = shallowRef<L.TileLayer | null>(null);
 let waterLayer: L.LayerGroup | undefined;
+let includedWaterLayers: L.GeoJSON[] = [];
+
+function updateWaterColor(color: string): void {
+  for (const layer of includedWaterLayers) layer.setStyle({ color, fillColor: color });
+}
 
 function updateWaterLayer(): void {
   const map = mapInstance.value;
   if (!map) return;
   waterLayer?.remove();
   waterLayer = L.layerGroup().addTo(map);
+  includedWaterLayers = [];
   for (const item of props.waterReview ?? []) {
     if (!item.geometry.coordinates.length || ['covered', 'outside-crop', 'incomplete'].includes(item.status.state)) continue;
     const included = item.status.state === 'included';
@@ -83,6 +89,7 @@ function updateWaterLayer(): void {
     layer.bindTooltip(label);
     if (selectable) layer.on('click', () => emit('toggleWater', item.feature.id));
     waterLayer.addLayer(layer);
+    if (included) includedWaterLayers.push(layer);
   }
   trackLayer.value?.bringToFront();
 }
@@ -617,6 +624,8 @@ onUnmounted(() => {
   tileLayer.value = null;
   activeBasemap.value = null;
   basemapStatus.value = null;
+  waterLayer = undefined;
+  includedWaterLayers = [];
 });
 
 watch(
@@ -626,7 +635,10 @@ watch(
 );
 
 watch(() => props.colors.trail, (color) => trackLayer.value?.setStyle({ color }));
-watch(() => [props.waterReview, props.colors.water], updateWaterLayer, { deep: true });
+// Review geometry is replaced as a whole. Palette edits only restyle existing
+// paths, avoiding expensive reprojection and SVG rebuilding for detailed water.
+watch(() => props.waterReview, updateWaterLayer);
+watch(() => props.colors.water, updateWaterColor);
 
 watch(
   () => config.value.gpx.imported,

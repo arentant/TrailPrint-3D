@@ -201,3 +201,88 @@ test('Mountain and City preview colors update without regenerating geometry', as
   await page.screenshot({ path: 'test-results/city-colors.png', fullPage: true });
   expect(errors).toEqual([]);
 });
+
+test('water palette edits preserve map outlines and uploaded preview geometry', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  let waterRequests = 0;
+  await page.route('**/api/elevation', async route => {
+    const { cols, rows } = route.request().postDataJSON();
+    const values = Buffer.alloc(cols * rows * 4);
+    for (let i = 0; i < cols * rows; i++) values.writeFloatLE(500, i * 4);
+    await route.fulfill({ contentType: 'application/octet-stream', body: values });
+  });
+  await page.route('**/api/city', async route => {
+    waterRequests++;
+    const { bounds: b } = route.request().postDataJSON();
+    const lake = (id: number, name: string, center: number) => {
+      const geometry = Array.from({ length: 512 }, (_, i) => {
+        const angle = i * 2 * Math.PI / 512;
+        return { lat: b.minLat + (b.maxLat - b.minLat) * (center + .04 * Math.sin(angle)),
+          lon: b.minLon + (b.maxLon - b.minLon) * (center + .04 * Math.cos(angle)) };
+      });
+      geometry.push(geometry[0]!);
+      const nodes = geometry.map((_, i) => id * 1000 + i);
+      nodes[nodes.length - 1] = nodes[0]!;
+      return { type: 'way', id, tags: { natural: 'water', water: 'lake', name }, nodes, geometry };
+    };
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      elements: [lake(77, 'Kept lake', .45), lake(78, 'Hidden lake', .6)],
+    }) });
+  });
+  await page.goto('/');
+  await page.getByPlaceholder('Paste your API key').fill('water-color-test-key');
+  await page.getByRole('button', { name: 'Standard', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
+  await page.getByRole('switch', { name: 'Include water' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Keep Kept lake', exact: true })).toBeEnabled();
+  await page.getByRole('checkbox', { name: 'Keep Hidden lake', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Preview & export STL', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const download = dialog.getByRole('button', { name: 'Download', exact: true });
+  await expect(download).toBeEnabled({ timeout: 60_000 });
+  await expect(page.getByRole('region', { name: 'Water feature review' })).toHaveAttribute('aria-busy', 'false');
+  const kept = await page.locator('.leaflet-interactive[fill-opacity="0.45"]').elementHandle();
+  const hidden = await page.locator('.leaflet-interactive[fill-opacity="0.12"]').elementHandle();
+  expect(kept).not.toBeNull();
+  expect(hidden).not.toBeNull();
+  const requestsBeforeEditing = waterRequests;
+  await page.evaluate(async () => {
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+    const state = window as any;
+    state.__paletteGenerations = 0;
+    state.__paletteUploads = 0;
+    for (const method of ['generateTerrain', 'generateTray'] as const) {
+      const generate = window.trailPrint[method];
+      window.trailPrint[method] = ((request: any) => { state.__paletteGenerations++; return generate(request); }) as typeof generate;
+    }
+    for (const prototype of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
+      const bufferData = prototype.bufferData;
+      prototype.bufferData = function (...args: any[]) {
+        state.__paletteUploads++;
+        return (bufferData as any).apply(this, args);
+      };
+    }
+  });
+  await dialog.getByRole('textbox', { name: 'Terrain color', exact: true }).fill('#7474ee');
+  await dialog.getByRole('textbox', { name: 'Trail color', exact: true }).fill('#00cc44');
+  await dialog.getByRole('textbox', { name: 'Tray color', exact: true }).fill('#202020');
+  await expect(page.locator('.leaflet-interactive[stroke="#00cc44"]')).toHaveCount(1);
+  expect(await kept!.evaluate(node => node.isConnected)).toBe(true);
+  expect(await hidden!.evaluate(node => node.isConnected)).toBe(true);
+  await dialog.getByLabel('Water color picker', { exact: true }).evaluate((input: HTMLInputElement) => {
+    input.value = '#1268d2';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(page.locator('.leaflet-interactive[fill-opacity="0.45"]')).toHaveAttribute('stroke', '#1268d2');
+  expect(await kept!.evaluate(node => node.isConnected)).toBe(true);
+  expect(await hidden!.evaluate(node => node.isConnected)).toBe(true);
+  expect(await hidden!.getAttribute('stroke')).toBe('#687b86');
+  expect(await page.evaluate(() => ({ generations: (window as any).__paletteGenerations, uploads: (window as any).__paletteUploads })))
+    .toEqual({ generations: 0, uploads: 0 });
+  expect(waterRequests).toBe(requestsBeforeEditing);
+  await expect(download).toBeEnabled();
+  await page.screenshot({ path: 'test-results/water-color-edit.png' });
+  expect(errors).toEqual([]);
+});

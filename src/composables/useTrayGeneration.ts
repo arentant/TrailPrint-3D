@@ -105,6 +105,8 @@ export function useTrayGeneration() {
       config.value.tray.nfc.ledExtraRecessDepthMm,
       config.value.tray.nfc.ledPocketLengthMm,
       config.value.tray.nfc.ledPocketWidthMm,
+      config.value.gpx.imported,
+      config.value.gpx.importId,
       config.value.gpx.points.length,
       config.value.gpx.rawPoints.length,
       config.value.trail.gpxSimplify,
@@ -131,7 +133,12 @@ export function useTrayGeneration() {
       previewViewport.value.w,
       previewViewport.value.h,
     ],
-    () => scheduleGeneration(),
+    (values, previous) => {
+      // Synchronizing the map can replace the crop object without changing any
+      // geometry settings. Keep the existing tray and preview in that case.
+      if (previous && values.every((value, i) => value === previous[i])) return;
+      scheduleGeneration();
+    },
     { immediate: true },
   );
 
