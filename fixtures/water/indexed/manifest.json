@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "version": "fixture-v1",
+  "datasets": [
+    {
+      "id": "hydrolakes",
+      "version": "fixture-v1",
+      "attribution": "TrailPrint synthetic test fixture",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/arentant/TrailPrint-3D",
+      "url": "fixture-v1/lakes.fgb",
+      "sha256": "0f9f3afc6023ad67768559459644f4ee933a53df8043da2eca2e857ddb4d3523",
+      "bytes": 1544,
+      "featureCount": 2,
+      "bounds": {
+        "minLon": 44.505,
+        "minLat": 40.175,
+        "maxLon": 45.01,
+        "maxLat": 41.01
+      }
+    },
+    {
+      "id": "grwl",
+      "version": "fixture-v1",
+      "attribution": "TrailPrint synthetic test fixture",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/arentant/TrailPrint-3D",
+      "url": "fixture-v1/rivers.fgb",
+      "sha256": "9ecb7ea52b11fca80ffd04041254930e170d58f1db3da912509437333793f9db",
+      "bytes": 1088,
+      "featureCount": 1,
+      "bounds": {
+        "minLon": 44.5,
+        "minLat": 40.17,
+        "maxLon": 44.51,
+        "maxLat": 40.18
+      }
+    },
+    {
+      "id": "coastline",
+      "version": "fixture-v1",
+      "attribution": "TrailPrint synthetic test fixture",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/arentant/TrailPrint-3D",
+      "url": "fixture-v1/seas.fgb",
+      "sha256": "434747f969c52276893913ac3219c3186970ffcf862becc791aff6cb5a0f50ab",
+      "bytes": 1248,
+      "featureCount": 1,
+      "bounds": {
+        "minLon": 44.52,
+        "minLat": 40.17,
+        "maxLon": 44.54,
+        "maxLat": 40.19
+      }
+    }
+  ]
+}

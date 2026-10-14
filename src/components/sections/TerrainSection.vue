@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WaterReview from './WaterReview.vue';
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import type { TerrainMeshQuality, TerrainSmoothing } from "@shared/types";
@@ -172,23 +173,39 @@ const demHint = computed(() => {
       </select>
       <p v-if="demHint" class="field-hint">{{ demHint }}</p>
     </div>
+    <div class="field-group">
+      <label class="field-group__label" for="model-print-mode">Print mode</label>
+      <select id="model-print-mode" v-model="config.printMode" class="text-input">
+        <option value="separate">Separate inserts · fit and glue</option>
+        <option value="fused">Fused multicolor · 3MF</option>
+      </select>
+      <p class="field-hint">{{ config.printMode === 'fused' ? 'Touching terrain, trail and water volumes with no assembly gaps. Export the complete 3MF for multiple filaments.' : 'Print each part on the bed, then assemble. Test a clearance coupon before printing the full model.' }}</p>
+    </div>
     <div class="water-settings">
       <div class="water-settings__heading">
-        <span>Print water separately</span>
-        <IosToggle v-model="config.water.enabled" aria-label="Print water separately" />
+        <span>Include water</span>
+        <IosToggle v-model="config.water.enabled" aria-label="Include water" />
       </div>
-      <p class="field-hint">Detect mapped lakes, reservoirs and river areas. Print the water in another color, then locate it in the terrain with alignment pins.</p>
+      <p class="field-hint">Review lakes, rivers and seas on the map before generating terrain. Choose separate inserts or fused multicolor printing.</p>
       <template v-if="config.water.enabled">
+        <fieldset class="water-categories"><legend>Water categories</legend>
+          <label v-for="category in (['lake', 'reservoir', 'river', 'sea'] as const)" :key="category">
+            <input v-model="config.water.categories" type="checkbox" :value="category" />{{ category }}
+          </label>
+        </fieldset>
+        <NumberField v-model="config.water.minimumAreaMm2" label="Minimum water area" suffix="mm²" :min="0.16" :max="100" :step="0.1" />
+        <NumberField v-model="config.water.minimumWidthMm" label="Minimum printable width" suffix="mm" :min="0.4" :max="5" :step="0.1" />
+        <NumberField v-model="config.water.riverWidthMultiplier" label="River width multiplier" suffix="×" :min="0.1" :max="20" :step="0.1" />
+        <NumberField v-model="config.water.minimumRiverWidthMm" label="Minimum printed river width" suffix="mm" :min="0.4" :max="20" :step="0.1" />
+        <label class="water-color">Water color<input v-model="config.colors.water" type="color" aria-label="Water color picker" /></label>
+        <p class="field-hint">Widened rivers are marked Exaggerated. HydroLAKES supplements large lakes (10 ha and larger); smaller water relies on OSM.</p>
         <div class="water-settings__row">
           <NumberField v-model="config.water.thicknessMm" label="Water thickness" suffix="mm" :min="0.4" :max="5" :step="0.1" />
           <NumberField v-model="config.water.clearanceMm" label="Fitting clearance" suffix="mm" :min="0" :max="1" :step="0.05" />
         </div>
-        <div class="water-settings__row">
-          <NumberField v-model="config.water.pinDiameterMm" label="Alignment pin diameter" suffix="mm" :min="1" :max="5" :step="0.1" />
-          <NumberField v-model="config.water.pinDepthMm" label="Pin socket depth" suffix="mm" :min="0.4" :max="2" :step="0.1" />
-        </div>
-        <p class="field-hint">Clearance is added per side of each pin socket and shoreline. Water thickness must exceed socket depth by 0.4 mm; the terrain base needs at least {{ (config.water.thicknessMm + config.water.pinDepthMm + 0.4).toFixed(1) }} mm.</p>
-        <p class="field-hint">Open the 3D preview to review detected water. Export all parts to include water inserts, loose pins and an assembly guide. A 0.6 mm terrain border protects the crop edge. Narrow waterways and ocean coastlines are not included.</p>
+        <p class="field-hint">Clearance reduces the insert by this amount on each side of its outline, including island edges. Use less for a closer fit or more for easier placement and glue. The terrain base needs at least {{ (config.water.thicknessMm + 0.4).toFixed(1) }} mm.</p>
+        <p class="field-hint">Choose which detected features to keep below, or click their outlines on the map. Hidden water stays out of the preview and export. A 0.6 mm terrain border protects the crop edge.</p>
+        <WaterReview />
         <p class="field-hint">Water outlines: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
       </template>
     </div>
@@ -233,6 +250,10 @@ const demHint = computed(() => {
 .water-settings { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--tp-border); }
 .water-settings__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 600; }
 .water-settings__row { display: flex; gap: 12px; }
+.water-categories { display: flex; flex-wrap: wrap; gap: 10px; border: 0; padding: 0; font-size: 12px; }
+.water-categories legend { margin-bottom: 8px; }
+.water-categories label { display: flex; gap: 5px; align-items: center; text-transform: capitalize; }
+.water-color { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
 .water-settings a { color: var(--tp-text-accent); }
 
 </style>

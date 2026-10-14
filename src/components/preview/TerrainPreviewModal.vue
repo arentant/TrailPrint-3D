@@ -68,6 +68,7 @@ const emit = defineEmits<{
   download: [];
   downloadTrail: [];
   downloadAmsBase: [];
+  downloadModel3mf: [];
 }>();
 
 const configStore = useConfigStore();
@@ -77,10 +78,11 @@ const { config } = storeToRefs(configStore);
 const sprayPanelOpen = ref(true);
 const colorControlsRef = ref<InstanceType<typeof ModelColorControls> | null>(null);
 const downloadRequested = ref(false);
-function requestDownload(target: "all" | "trail" | "ams-base"): void {
+function requestDownload(target: "all" | "trail" | "ams-base" | "model-3mf"): void {
   downloadRequested.value = true;
   colorControlsRef.value?.flushColors();
-  if (target === "ams-base") emit("downloadAmsBase");
+  if (target === "model-3mf") emit("downloadModel3mf");
+  else if (target === "ams-base") emit("downloadAmsBase");
   else if (target === "trail") emit("downloadTrail");
   else emit("download");
 }
@@ -389,6 +391,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
               >
                 Download trail STL
               </button>
+              <button type="button" class="terrain-modal__trail-download" :disabled="!canDownload" @click="requestDownload('model-3mf')">
+                Download model 3MF
+              </button>
               <button
                 v-if="trayMesh?.textMesh?.indices.length"
                 type="button"
@@ -548,7 +553,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             >
               <div class="spray-panel__section">
                 <p class="spray-panel__colors-title">Model colors</p>
-                <ModelColorControls ref="colorControlsRef" v-model="config.colors" :show-text="config.tray.text.enabled" :disabled="downloading" />
+                <ModelColorControls ref="colorControlsRef" v-model="config.colors" :show-text="config.tray.text.enabled" :show-water="config.water.enabled" :disabled="downloading" />
                 <p v-if="sprayEnabled && sprayPlan" class="spray-panel__paint-hint">Painted regions override the terrain's base color.</p>
               </div>
               <div class="spray-panel__section">

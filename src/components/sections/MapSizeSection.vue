@@ -44,7 +44,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
     </div>
 
     <p class="field-hint">
-      The selection stays fixed on the map. Dimensions below set the STL print size. Pan and zoom to position the trail inside the selection.
+      The shape stays over the same geographic area while you zoom and pan. Move or resize it using the handles on the map. Dimensions below set the STL print size.
     </p>
 
     <div class="row">

@@ -9,10 +9,10 @@ import { layerPointToContainerPoint } from '../utils/map-rotate-projection';
 import { buildFootprintPolygonMm } from '../utils/footprint';
 import { buildMaskGeometry } from '../utils/mask-geometry';
 import { sampleHeightBilinearMm } from '../utils/heightfield-mesh';
+import { cropSelectionFrame } from '../utils/crop-selection';
 
 export function cityProjector(request: { config: MapModelConfig; viewportWidth: number; viewportHeight: number }, crop: TerrainCropRegion) {
-  const { mapCrop } = request.config;
-  const { viewportWidth: w, viewportHeight: h } = request;
+  const { mapCrop, width: w, height: h } = cropSelectionFrame(request.config.mapCrop, request.viewportWidth, request.viewportHeight);
   const origin = computePixelOrigin(mapCrop, w, h);
   const scale = maskMmScale(mapCrop, crop, w, h);
   return (lon: number, lat: number): Vec2 => {
@@ -28,7 +28,8 @@ export function cityProject(request: CityGenerateRequest, crop: TerrainCropRegio
 
 /** Use the screen mask's orientation, including odd-sided polygons. */
 export function cityFootprint(request: CityGenerateRequest, crop: TerrainCropRegion): Vec2[] | null {
-  const mask = buildMaskGeometry(request.config.mapCrop, request.viewportWidth, request.viewportHeight);
+  const frame = cropSelectionFrame(request.config.mapCrop, request.viewportWidth, request.viewportHeight);
+  const mask = buildMaskGeometry(frame.mapCrop, frame.width, frame.height);
   if (mask.vertices) {
     const scale = maskMmScale(request.config.mapCrop, crop, request.viewportWidth, request.viewportHeight);
     return mask.vertices.map((v) => [(v.x - scale.cx) * scale.scaleX, (scale.cy - v.y) * scale.scaleY]);
@@ -183,7 +184,8 @@ function buildGeometry(wasm: ManifoldToplevel, ...args: [...GeometryInputs, prep
         const buildings: Building[] = [];
         const roads: Array<{ lines: Vec2[][]; width: number }> = [];
         const scale = maskMmScale(request.config.mapCrop, crop, request.viewportWidth, request.viewportHeight);
-        const metersPerPixel = 156543.03392804097 * Math.cos(crop.centerLat * Math.PI / 180) / 2 ** request.config.mapCrop.mapZoom;
+        const selectedZoom = request.config.mapCrop.selection?.mapZoom ?? request.config.mapCrop.mapZoom;
+        const metersPerPixel = 156543.03392804097 * Math.cos(crop.centerLat * Math.PI / 180) / 2 ** selectedZoom;
         const mmPerMeter = scale.scaleX / metersPerPixel;
         let fallbackCount = 0, unsupported = 0, simplifiedDetails = 0;
         for (const feature of geojson.features) {

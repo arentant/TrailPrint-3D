@@ -4,6 +4,7 @@ import L from "leaflet";
 import "leaflet-rotate";
 import MapRotationControls from './MapRotationControls.vue';
 import ModelColorControls from '@/components/ui/ModelColorControls.vue';
+import type { WaterReviewFeature } from '@/stores/water';
 import type { ModelColors } from '@shared/types/model-colors';
 import {
   buildMaskGeometry,
@@ -17,6 +18,9 @@ import {
   trayOuterPolygonPoints,
 } from "@/utils/tray-mask-geometry";
 import { maskFitPadding } from "@shared/utils/map-projection";
+import { cropSelectionFrame } from '@shared/utils/crop-selection';
+import { maskBoundaryPoints } from '@shared/utils/crop-region';
+import { containerPointToLatLng, latLngToCrsPoint, crsPointToLatLng } from '@shared/utils/leaflet-projection';
 import { gcj02ToWgs84, wgs84ToGcj02 } from "@shared/utils/geo-coord";
 import {
   type BasemapSpec,
@@ -35,12 +39,14 @@ const props = defineProps<{
   fitNonce: number;
   gridVisible?: boolean;
   restoreView?: boolean;
+  waterReview?: WaterReviewFeature[];
 }>();
 const emit = defineEmits<{
   'update:crop': [crop: MapCropConfig];
   'update:colors': [colors: ModelColors];
   viewport: [value: { w: number; h: number }];
   ready: [value: boolean];
+  toggleWater: [featureId: string];
 }>();
 const config = computed(() => ({ mapCrop: props.crop, gpx: props.gpx, tray: props.tray }));
 const effectivePoints = computed(() => props.points);
@@ -54,14 +60,58 @@ const maskH = ref(1);
 const mapInstance = shallowRef<L.Map | null>(null);
 const trackLayer = shallowRef<L.Polyline | null>(null);
 const tileLayer = shallowRef<L.TileLayer | null>(null);
+let waterLayer: L.LayerGroup | undefined;
+
+function updateWaterLayer(): void {
+  const map = mapInstance.value;
+  if (!map) return;
+  waterLayer?.remove();
+  waterLayer = L.layerGroup().addTo(map);
+  for (const item of props.waterReview ?? []) {
+    if (!item.geometry.coordinates.length || ['covered', 'outside-crop', 'incomplete'].includes(item.status.state)) continue;
+    const included = item.status.state === 'included';
+    const color = included ? props.colors.water : item.status.state === 'too-small' ? '#c78925' : '#687b86';
+    const geojson = { type: 'Feature' as const, properties: {}, geometry: item.geometry };
+    const layer = L.geoJSON(geojson, {
+      coordsToLatLng: ([lon, lat]) => toMapLatLng(lat, lon),
+      style: { color, fillColor: color, fillOpacity: included ? .45 : .12, weight: 2, dashArray: included ? undefined : '5 4', fillRule: 'evenodd' },
+    });
+    const label = document.createElement('span');
+    const selectable = ['included', 'excluded', 'too-small'].includes(item.status.state);
+    const status = item.status.state === 'included' ? 'Kept · Click to hide' : item.status.state === 'excluded' ? 'Hidden · Click to keep' : item.status.state.replaceAll('-', ' ');
+    label.textContent = `${item.feature.name} · ${status}${item.status.exaggerated ? ' · Exaggerated' : ''}`;
+    layer.bindTooltip(label);
+    if (selectable) layer.on('click', () => emit('toggleWater', item.feature.id));
+    waterLayer.addLayer(layer);
+  }
+  trackLayer.value?.bringToFront();
+}
 /** 当前底图；GCJ 瓦片时地图交互坐标需转换 */
 const activeBasemap = shallowRef<BasemapSpec | null>(null);
 const basemapStatus = ref<string | null>(null);
 const gridClipId = useId();
 let applyingMapView = false;
+const shapeHandles = ref<{ center: { x: number; y: number }; resize: { x: number; y: number } } | null>(null);
+const shapeSelected = computed(() => !!props.crop.selection);
+
+function polygonPath(points: Array<{ x: number; y: number }>): string {
+  return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ') + ' Z';
+}
+
+function projectSelectionPoint(x: number, y: number): L.Point {
+  const frame = cropSelectionFrame(props.crop, maskW.value, maskH.value);
+  const geo = containerPointToLatLng(x, y, frame.mapCrop, frame.width, frame.height);
+  return mapInstance.value!.latLngToContainerPoint(toMapLatLng(geo.lat, geo.lon));
+}
+
+function projectSelectionMask(mask: MaskScreenGeometry): MaskScreenGeometry {
+  const center = projectSelectionPoint(mask.cx, mask.cy);
+  return { kind: 'polygon', cx: center.x, cy: center.y,
+    vertices: maskBoundaryPoints(mask, 128).map(p => projectSelectionPoint(p.x, p.y)) };
+}
 
 const gridClipPath = computed(() =>
-  maskHoleOutlinePath(config.value.mapCrop, maskW.value, maskH.value),
+  shapeSelected.value && maskGeom.value?.vertices ? polygonPath(maskGeom.value.vertices) : maskHoleOutlinePath(config.value.mapCrop, maskW.value, maskH.value),
 );
 
 const gridLines = computed(() => {
@@ -102,7 +152,16 @@ function updateMaskLayout(): void {
   emit('viewport', { w, h });
   maskW.value = w;
   maskH.value = h;
-  maskGeom.value = buildMaskGeometry(config.value.mapCrop, w, h);
+  if (shapeSelected.value && mapInstance.value) {
+    const frame = cropSelectionFrame(props.crop, w, h);
+    const source = buildMaskGeometry(frame.mapCrop, frame.width, frame.height);
+    maskGeom.value = projectSelectionMask(source);
+    const corner = maskBoundaryPoints(source, 128).reduce((best, point) => point.x > best.x ? point : best);
+    shapeHandles.value = { center: projectSelectionPoint(source.cx, source.cy), resize: projectSelectionPoint(corner.x, corner.y) };
+  } else {
+    maskGeom.value = buildMaskGeometry(config.value.mapCrop, w, h);
+    shapeHandles.value = null;
+  }
 }
 
 function rectBoxStyle(m: MaskScreenGeometry): Record<string, string> | undefined {
@@ -144,6 +203,7 @@ const maskHoleStyle = computed(() => {
 
 const polygonDimPath = computed(() => {
   if (maskGeom.value?.kind !== "polygon") return "";
+  if (shapeSelected.value) return `M 0 0 H ${maskW.value} V ${maskH.value} H 0 Z ${polygonPath(maskGeom.value.vertices!)}`;
   return maskEvenOddPath(config.value.mapCrop, maskW.value, maskH.value);
 });
 
@@ -155,6 +215,13 @@ const polygonOutlinePoints = computed(() => {
 
 const trayOverlay = computed(() => {
   if (!props.tray || maskW.value < 1 || maskH.value < 1) return null;
+  if (shapeSelected.value && mapInstance.value) {
+    // maskGeom tracks camera movement so the tray projection updates with it.
+    void maskGeom.value;
+    const frame = cropSelectionFrame(props.crop, maskW.value, maskH.value);
+    const source = buildTrayMaskOverlay(frame.mapCrop, props.tray, frame.width, frame.height, props.trayToleranceMm);
+    return source ? { ...source, outer: projectSelectionMask(source.outer) } : null;
+  }
   return buildTrayMaskOverlay(
     config.value.mapCrop,
     props.tray,
@@ -220,6 +287,77 @@ function syncStoreFromMap(): void {
   });
 }
 
+function placeShapeHere(): void {
+  const map = mapInstance.value;
+  if (!map || maskW.value < 64 || maskH.value < 64) return;
+  const center = map.getCenter(), wgs = fromMapLatLng(center.lat, center.lng);
+  const pose = { mapCenterLat: wgs.lat, mapCenterLon: wgs.lon, mapZoom: map.getZoom(), mapBearingDeg: map.getBearing() };
+  emit('update:crop', { ...props.crop, ...pose, mapPaneX: 0, mapPaneY: 0,
+    selection: { ...pose, viewportWidth: maskW.value, viewportHeight: maskH.value } });
+}
+
+function showShape(): void {
+  const map = mapInstance.value;
+  if (!map || !props.crop.selection) return;
+  const frame = cropSelectionFrame(props.crop, maskW.value, maskH.value);
+  const mask = buildMaskGeometry(frame.mapCrop, frame.width, frame.height);
+  const points = maskBoundaryPoints(mask, 128).map(p => {
+    const geo = containerPointToLatLng(p.x, p.y, frame.mapCrop, frame.width, frame.height);
+    return toMapLatLng(geo.lat, geo.lon);
+  });
+  map.fitBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 19, animate: false });
+}
+
+function resizeShape(delta: number): void {
+  const selected = props.crop.selection;
+  if (selected) emit('update:crop', { ...props.crop, selection: { ...selected, mapZoom: Math.max(1, Math.min(22, selected.mapZoom + delta)) } });
+}
+
+let shapeDrag: { action: 'move' | 'resize'; selection: NonNullable<MapCropConfig['selection']>; start: { x: number; y: number }; distance: number; target: HTMLElement; dragging: boolean } | undefined;
+function startShapeDrag(event: PointerEvent, action: 'move' | 'resize'): void {
+  const map = mapInstance.value, selected = props.crop.selection;
+  if (!map || !selected || !shapeHandles.value || event.button !== 0) return;
+  event.preventDefault(); event.stopPropagation();
+  const target = event.currentTarget as HTMLElement;
+  const latlng = map.mouseEventToLatLng(event), geo = fromMapLatLng(latlng.lat, latlng.lng);
+  const screen = map.mouseEventToContainerPoint(event);
+  shapeDrag = { action, selection: { ...selected }, start: latLngToCrsPoint(geo.lat, geo.lon, 0),
+    distance: Math.max(1, screen.distanceTo(L.point(shapeHandles.value.center.x, shapeHandles.value.center.y))), target, dragging: map.dragging.enabled() };
+  map.dragging.disable(); target.setPointerCapture(event.pointerId);
+}
+function moveShapeDrag(event: PointerEvent): void {
+  const map = mapInstance.value, drag = shapeDrag;
+  if (!map || !drag || !shapeHandles.value) return;
+  event.preventDefault(); event.stopPropagation();
+  let selected = { ...drag.selection };
+  if (drag.action === 'move') {
+    const latlng = map.mouseEventToLatLng(event), geo = fromMapLatLng(latlng.lat, latlng.lng);
+    const now = latLngToCrsPoint(geo.lat, geo.lon, 0), center = latLngToCrsPoint(selected.mapCenterLat, selected.mapCenterLon, 0);
+    const next = crsPointToLatLng(center.x + now.x - drag.start.x, center.y + now.y - drag.start.y, 0);
+    selected = { ...selected, mapCenterLat: next.lat, mapCenterLon: next.lon };
+  } else {
+    const distance = map.mouseEventToContainerPoint(event).distanceTo(L.point(shapeHandles.value.center.x, shapeHandles.value.center.y));
+    selected.mapZoom = Math.max(1, Math.min(22, drag.selection.mapZoom - Math.log2(Math.max(distance, 1) / drag.distance)));
+  }
+  emit('update:crop', { ...props.crop, selection: selected });
+}
+function endShapeDrag(event: PointerEvent): void {
+  if (!shapeDrag) return;
+  if (shapeDrag.target.hasPointerCapture(event.pointerId)) shapeDrag.target.releasePointerCapture(event.pointerId);
+  if (shapeDrag.dragging) mapInstance.value?.dragging.enable();
+  shapeDrag = undefined;
+}
+function moveShapeByKey(event: KeyboardEvent): void {
+  const offsets: Record<string, [number, number]> = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] };
+  const delta = offsets[event.key], map = mapInstance.value, selected = props.crop.selection;
+  if (!delta || !map || !selected || !shapeHandles.value) return;
+  event.preventDefault(); event.stopPropagation();
+  const center = shapeHandles.value.center;
+  const point = map.containerPointToLatLng(L.point(center.x + delta[0], center.y + delta[1]));
+  const next = fromMapLatLng(point.lat, point.lng);
+  emit('update:crop', { ...props.crop, selection: { ...selected, mapCenterLat: next.lat, mapCenterLon: next.lon } });
+}
+
 function updateTrackLayer(): void {
   const map = mapInstance.value;
   if (!map) return;
@@ -267,7 +405,10 @@ function fitTrackInView(attempt = 0): void {
     animate: false,
   });
   syncStoreFromMap();
+  if (!props.crop.selection) placeShapeHere();
   updateTrackLayer();
+
+  updateWaterLayer();
 }
 
 function scheduleFitTrackInView(): void {
@@ -313,7 +454,7 @@ function setupAltDragRotate(map: L.Map, container: HTMLElement): () => void {
   const onPointerDown = (e: PointerEvent) => {
     if (!e.altKey || e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest(".leaflet-control")) return;
+    if (target.closest(".leaflet-control, .crop-handle")) return;
 
     const rect = container.getBoundingClientRect();
     pivotX = rect.left + rect.width / 2;
@@ -402,9 +543,10 @@ async function initMap(): Promise<void> {
     center,
     zoom: mapZoom || 10,
     zoomControl: false,
+    minZoom: 1,
     attributionControl: true,
     zoomSnap: ZOOM_SNAP,
-    zoomDelta: ZOOM_SNAP,
+    zoomDelta: .5,
     wheelPxPerZoomLevel: WHEEL_PX_PER_ZOOM_LEVEL,
     wheelDebounceTime: 60,
     rotate: true,
@@ -415,21 +557,25 @@ async function initMap(): Promise<void> {
   });
 
   attachBasemap(map, spec);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   map.on("moveend", syncStoreFromMap);
   map.on("zoomend", syncStoreFromMap);
   map.on("rotate", syncStoreFromMap);
   map.on("rotateend", syncStoreFromMap);
+  map.on('move zoom rotate', updateMaskLayout);
 
   teardownAltRotate = setupAltDragRotate(map, el);
 
   mapInstance.value = map;
+  updateWaterLayer();
   syncStoreFromMap();
   updateMaskLayout();
   map.invalidateSize({ animate: false });
   updateTrackLayer();
 
   if (props.fitNonce !== initialFitNonce && props.gpx.imported) scheduleFitTrackInView();
+  else if (!props.crop.selection) placeShapeHere();
 
   // 布局稳定后再刷一次，避免首帧容器尺寸为 0 导致瓦片不绘
   requestAnimationFrame(() => {
@@ -480,6 +626,7 @@ watch(
 );
 
 watch(() => props.colors.trail, (color) => trackLayer.value?.setStyle({ color }));
+watch(() => [props.waterReview, props.colors.water], updateWaterLayer, { deep: true });
 
 watch(
   () => config.value.gpx.imported,
@@ -509,12 +656,20 @@ watch(
     config.value.mapCrop.widthMm,
     config.value.mapCrop.polygonSides,
     config.value.mapCrop.cornerRadiusMm,
+    config.value.mapCrop.selection,
     props.tray?.rimWidthMm,
   ],
   () => {
     updateMaskLayout();
   },
+  { deep: true },
 );
+
+watch(() => props.crop.selection, (selected, previous) => {
+  if (!selected && previous && !props.gpx.imported) requestAnimationFrame(() => {
+    if (!props.crop.selection) placeShapeHere();
+  });
+});
 
 watch(
   () => [
@@ -557,6 +712,18 @@ defineExpose({
     <div class="map-controls">
       <MapRotationControls :bearing="crop.mapBearingDeg" :disabled="!mapInstance"
         @update:bearing="setMapBearing" />
+      <div class="shape-controls" role="group" aria-label="Crop shape controls">
+        <strong>Shape on map</strong>
+        <p>Zoom and pan freely. Drag the center to move the shape, or its edge handle to resize.</p>
+        <div class="shape-controls__row">
+          <button type="button" :disabled="!mapInstance" @click="placeShapeHere">Place shape here</button>
+          <button type="button" :disabled="!shapeSelected" @click="showShape">Show shape</button>
+        </div>
+        <div class="shape-controls__row">
+          <button type="button" :disabled="!shapeSelected" @click="resizeShape(.25)">Smaller shape</button>
+          <button type="button" :disabled="!shapeSelected" @click="resizeShape(-.25)">Larger shape</button>
+        </div>
+      </div>
       <details class="map-colors">
         <summary>
           <span>Colors</span>
@@ -568,7 +735,7 @@ defineExpose({
           </span>
         </summary>
         <ModelColorControls :model-value="colors" :workspace="tray ? 'mountain' : 'city'"
-          :show-tray="!!tray" :show-text="!!tray?.text?.enabled" @update:model-value="emit('update:colors', $event)" />
+          :show-tray="!!tray" :show-text="!!tray?.text?.enabled" :show-water="!!waterReview?.length" @update:model-value="emit('update:colors', $event)" />
       </details>
     </div>
     <p v-if="basemapStatus" class="basemap-status">{{ basemapStatus }}</p>
@@ -608,6 +775,7 @@ defineExpose({
         <path :d="polygonDimPath" fill="rgba(0,0,0,0.45)" fill-rule="evenodd" />
         <polygon
           v-if="polygonOutlinePoints"
+          class="crop-shape-outline"
           :points="polygonOutlinePoints"
           fill="none"
           stroke="rgba(255,255,255,0.95)"
@@ -623,6 +791,18 @@ defineExpose({
           stroke-dasharray="8 5"
         />
       </svg>
+      <template v-if="shapeHandles">
+        <button type="button" class="crop-handle crop-handle--move" aria-label="Move crop shape" title="Drag to move the shape. Arrow keys move it on the map."
+          :style="{ left: `${shapeHandles.center.x}px`, top: `${shapeHandles.center.y}px` }"
+          @pointerdown="startShapeDrag($event, 'move')" @pointermove="moveShapeDrag" @pointerup="endShapeDrag" @pointercancel="endShapeDrag" @keydown="moveShapeByKey">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
+        </button>
+        <button type="button" class="crop-handle crop-handle--resize" aria-label="Resize crop shape" title="Drag to resize the selected area. Use Smaller shape or Larger shape for keyboard control."
+          :style="{ left: `${shapeHandles.resize.x}px`, top: `${shapeHandles.resize.y}px` }"
+          @pointerdown="startShapeDrag($event, 'resize')" @pointermove="moveShapeDrag" @pointerup="endShapeDrag" @pointercancel="endShapeDrag">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4h6M4 4v6M4 4l16 16M20 20h-6M20 20v-6"/></svg>
+        </button>
+      </template>
       <div class="mask-legend">
         <span class="mask-legend__item mask-legend__item--terrain">White · {{ props.tray ? 'Terrain' : 'City' }}</span>
         <span v-if="props.tray" class="mask-legend__item mask-legend__item--tray">Yellow · Tray edge</span>
@@ -675,6 +855,18 @@ defineExpose({
 .map-colors summary:focus-visible { outline: 2px solid var(--tp-text-accent); outline-offset: 2px; border-radius: 4px; }
 .map-colors__swatches { display: flex; gap: 3px; }
 .map-colors__swatches i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.12); }
+
+.shape-controls { padding: 10px 12px; border: 1px solid rgba(0, 0, 0, .08); border-radius: 10px; background: rgba(255, 255, 255, .94); box-shadow: 0 2px 10px rgba(0, 0, 0, .12); color: var(--tp-text-primary); }
+.shape-controls strong { font-size: 12px; }
+.shape-controls p { margin: 6px 0 8px; font-size: 11px; line-height: 1.45; color: var(--tp-text-secondary); }
+.shape-controls__row { display: flex; gap: 6px; }
+.shape-controls__row + .shape-controls__row { margin-top: 6px; }
+.shape-controls button { flex: 1; padding: 7px 3px; border-radius: 6px; background: var(--tp-bg-input); font-size: 11px; cursor: pointer; }
+.shape-controls button:disabled { opacity: .45; cursor: default; }
+.shape-controls button:focus-visible, .crop-handle:focus-visible { outline: 2px solid var(--tp-text-accent); outline-offset: 2px; }
+.crop-handle { position: absolute; z-index: 4; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; background: #fff; color: #263e50; box-shadow: 0 1px 6px rgba(0, 0, 0, .4); pointer-events: auto; touch-action: none; }
+.crop-handle--move { cursor: move; }
+.crop-handle--resize { cursor: nwse-resize; }
 
 .basemap-status {
   position: absolute;

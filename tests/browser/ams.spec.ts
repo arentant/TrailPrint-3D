@@ -56,7 +56,7 @@ test('text has an independent preview color and AMS download preserves the lates
   const model = strFromU8(files['3D/3dmodel.model']!), settings = strFromU8(files['Metadata/model_settings.config']!)
   expect(model).toContain('color="#202020FF"')
   expect(model).toContain('color="#FF8800FF"')
-  expect(model).toContain('<item objectid="4"/>')
+  expect(model).toMatch(/<item objectid="4" transform="[^"]+"\/>/)
   expect(settings).toContain('name" value="Base"/><metadata key="extruder" value="1"')
   expect(settings).toContain('name" value="Text"/><metadata key="extruder" value="2"')
   expect(elevationRequests).toBe(beforeElevation)

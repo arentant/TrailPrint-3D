@@ -1,4 +1,6 @@
 import { generateCityModel } from '../city/city-model-service'
+import { fetchWaterCatalog } from '../city/water-catalog-service'
+import type { WaterCatalogRequest } from '@shared/types/water'
 import type { CityGenerateRequest } from '@shared/types/city'
 import { BrowserWindow, ipcMain } from 'electron'
 import { IpcChannels } from '@shared/ipc/channels'
@@ -58,6 +60,18 @@ function wrapHandler<Req, Res>(fn: (req: Req) => Res | Promise<Res>) {
 }
 
 export function registerIpcHandlers(): void {
+  const waterRequests = new Map<string, AbortController>()
+  ipcMain.handle(IpcChannels.WATER_CATALOG, async (event, req: WaterCatalogRequest) => {
+    const key = `${event.sender.id}:${req.requestId}`
+    waterRequests.get(key)?.abort()
+    const controller = new AbortController()
+    waterRequests.set(key, controller)
+    try { return await fetchWaterCatalog(req, AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)])) }
+    finally { if (waterRequests.get(key) === controller) waterRequests.delete(key) }
+  })
+  ipcMain.handle(IpcChannels.WATER_CANCEL, (event, requestId: string) => {
+    waterRequests.get(`${event.sender.id}:${requestId}`)?.abort()
+  })
   ipcMain.handle(IpcChannels.CITY_GENERATE, async (event, req: CityGenerateRequest) => {
     try { return await generateCityModel(req, (p) => { if (!event.sender.isDestroyed()) event.sender.send(IpcChannels.CITY_PROGRESS, p) }) }
     catch (error) { throw new Error(error instanceof Error ? error.message : String(error)) }

@@ -4,6 +4,8 @@
  * - 单向事件：domain:event（后续任务扩展）
  */
 export const IpcChannels = {
+  WATER_CATALOG: 'water:catalog',
+  WATER_CANCEL: 'water:cancel',
   /** 健康检查 / 示例调用 */
   CITY_GENERATE: 'city:generate',
   CITY_PROGRESS: 'city:progress',

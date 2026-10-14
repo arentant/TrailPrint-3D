@@ -14,6 +14,7 @@ export const useCityStore = defineStore('city', () => {
   // One persisted credential; workspace terrain settings remain independent.
   watch(() => mountain.config.terrain.openTopographyApiKey, (key) => { config.value.terrain.openTopographyApiKey = key; }, { immediate: true, flush: 'sync' });
   function applyImport(result: GpxImportResult, fileName: string, filePath?: string) {
+    config.value.mapCrop.selection = undefined;
     config.value.gpx = {
       imported: true, importId: result.importId, segments: result.segments,
       points: result.points, rawPoints: result.points, bounds: result.bounds,

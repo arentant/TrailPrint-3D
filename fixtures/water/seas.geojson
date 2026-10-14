@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[44.52, 40.17], [44.54, 40.17], [44.54, 40.19], [44.52, 40.19], [44.52, 40.17]], [[44.53, 40.18], [44.532, 40.18], [44.532, 40.182], [44.53, 40.182], [44.53, 40.18]]]}, "properties": {"source_id": "sea-1", "name": "Fixture sea"}}]}

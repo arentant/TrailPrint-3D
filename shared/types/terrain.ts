@@ -1,4 +1,5 @@
 import type { AppConfig, BaseShape, TerrainSmoothing } from "./config.js";
+import type { WaterCatalog, WaterFeatureStatus, WaterPartMapping, WaterAttribution, WaterFeatureSummary } from './water.js';
 
 /** 地理裁剪范围（供主进程 DEM 采样） */
 export interface TerrainCropRegion {
@@ -58,6 +59,7 @@ export interface TrailGrooveSpec {
 }
 
 export interface TerrainGenerateRequest {
+  waterCatalog?: WaterCatalog;
   config: AppConfig;
   /** 地图视窗像素尺寸（与遮罩几何一致） */
   viewportWidth: number;
@@ -86,9 +88,12 @@ export interface TerrainGenerateResponse {
   trailMesh: TerrainMeshPayload | null;
   /** Individually printable, flat-bottom water parts in terrain assembly coordinates. */
   waterMeshes?: TerrainMeshPayload[];
-  /** Loose alignment dowels, in their assembled positions. */
-  waterPinMeshes?: TerrainMeshPayload[];
   waterWarnings?: string[];
+  waterFeatureStatuses?: WaterFeatureStatus[];
+  waterFeatureDetails?: WaterFeatureSummary[];
+  waterPartMappings?: WaterPartMapping[];
+  waterAttribution?: WaterAttribution[];
+  waterCoverageErrors?: WaterCatalog['errors'];
   /** 3D 预览：模型平面轨迹折线 (mm) */
   trailPolylineMm: Array<{ x: number; y: number }>;
   /** 3D 预览：轨迹显示宽度 (mm) */

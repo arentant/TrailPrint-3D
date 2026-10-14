@@ -93,16 +93,16 @@ test('3MF contains a single assembly with independent colors and filament assign
   const { mesh } = await api.generateTrayBase({ config: config() });
   const files = unzipSync(api.encodeTrayAms3mf(mesh.baseMesh, mesh.textMesh, '#202020', '#ffcc00', 'Base & text'));
   const model = strFromU8(files['3D/3dmodel.model']), settings = strFromU8(files['Metadata/model_settings.config']);
-  assert.match(model, /unit="millimeter"/); assert.match(model, /<item objectid="4"\/>/);
+  assert.match(model, /unit="millimeter"/); assert.match(model, /<item objectid="4" transform="[^"]+"\/>/);
   assert.match(model, /component objectid="2"/); assert.match(model, /component objectid="3"/);
   assert.match(model, /color="#202020FF"/); assert.match(model, /color="#FFCC00FF"/);
   assert.match(model, /name="Base" pid="1" pindex="0"/); assert.match(model, /name="Text" pid="1" pindex="1"/);
   assert.match(settings, /name" value="Base"\/><metadata key="extruder" value="1"/);
   assert.match(settings, /name" value="Text"\/><metadata key="extruder" value="2"/);
   assert.match(model, /Base &amp; text/);
-  const props = JSON.parse(strFromU8(files['Metadata/project_settings.config']));
-  assert.deepEqual(props.filament_colour, ['#202020','#ffcc00']);
-  assert.ok(!('printer_model' in props), 'printer and filament profiles stay with the slicer');
+  const props = JSON.parse(strFromU8(files['Metadata/trailprint.json']));
+  assert.deepEqual(props.palette, ['#202020','#ffcc00']);
+  assert.equal(files['Metadata/project_settings.config'], undefined, 'partial printer configurations must not trigger slicer import failures');
 });
 
 test('AMS export target emits one 3MF without generating terrain or fetching elevation', async () => {

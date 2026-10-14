@@ -1,12 +1,12 @@
 import type { MapModelConfig, MountainTrailConfig } from "./config.js";
 import type { SprayPaintPlan } from "./spray-paint.js";
 import type { CityMapConfig } from "./city.js";
+import type { WaterCatalog } from './water.js';
 
 export const STL_FILE_NAMES = {
   cityMain: "City_Main.stl",
   terrainMain: "Terrain_Main.stl",
   waterInsert: "Water_Insert.stl",
-  waterPins: "Water_Pins.stl",
   trailLine: "Trail_Line.stl",
   trayBase: "Tray_Base.stl",
   trayText: "Tray_Text.stl",
@@ -28,7 +28,8 @@ export type ExportPhase =
   | "done";
 
 export type ExportTarget = "all" | "trail";
-export type MountainExportTarget = ExportTarget | "ams-base";
+export type MountainExportTarget = ExportTarget | "ams-base" | "model-3mf";
+export const MODEL_3MF_FILE_NAME = "Model.3mf";
 export const TRAY_AMS_FILE_NAME = "Tray_AMS.3mf";
 
 export interface MapModelExportRequest<Config extends MapModelConfig> {
@@ -38,6 +39,7 @@ export interface MapModelExportRequest<Config extends MapModelConfig> {
 }
 
 export interface MountainTrailExportRequest extends MapModelExportRequest<MountainTrailConfig> {
+  waterCatalog?: WaterCatalog;
   /** Omitted by older callers; resolves to the mountain trail flow. */
   flow?: "mountain-trail";
   /** Defaults to the complete ZIP; trail downloads a standalone STL. */

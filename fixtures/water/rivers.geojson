@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[44.5, 40.17], [44.505, 40.175], [44.51, 40.18]]}, "properties": {"source_id": "river-1", "width_m": 12, "name": "Fixture river"}}]}

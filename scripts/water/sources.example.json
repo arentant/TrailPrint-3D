@@ -1,0 +1,22 @@
+{
+  "version": "water-2026-10-14",
+  "datasets": [
+    {
+      "id": "hydrolakes", "version": "1.0", "input": "../../data/water/HydroLAKES_polys_v10.shp",
+      "idField": "Hylak_id", "category": "lake",
+      "attribution": "Messager et al. (2016), HydroLAKES v1", "license": "CC BY 4.0",
+      "sourceUrl": "https://www.hydrosheds.org/products/hydrolakes"
+    },
+    {
+      "id": "grwl", "version": "V01.01", "input": "../../data/water/grwl-centerlines.gpkg",
+      "idField": "source_id", "widthField": "width_m", "category": "river",
+      "attribution": "Allen and Pavelsky (2018), Global River Widths from Landsat", "license": "CC BY 4.0",
+      "sourceUrl": "https://doi.org/10.5281/zenodo.1297434"
+    },
+    {
+      "id": "coastline", "version": "2026-10-14", "input": "../../data/water/water_polygons.shp",
+      "category": "sea", "attribution": "© OpenStreetMap contributors; processed by osmdata.openstreetmap.de",
+      "license": "ODbL", "sourceUrl": "https://osmdata.openstreetmap.de/data/water-polygons.html"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import type { TerrainCropRegion } from "../types/terrain.js";
 import { clipPolylineToFootprint } from "./footprint.js";
 import { latLngToContainerPoint } from "./leaflet-projection.js";
 import { maskMmScale } from "./map-mm-projection.js";
+import { cropSelectionFrame } from './crop-selection.js';
 
 export interface TrailPointMm {
   x: number;
@@ -25,9 +26,7 @@ export function projectTrailToModelMm(
   crop: TerrainCropRegion,
   options: ProjectTrailOptions,
 ): TrailPointMm[] {
-  const { mapCrop, viewportWidth, viewportHeight } = options;
-  const w = Math.max(viewportWidth, 64);
-  const h = Math.max(viewportHeight, 64);
+  const { mapCrop, width: w, height: h } = cropSelectionFrame(options.mapCrop, options.viewportWidth, options.viewportHeight);
   const scale = maskMmScale(mapCrop, crop, w, h);
   const mapped: TrailPointMm[] = [];
   for (const p of points) {

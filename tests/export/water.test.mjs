@@ -1,3 +1,4 @@
+import { unzipSync, strFromU8, zipSync } from 'fflate';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
@@ -13,12 +14,13 @@ const compiled = await build({
     export * from './shared/utils/heightfield-mesh'; export * from './shared/utils/mesh-manifold';
     export * from './shared/utils/crop-region'; export * from './shared/utils/map-mm-projection';
     export * from './shared/utils/leaflet-projection'; export * from './shared/utils/model-validation';
-    export * from './shared/export/export-artifact'; export * from './electron/main/terrain/terrain-main-service';
+    export * from './shared/water/catalog'; export * from './shared/water/selection'; export * from './shared/water/fused-materials';
+    export * from './shared/export/colored-3mf'; export * from './shared/utils/binary-stl'; export * from './electron/main/terrain/prepare-heightfield'; export * from './shared/export/export-artifact'; export * from './electron/main/terrain/terrain-main-service';
     export * from './electron/main/export/mountain-trail-flow';`, resolveDir: resolve('.') },
   bundle: true, write: false, platform: 'node', format: 'esm',
   plugins: [{ name: 'water-fixtures', setup(plugin) {
     plugin.onResolve({ filter: /^electron$/ }, () => ({ path: 'electron', namespace: 'fixture' }));
-    plugin.onResolve({ filter: /^\.\/manifold-runtime$/ }, () => ({ path: 'manifold', namespace: 'fixture' }));
+    plugin.onResolve({ filter: /^(\.\/|\.\.\/city\/)manifold-runtime$/ }, () => ({ path: 'manifold', namespace: 'fixture' }));
     plugin.onResolve({ filter: /^\.\/city-map-provider$/ }, () => ({ path: 'map', namespace: 'fixture' }));
     plugin.onResolve({ filter: /^\.\/dem-provider$/ }, () => ({ path: 'dem', namespace: 'fixture' }));
     plugin.onResolve({ filter: /^\.\.\/gpx\/hydrate-gpx-config$/ }, () => ({ path: 'gpx', namespace: 'fixture' }));
@@ -26,7 +28,7 @@ const compiled = await build({
       electron: 'export const nativeImage = {}; export const app = {};',
       manifold: 'export const getManifold = async () => globalThis.__waterWasm;',
       map: 'export const loadCityMapData = (...args) => globalThis.__waterMap(...args);',
-      dem: 'export const sampleDemGrid = async (_crop, cols, rows) => ({cols, rows, elevations: new Float64Array(cols * rows).fill(500), source: "opentopography"});',
+      dem: 'export const sampleDemGrid = async (_crop, cols, rows) => ({cols, rows, elevations: Float64Array.from({ length: cols * rows }, (_, i) => globalThis.__waterElevation ? globalThis.__waterElevation(i % cols, Math.floor(i / cols), cols, rows) : 500), source: "opentopography"});',
       gpx: 'export const hydrateGpxConfig = async (config) => config;',
     }[path] }));
   } }],
@@ -102,20 +104,64 @@ test('Boolean export keeps unrelated coincident edges separate instead of making
   } finally { composed.delete(); b.delete(); rawB.delete(); a.delete(); }
 });
 
-test('water and terrain have closed complementary pockets with loose pins and flat insert bottoms', () => {
+test('water sits on a closed flat terrain pocket with no holes in its underside', () => {
   const req = request(), { crop, terrain, data } = setup(req, [[box(-20, -15, 20, 15)]]);
   const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
-  assert.equal(result.waterMeshes.length, 1); assert.equal(result.waterPinMeshes.length, 2);
-  for (const mesh of [result.mesh, ...result.waterMeshes, ...result.waterPinMeshes]) assertClosed(mesh);
+  assert.equal(result.waterMeshes.length, 1);
+  for (const mesh of [result.mesh, ...result.waterMeshes]) assertClosed(mesh);
   const water = result.waterMeshes[0];
   assert.equal(Math.min(...water.positions.filter((_, i) => i % 3 === 2)), -req.config.water.thicknessMm);
   assert.ok(overlap(result.mesh, water) < 1e-6);
-  for (const pin of result.waterPinMeshes) {
-    assert.ok(overlap(result.mesh, pin) < 1e-6); assert.ok(overlap(water, pin) < 1e-6);
-    const z = pin.positions.filter((_, i) => i % 3 === 2);
-    assert.ok(Math.abs(Math.max(...z) - Math.min(...z) - (2 * req.config.water.pinDepthMm - 0.1)) < 1e-5);
+  assert.ok(result.mesh.positions.filter((_, i) => i % 3 === 2).every(z => z === 0 || z === water.bottomZ || z === terrain.bottomZ));
+  const insert = solid(water);
+  try {
+    const expectedVolume = (40 - 2 * req.config.water.clearanceMm) * (30 - 2 * req.config.water.clearanceMm) * req.config.water.thicknessMm;
+    assert.ok(Math.abs(insert.volume() - expectedVolume) < 0.001, 'the complete flat-bottom insert has no sockets');
+  } finally { insert.delete(); }
+});
+
+test('clearance changes each shoreline by the requested amount while the insert stays seated', () => {
+  for (const clearanceMm of [0, 0.15, 0.35]) {
+    const req = request(); req.config.water.clearanceMm = clearanceMm;
+    const { crop, terrain, data } = setup(req, [[box(-20, -15, 20, 15)]]);
+    const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+    const water = result.waterMeshes[0];
+    const x = water.positions.filter((_, i) => i % 3 === 0), y = water.positions.filter((_, i) => i % 3 === 1);
+    assert.ok(Math.abs(Math.max(...x) - (20 - clearanceMm)) < 1e-5);
+    assert.ok(Math.abs(Math.min(...x) - (-20 + clearanceMm)) < 1e-5);
+    assert.ok(Math.abs(Math.max(...y) - (15 - clearanceMm)) < 1e-5);
+    assertClosed(result.mesh); assertClosed(water);
+    assert.ok(overlap(result.mesh, water) < 1e-6);
+    const main = solid(result.mesh);
+    const block = wasm.Manifold.cube([0.5, 0.5, 0.1], true);
+    const bed = block.translate([0, 0, water.bottomZ - 0.05]);
+    const air = block.translate([0, 0, water.bottomZ + 0.05]);
+    const supported = main.intersect(bed), clear = main.intersect(air);
+    try { assert.ok(Math.abs(supported.volume() - 0.025) < 1e-6); assert.ok(clear.volume() < 1e-6); }
+    finally { supported.delete(); clear.delete(); air.delete(); bed.delete(); block.delete(); main.delete(); }
   }
-  assert.ok(result.mesh.positions.some((value, i) => i % 3 === 2 && Math.abs(value + 1.6) < 1e-5), 'terrain has pin sockets below the water seat');
+});
+
+test('small water areas that previously could not hold pins now export as seated inserts', () => {
+  const req = request(), { crop, terrain, data } = setup(req, [[box(-0.5, -0.5, 0.5, 0.5)], [box(2, -5, 3.2, 5)]]);
+  const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+  assert.equal(result.waterMeshes.length, 2);
+  assert.deepEqual(result.waterWarnings, []);
+  assertClosed(result.mesh);
+  for (const water of result.waterMeshes) { assertClosed(water); assert.ok(overlap(result.mesh, water) < 1e-6); }
+});
+
+test('a printable water piece survives when clearance splits off an unprintable neighbor', () => {
+  const req = request();
+  const outline = [[-10,-5],[0,-5],[0,-0.1],[2,-0.1],[2,-0.2],[2.8,-0.2],
+    [2.8,0.2],[2,0.2],[2,0.1],[0,0.1],[0,5],[-10,5],[-10,-5]];
+  const { crop, terrain, data } = setup(req, [[outline]]);
+  const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+  assert.equal(result.waterMeshes.length, 1); assertClosed(result.mesh); assertClosed(result.waterMeshes[0]);
+  const main = solid(result.mesh), block = wasm.Manifold.cube([0.3, 0.1, 0.2], true);
+  const probe = block.translate([2.4, 0, -0.1]), remaining = main.intersect(probe);
+  try { assert.ok(Math.abs(remaining.volume() - 0.006) < 1e-6, 'omitted water leaves its terrain surface intact'); }
+  finally { remaining.delete(); probe.delete(); block.delete(); main.delete(); }
 });
 
 test('multipolygon islands remain in the terrain and trails reserve an unobstructed corridor', () => {
@@ -143,18 +189,18 @@ for (const shape of ['circle', 'rectangle', 'polygon']) test(`${shape} rotated w
   for (const water of result.waterMeshes) { assertClosed(water); assert.ok(overlap(result.mesh, water) < 1e-5); }
 });
 
-test('empty, incomplete and sub-pin-scale water leave terrain intact with actionable status', () => {
+test('empty and below-print-scale water leave terrain intact with actionable status', () => {
   const req = request(), { crop, terrain } = setup(req, []);
-  for (const data of [{ elements: [] }, dataFor(req, crop, [[box(-0.5, -0.5, 0.5, 0.5)]])]) {
+  for (const data of [{ elements: [] }, dataFor(req, crop, [[box(-0.1, -0.1, 0.1, 0.1)]])]) {
     const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
-    assert.equal(result.mesh, terrain); assert.equal(result.waterMeshes.length, 0); assert.equal(result.waterPinMeshes.length, 0);
+    assert.equal(result.mesh, terrain); assert.equal(result.waterMeshes.length, 0);
     assert.ok(result.waterWarnings.length > 0);
   }
 });
 
-test('water validation protects socket roofs and terrain floors, while trail-only ignores water', () => {
+test('water validation protects pocket floors and accepts thinner inserts without sockets', () => {
   const req = request(); req.config.water.thicknessMm = 0.5;
-  assert.match(api.validateModelGeneration(req.config, { requireGpx: false }).message, /socket depth plus 0.4/);
+  assert.equal(api.validateModelGeneration(req.config, { requireGpx: false }).valid, true);
   req.config.water.thicknessMm = 2;
   assert.match(api.validateModelGeneration(req.config, { requireGpx: false }).message, /terrain base thickness/);
   req.config.water.clearanceMm = -1;
@@ -162,7 +208,7 @@ test('water validation protects socket roofs and terrain floors, while trail-onl
   assert.equal(api.validateModelGeneration(req.config, { requireGpx: false, trailOnly: true }).valid, true);
 });
 
-test('terrain preview and ZIP export detect water, include pin parts and keep standalone trail independent', async () => {
+test('terrain preview and ZIP export include fitted inserts and keep standalone trail independent', async () => {
   const req = request();
   req.config.gpx = { ...req.config.gpx, imported: true, points: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }],
     rawPoints: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }], pointCount: 2, fileName: 'water-test.gpx' };
@@ -174,21 +220,171 @@ test('terrain preview and ZIP export detect water, include pin parts and keep st
   const files = {};
   await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, value) => { files[name] = value; });
   assert.ok(Object.keys(files).some((name) => /Water_Insert.*\.stl$/.test(name)));
-  const pins = files[api.modelExportFileName(req.config, 'Water_Pins.stl')]; assert.ok(pins);
-  const view = new DataView(pins.buffer, pins.byteOffset, pins.byteLength);
-  assert.ok(view.getUint32(80, true) > 0);
-  for (let face = 0; face < view.getUint32(80, true); face++) for (let v = 0; v < 3; v++) {
-    assert.ok(view.getFloat32(84 + face * 50 + 12 + v * 12 + 8, true) >= -1e-5, 'print pins are placed on the bed');
-  }
+  assert.ok(!Object.keys(files).some(name => /Water_Pins\.stl$/.test(name)));
   const guide = new TextDecoder().decode(files[api.modelExportFileName(req.config, 'Water_Assembly.txt')]);
-  assert.match(guide, /underside sockets/); assert.match(guide, /OpenStreetMap contributors/);
+  assert.match(guide, /flat pocket floor/); assert.match(guide, /glue/); assert.match(guide, /OpenStreetMap contributors/);
+  assert.doesNotMatch(guide, /pin|socket/i);
   const exportResult = await api.generateTerrainMain({ ...req, stlExport: true });
   for (let i = 0; i < preview.waterMeshes.length; i++) assert.deepEqual(preview.waterMeshes[i], exportResult.waterMeshes[i]);
   assert.equal(calls, 3);
   globalThis.__waterMap = async () => { throw new Error('Water provider unavailable'); };
-  await assert.rejects(api.generateTerrainMain(req), /Water provider unavailable/);
+  const partial = await api.generateTerrainMain(req);
+  assert.ok(partial.waterCoverageErrors.some(error => /Water provider unavailable/.test(error.message)));
+  assert.deepEqual(partial.waterMeshes, []);
   const trail = await api.generateTerrainMain({ ...req, stlExport: true, trailOnly: true });
   assert.ok(trail.trailMesh); assert.deepEqual(trail.waterMeshes, []);
   req.config.water.enabled = false;
   const withoutWater = await api.generateTerrainMain(req); assert.deepEqual(withoutWater.waterMeshes, []);
+});
+
+function catalogFor(req, crop, polygons) {
+  return { key: api.waterCatalogKey({ mapCrop: req.config.mapCrop, viewportWidth: req.viewportWidth, viewportHeight: req.viewportHeight }),
+    features: api.osmWaterFeatures(dataFor(req, crop, polygons)), sources: [api.OSM_WATER_ATTRIBUTION], errors: [], fetchedAt: '2026-10-14T00:00:00Z' };
+}
+
+test('a lake enclosing the crop retains a protective wall and its islands', () => {
+  const req = request(), { crop, terrain } = setup(req, []);
+  const data = catalogFor(req, crop, [[box(-200, -200, 200, 200), box(-5, -5, 5, 5)]]);
+  const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+  assert.equal(result.waterMeshes.length, 1);
+  for (const part of [result.mesh, ...result.waterMeshes]) assertClosed(part);
+  const xs = result.waterMeshes[0].positions.filter((_, i) => i % 3 === 0);
+  assert.ok(Math.max(...xs) <= crop.widthMm / 2 - .6 - req.config.water.clearanceMm + 1e-5);
+});
+
+test('complete OSM geometry suppresses duplicate lake sources, even when excluded', () => {
+  const req = request(), { crop, terrain } = setup(req, []);
+  const data = catalogFor(req, crop, [[box(-20, -20, 20, 20)]]);
+  const osm = data.features[0];
+  data.features.push({ ...osm, id: 'hydrolakes:42', sourceId: '42', source: { ...osm.source, id: 'hydrolakes', version: '1' } });
+  for (const excluded of [false, true]) {
+    req.config.water.excludedFeatureIds = excluded ? [osm.id] : [];
+    const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+    assert.equal(result.waterMeshes.length, excluded ? 0 : 1);
+    assert.equal(result.waterFeatureStatuses.find(s => s.featureId === 'hydrolakes:42').state, 'covered');
+    if (!excluded) assert.deepEqual(result.waterPartMappings[0].featureIds, [osm.id]);
+  }
+  req.config.water.excludedFeatureIds = [];
+  req.config.water.categories = ['river'];
+  assert.equal(api.buildWaterGeometry(wasm, req, crop, data, terrain, []).waterMeshes.length, 0);
+});
+
+test('river centerlines use measured widths, printable widening and stable feature mappings', () => {
+  const req = request(), { crop, terrain } = setup(req, []);
+  const polygonCatalog = catalogFor(req, crop, [[box(-30, -10, 30, 10)]]), polygon = polygonCatalog.features[0].geometry.coordinates[0];
+  const feature = { ...polygonCatalog.features[0], id: 'osm:way/river', category: 'river',
+    geometry: { type: 'LineString', coordinates: [polygon[0], polygon[1]] }, widthM: .1 };
+  polygonCatalog.features = [feature];
+  const result = api.buildWaterGeometry(wasm, req, crop, polygonCatalog, terrain, []);
+  assert.equal(result.waterMeshes.length, 1); assertClosed(result.waterMeshes[0]);
+  assert.equal(result.waterFeatureStatuses[0].exaggerated, true);
+  assert.ok(Math.abs(result.waterFeatureStatuses[0].printedWidthMm - .8) < 1e-6);
+  req.config.water.riverWidthMultiplier = 2;
+  polygonCatalog.features[0].widthM = 100;
+  const wider = api.buildWaterGeometry(wasm, req, crop, polygonCatalog, terrain, []);
+  assert.ok(wider.waterFeatureStatuses[0].printedWidthMm > .8);
+  req.config.water.minimumAreaMm2 = 5000;
+  const omitted = api.buildWaterGeometry(wasm, req, crop, polygonCatalog, terrain, []);
+  assert.equal(omitted.mesh, terrain); assert.equal(omitted.waterMeshes.length, 0);
+  assert.equal(omitted.waterFeatureStatuses[0].state, 'too-small');
+});
+
+test('seas use a flat sea-level surface while preserving islands and floor thickness', () => {
+  const req = request(), { crop, terrain } = setup(req, [], (x, y) => (x + y) * .015);
+  const data = catalogFor(req, crop, [[box(-20, -20, 20, 20), box(-3, -3, 3, 3)]]);
+  data.features[0].category = 'sea';
+  data.features[0].source.id = 'coastline';
+  const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, [], undefined, .5);
+  const water = result.waterMeshes[0];
+  assertClosed(water); assertClosed(result.mesh);
+  assert.ok(water.positions.filter((_, i) => i % 3 === 2).every(z => Math.abs(z - .5) < 1e-6 || Math.abs(z - water.bottomZ) < 1e-6));
+  assert.ok(water.bottomZ >= terrain.bottomZ + .4);
+  assert.ok(overlap(result.mesh, water) < 1e-6);
+  const heights = Float64Array.of(-100, 500);
+  const transform = api.elevationsToHeightMmInPlace(heights, crop, 2, 'standard', { maxGrid: 64 });
+  assert.ok(Math.abs(transform.seaLevelMm - 100 * transform.mmPerMeter) < 1e-8);
+});
+
+test('bed-normalized parts restore their assembly placement exactly', () => {
+  const req = request(), { terrain } = setup(req, []);
+  const normalized = api.normalizePartToBed(terrain);
+  assert.equal(Math.min(...normalized.mesh.positions.filter((_, i) => i % 3 === 2)), 0);
+  normalized.mesh.positions.forEach((value, i) => assert.equal(value + normalized.assemblyTranslation[i % 3], terrain.positions[i]));
+});
+
+test('fused preview and complete 3MF have closed, touching material volumes and independent groups', async () => {
+  const req = request(); req.config.printMode = 'fused';
+  req.config.gpx = { ...req.config.gpx, imported: true, points: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }],
+    rawPoints: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }], pointCount: 2, fileName: 'complete-model.gpx' };
+  const { crop } = setup(req, []);
+  req.waterCatalog = catalogFor(req, crop, [[box(-25, -18, 25, 18)]]);
+  const preview = await api.generateTerrainMain(req);
+  for (const part of [preview.mesh, preview.trailMesh, ...preview.waterMeshes]) assertClosed(part);
+  const materials = [preview.mesh, preview.trailMesh, ...preview.waterMeshes].map(solid), combined = wasm.Manifold.union(materials), pieces = combined.decompose();
+  try {
+    assert.equal(pieces.filter(piece => piece.volume() > 1e-6).length, 1);
+    assert.ok(Math.abs(combined.volume() - materials.reduce((v, s) => v + s.volume(), 0)) < 1e-4, 'material volumes have no positive-volume overlap');
+  } finally { pieces.forEach(s => s.delete()); combined.delete(); materials.forEach(s => s.delete()); }
+  const files = {};
+  req.target = 'model-3mf';
+  await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, value) => { files[name] = value; });
+  const names = Object.keys(files);
+  assert.equal(names.length, 1); assert.match(names[0], /Model\.3mf$/);
+  const parts = unzipSync(files[names[0]]), model = strFromU8(parts['3D/3dmodel.model']);
+  assert.equal((model.match(/<item /g) ?? []).length, 2);
+  assert.match(model, /name="Terrain"/); assert.match(model, /name="Trail"/); assert.match(model, /name="Water 1:/); assert.match(model, /name="Tray"/);
+  assert.match(model, /color="#268FBCFF"/);
+  const metadata = JSON.parse(strFromU8(parts['Metadata/trailprint.json']));
+  assert.equal(metadata.metadata.printMode, 'fused'); assert.ok(metadata.metadata.sources.length);
+  assert.ok(metadata.placements[1].translationMm[1] > 100);
+  await writeFile('/tmp/trailprint-complete-model.3mf', files[names[0]]);
+  assert.match(strFromU8(parts['Metadata/model_settings.config']), /key="name" value="Water 1:/);
+  assert.match(strFromU8(parts['Metadata/model_settings.config']), /key="extruder" value="3"/);
+  // Camera navigation and window resizing must not change an anchored export.
+  const { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg } = req.config.mapCrop;
+  req.config.mapCrop.selection = { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg, viewportWidth: req.viewportWidth, viewportHeight: req.viewportHeight };
+  Object.assign(req.config.mapCrop, { mapCenterLat: 41, mapCenterLon: 45, mapZoom: 18, mapBearingDeg: 65 });
+  assert.equal(api.waterCatalogKey({ mapCrop: req.config.mapCrop, viewportWidth: 390, viewportHeight: 700 }), req.waterCatalog.key);
+  const navigated = {};
+  await api.mountainTrailExportFlow.generateFiles({ ...req, viewportWidth: 390, viewportHeight: 700 }, () => {}, (name, value) => { navigated[name] = value; });
+  assert.ok(strFromU8(unzipSync(Object.values(navigated)[0])['3D/3dmodel.model']) === model, 'Bambu geometry retains the selected area after map navigation');
+});
+
+
+test('fused mountain relief remains closed and connected across a terrain-following lake', async () => {
+  const req = request(); req.config.printMode = 'fused';
+  req.config.tray.text.enabled = true;
+  req.config.tray.text.labels = [{ text: 'WATER TEST', edge: 0 }];
+  req.config.gpx = { ...req.config.gpx, imported: true, points: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }],
+    rawPoints: [{ lat: 40.177, lon: 44.505 }, { lat: 40.183, lon: 44.515 }], pointCount: 2, fileName: 'mountain-relief.gpx' };
+  const { crop } = setup(req, []); req.waterCatalog = catalogFor(req, crop, [[box(-25, -18, 25, 18), box(-4, -3, 4, 3)]]);
+  globalThis.__waterElevation = (x, y, cols, rows) => 500 + 150 * Math.sin(Math.PI * x / cols) * Math.sin(Math.PI * y / rows);
+  try {
+    const preview = await api.generateTerrainMain(req);
+    for (const part of [preview.mesh, preview.trailMesh, ...preview.waterMeshes]) assertClosed(part);
+    assert.ok(Math.max(...preview.mesh.positions.filter((_, i) => i % 3 === 2)) > 1);
+    const files = {}; req.target = 'model-3mf';
+    await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, value) => { files[name] = value; });
+    await writeFile('/tmp/trailprint-mountain-relief.3mf', Object.values(files)[0]);
+  } finally { delete globalThis.__waterElevation; }
+});
+
+
+test('clearance calibration coupons have closed flat seats and bed-ready inserts', async () => {
+  const files = {};
+  for (const clearance of [.1, .15, .2]) {
+    const req = request(); req.config.mapCrop.lengthMm = 15; req.config.mapCrop.widthMm = 15;
+    req.config.water.clearanceMm = clearance;
+    const { crop, terrain, data } = setup(req, [[box(-5, -5, 5, 5)]]);
+    const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+    assert.equal(result.waterMeshes.length, 1);
+    for (const [name, part] of [['Terrain', result.mesh], ['Water', result.waterMeshes[0]]]) {
+      assertClosed(part);
+      const normalized = api.normalizePartToBed(part).mesh;
+      assert.equal(Math.min(...normalized.positions.filter((_, i) => i % 3 === 2)), 0);
+      files[`Coupon_${clearance.toFixed(2)}mm_${name}.stl`] = api.encodeBinaryStl(normalized, name);
+    }
+  }
+  files['Read_me.txt'] = new TextEncoder().encode('Experimental TrailPrint clearance coupons\nPrint the matching Terrain and Water pair at each clearance without scaling.\nEach coupon is 15 × 15 × 2 mm, with a 1 mm water insert. Clearances are per side.\nCompare 0.10, 0.15 and 0.20 mm on your printer. Check dry fit, complete seat contact and remaining floor.\nThese files do not establish a validated fit; record your physical test results.\n');
+  await writeFile('/tmp/trailprint-clearance-coupons.zip', zipSync(files));
 });

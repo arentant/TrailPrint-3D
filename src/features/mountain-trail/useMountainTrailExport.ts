@@ -11,6 +11,8 @@ import { logMagnetDebug } from "@shared/utils/magnet-debug-log";
 import { computeTrayFootprint } from "@shared/utils/tray-footprint";
 import type { MountainExportTarget, MountainTrailExportRequest } from "@shared/types/export";
 
+import { useWaterStore } from '@/stores/water';
+
 export function useMountainTrailExport() {
   const ui = useUiStore();
   const configStore = useConfigStore();
@@ -55,6 +57,7 @@ export function useMountainTrailExport() {
       return {
         flow: "mountain-trail",
         config: exportConfig,
+        waterCatalog: useWaterStore().currentCatalog,
         viewportWidth: vw,
         viewportHeight: vh,
         target,
@@ -76,5 +79,6 @@ export function useMountainTrailExport() {
   const generateAndSave = (target: MountainExportTarget = "all") => exporter.generateAndSave(target);
   const downloadTrail = () => generateAndSave("trail");
   const downloadAmsBase = () => generateAndSave("ams-base");
-  return { generateAndSave, downloadTrail, downloadAmsBase, generating: exporter.generating };
+  const downloadModel3mf = () => generateAndSave("model-3mf");
+  return { generateAndSave, downloadTrail, downloadAmsBase, downloadModel3mf, generating: exporter.generating };
 }

@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import {
   createDefaultConfig,
-  createDefaultWaterConfig,
+  normalizeWaterConfig,
   createDefaultTrayText,
   createDefaultTrayKeychain,
   normalizeModelColors,
@@ -137,6 +137,7 @@ function extractMapCropForScheme(mapCrop: AppConfig["mapCrop"]): AppConfig["mapC
 function extractSchemePayload(cfg: AppConfig, includeMapView = false): ConfigSchemePayload {
   const { openTopographyApiKey: _key, ...terrainRest } = cfg.terrain;
   return deepClone({
+    printMode: cfg.printMode,
     colors: cfg.colors,
     mapCrop: extractMapCropForScheme(cfg.mapCrop),
     ...(includeMapView ? {
@@ -145,6 +146,7 @@ function extractSchemePayload(cfg: AppConfig, includeMapView = false): ConfigSch
         mapCenterLon: cfg.mapCrop.mapCenterLon,
         mapZoom: cfg.mapCrop.mapZoom,
         mapBearingDeg: cfg.mapCrop.mapBearingDeg,
+        selection: cfg.mapCrop.selection,
       },
     } : {}),
     terrain: terrainRest,
@@ -168,17 +170,21 @@ function applySchemePayload(cfg: AppConfig, payload: ConfigSchemePayload): void 
     mapBearingDeg: cfg.mapCrop.mapBearingDeg,
     mapPaneX: cfg.mapCrop.mapPaneX,
     mapPaneY: cfg.mapCrop.mapPaneY,
+    selection: cfg.mapCrop.selection,
   };
 
   const nextMap = extractMapCropForScheme(payload.mapCrop);
   cfg.mapCrop = payload.mapView
-    ? { ...nextMap, ...deepClone(payload.mapView), mapPaneX: 0, mapPaneY: 0 }
+    ? { ...nextMap, ...deepClone(payload.mapView), mapPaneX: 0, mapPaneY: 0,
+      selection: deepClone(payload.mapView.selection ?? { ...payload.mapView,
+        viewportWidth: Math.max(useUiStore().previewViewport.w, 64), viewportHeight: Math.max(useUiStore().previewViewport.h, 64) }) }
     : { ...nextMap, ...framing };
   cfg.terrain = {
     ...deepClone(payload.terrain),
     openTopographyApiKey: apiKey,
   };
-  cfg.water = { ...createDefaultWaterConfig(), ...deepClone(payload.water ?? {}) };
+  cfg.water = normalizeWaterConfig(payload.water);
+  cfg.printMode = payload.printMode === 'fused' ? 'fused' : 'separate';
   cfg.trail = deepClone(payload.trail);
   cfg.tray = deepClone(payload.tray);
   cfg.assembly = deepClone(payload.assembly);
@@ -286,6 +292,7 @@ export const useConfigStore = defineStore("config", () => {
     filePath?: string,
   ): void {
     const raw = clonePoints(result.points);
+    config.value.mapCrop.selection = undefined;
     config.value.gpx = {
       imported: true,
       importId: result.importId,

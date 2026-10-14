@@ -13,7 +13,7 @@ export function elevationsToHeightMmInPlace(
   zExaggeration: number,
   meshQuality: TerrainMeshQuality | undefined,
   meshQualityCustom: TerrainConfig["meshQualityCustom"],
-): { baseM: number } {
+): { baseM: number; mmPerMeter: number; seaLevelMm: number } {
   const zCapMm = terrainMeshQualitySpec(meshQuality, meshQualityCustom).zCapMm;
   let minM = Infinity;
   let maxZ = 0;
@@ -47,7 +47,8 @@ export function elevationsToHeightMmInPlace(
       elevations[i] = elevations[i]! * scale;
     }
   }
-  return { baseM };
+  const elevationScale = mmPerMeter * zExaggeration * scale;
+  return { baseM, mmPerMeter: elevationScale, seaLevelMm: -baseM * elevationScale };
 }
 
 export function prepareElevationHeightfield(elevations: Float64Array, cols: number, rows: number, crop: TerrainCropRegion, terrain: TerrainConfig): Float64Array {

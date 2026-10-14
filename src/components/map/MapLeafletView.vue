@@ -5,6 +5,8 @@ import { useConfigStore } from '@/stores/config';
 import { useUiStore } from '@/stores/ui';
 import { useTrailPoints } from '@/composables/useTrailPoints';
 import MapFramingView from './MapFramingView.vue';
+import { useWaterStore } from '@/stores/water';
+const water = useWaterStore();
 const store = useConfigStore();
 const { config } = storeToRefs(store);
 const ui = useUiStore();
@@ -23,6 +25,8 @@ defineExpose({ syncStoreFromMap, fitTrackInView, resetMapView });
     v-model:colors="config.colors"
     :tray="config.tray" :fit-nonce="ui.gpxMapFitNonce" :grid-visible="ui.mapGridVisible"
     :tray-tolerance-mm="config.assembly.trayToleranceMm"
+    :water-review="water.review"
+    @toggle-water="water.toggleFeature"
     :restore-view="!!store.schemes.find(s => s.id === store.activeSchemeId)?.payload.mapView"
     @update:crop="config.mapCrop = $event" />
 </template>

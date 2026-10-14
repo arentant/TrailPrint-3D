@@ -1,7 +1,9 @@
 import type { TrailPrintApi } from '../../electron/preload'
+import { fetchWaterCatalog } from './water-catalog-service'
 import type { BrowserExport, ProgressEvent, WorkerMethod, WorkerReply, WorkerRequest } from './protocol'
 
 export function createBrowserApi(): TrailPrintApi & { runtime: 'browser' } {
+  const waterRequests = new Map<string | undefined, AbortController>()
   let worker: Worker | undefined
   let sequence = 0
   let download: { url: string; name: string } | undefined
@@ -74,6 +76,14 @@ export function createBrowserApi(): TrailPrintApi & { runtime: 'browser' } {
   })
 
   return {
+    fetchWaterCatalog: async (request) => {
+      waterRequests.get(request.requestId)?.abort()
+      const controller = new AbortController()
+      waterRequests.set(request.requestId, controller)
+      try { return await fetchWaterCatalog(request, AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)])) }
+      finally { if (waterRequests.get(request.requestId) === controller) waterRequests.delete(request.requestId) }
+    },
+    cancelWaterCatalog: async (id) => { waterRequests.get(id)?.abort() },
     runtime: 'browser',
     ping: async (request) => ({ reply: request?.message ?? 'TrailPrint 3D', process: 'main', timestamp: Date.now() }),
     enqueueTask: async () => { throw new Error('Use the model generation controls to start a browser task') },

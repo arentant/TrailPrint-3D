@@ -9,7 +9,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 // The desktop geometry pipeline stays shared. Only these platform boundaries
 // change for the browser worker; the Electron build keeps its original modules.
 const aliases = [
+  { find: /^\.\/water-catalog-service$/, replacement: resolve('src/browser/water-catalog-service.ts') },
   { find: /^\.\/city-map-provider$/, replacement: resolve('src/browser/city-map-provider.ts') },
+  { find: /^\.\.\/city\/manifold-runtime$/, replacement: resolve('src/browser/manifold-runtime.ts') },
   { find: /^\.\/manifold-runtime$/, replacement: resolve('src/browser/manifold-runtime.ts') },
   { find: /^\.\.\/terrain\/dem-provider$/, replacement: resolve('src/browser/dem-provider.ts') },
   { find: /^\.\/dem-provider$/, replacement: resolve('src/browser/dem-provider.ts') },
@@ -19,7 +21,7 @@ const aliases = [
   { find: '@', replacement: resolve('src') },
 ]
 
-function browserEntry(): Plugin {
+function browserEntry(waterOrigin?: string): Plugin {
   const api = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const path = req.url?.split('?')[0]
     const handler = path === '/api/city' ? city : path === '/api/elevation' ? elevation : path?.startsWith('/api/auth/') || path === '/api/auth' ? auth : null
@@ -31,7 +33,8 @@ function browserEntry(): Plugin {
   }
   return {
     name: 'trailprint-browser-entry',
-    transformIndexHtml: { order: 'pre', handler: (html) => html.replace('/src/main.ts', '/src/browser/main.ts') },
+    transformIndexHtml: { order: 'pre', handler: (html) => html.replace('/src/main.ts', '/src/browser/main.ts')
+      .replace("connect-src 'self'", `connect-src 'self'${waterOrigin ? ` ${waterOrigin}` : ''}`) },
     configureServer(server) { server.middlewares.use(api) },
     configurePreviewServer(server) { server.middlewares.use(api) },
   }
@@ -40,11 +43,14 @@ function browserEntry(): Plugin {
 export default defineConfig(({ mode }) => {
   // These settings are used only by the local API handlers, never exposed as VITE_ variables.
   const env = loadEnv(mode, process.cwd(), '')
+  const manifestUrl = process.env.VITE_WATER_CATALOG_URL || env.VITE_WATER_CATALOG_URL
+  const waterOrigin = manifestUrl ? new URL(manifestUrl).origin : undefined
+  if (manifestUrl && !/^https?:\/\//.test(manifestUrl)) throw new Error('Configure an HTTP(S) water manifest URL.')
   for (const key of ['AUTH_URL', 'AUTH_SECRET', 'AUTH_GOOGLE_ID', 'AUTH_GOOGLE_SECRET', 'ALLOWED_EMAILS', 'CITY_OVERPASS_URL']) {
     if (process.env[key] === undefined && env[key] !== undefined) process.env[key] = env[key]
   }
   return {
-    plugins: [vue(), browserEntry()],
+    plugins: [vue(), browserEntry(waterOrigin)],
     resolve: { alias: aliases },
     // Never embed a development .env API key in the public browser bundle.
     define: { 'import.meta.env.VITE_OPENTOPOGRAPHY_API_KEY': '""' },

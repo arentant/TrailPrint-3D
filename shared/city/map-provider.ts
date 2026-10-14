@@ -16,7 +16,7 @@ export function validateCityMapRequest(value: unknown): asserts value is CityMap
   const finite = (n: unknown, limit: number) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= limit;
   if (!b || !finite(b.minLat, 85) || !finite(b.maxLat, 85) || !finite(b.minLon, 180) || !finite(b.maxLon, 180) ||
       b.minLat >= b.maxLat || b.minLon >= b.maxLon || typeof r.buildings !== 'boolean' || typeof r.roads !== 'boolean' ||
-      (r.water !== undefined && typeof r.water !== 'boolean')) {
+      (r.water !== undefined && typeof r.water !== 'boolean') || (r.refresh !== undefined && typeof r.refresh !== 'boolean')) {
     throw new CityProviderError('Invalid city crop bounds or layer settings', 400);
   }
   const widthKm = (b.maxLon - b.minLon) * 111.32 * Math.cos((b.maxLat + b.minLat) / 2 * Math.PI / 180);
@@ -97,33 +97,35 @@ const inFlight = new Map<string, Promise<CityMapData>>();
 let cacheBytes = 0;
 export function clearCityMapCache(): void { cache.clear(); cacheBytes = 0; }
 
-export async function fetchCityMapData(request: CityMapDataRequest, endpoint = 'https://overpass-api.de/api/interpreter'): Promise<CityMapData> {
+export async function fetchCityMapData(request: CityMapDataRequest, endpoint = 'https://overpass-api.de/api/interpreter', options: { signal?: AbortSignal; refresh?: boolean } = {}): Promise<CityMapData> {
   validateCityMapRequest(request);
   const url = new URL(endpoint);
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new CityProviderError('Configure a valid city map provider endpoint.');
   if (!request.buildings && !request.roads && !request.water) return { elements: [] };
-  const key = JSON.stringify([endpoint, request]);
+  const key = JSON.stringify([endpoint, { ...request, refresh: undefined }]);
+  const refresh = options.refresh ?? request.refresh ?? false;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.time < 10 * 60_000) { cache.delete(key); cache.set(key, hit); return hit.data; }
+  if (!refresh && hit && Date.now() - hit.time < 10 * 60_000) { cache.delete(key); cache.set(key, hit); return hit.data; }
   const pending = inFlight.get(key);
-  if (pending) return pending;
+  if (pending && !options.signal && !refresh) return pending;
   const operation = (async () => {
     const b = request.bounds;
     const bbox = `${b.minLat},${b.minLon},${b.maxLat},${b.maxLon}`;
     const layers = [request.buildings ? `wr[building][building!=no](${bbox});wr["building:part"]["building:part"!=no](${bbox});` : '',
       request.roads ? `way[highway](${bbox});` : '',
-      request.water ? `wr[natural=water](${bbox});wr[waterway=riverbank](${bbox});wr[landuse=reservoir](${bbox});` : ''].join('');
+      request.water ? `wr[natural=water](${bbox});wr[waterway=riverbank](${bbox});wr[landuse=reservoir](${bbox});way[waterway~"^(river|stream|canal)$"](${bbox});wr(pivot.waterareas);way.enclosing[natural=water];way.enclosing[landuse=reservoir];` : ''].join('');
     // Keep every relation/member way, with complete coordinates on each way.
     // Individual node records are redundant for osmtogeojson and swamp dense crops.
     // Relations reference these ways instead of duplicating their coordinates again.
-    const query = `[out:json][timeout:90][maxsize:67108864];(${layers});(._;>>;)->.complete;way.complete;out body geom;rel.complete;out body;`;
+    const enclosing = request.water ? `is_in(${(b.minLat+b.maxLat)/2},${(b.minLon+b.maxLon)/2})->.enclosing;(area.enclosing[natural=water];area.enclosing[landuse=reservoir];)->.waterareas;` : "";
+    const query = `[out:json][timeout:90][maxsize:67108864];${enclosing}(${layers});(._;>>;)->.complete;way.complete;out body geom;rel.complete;out body;`;
     let response: Response;
     try {
       response = await fetch(url, {
         method: 'POST',
         headers: { 'User-Agent': CITY_USER_AGENT, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
         body: new URLSearchParams({ data: query }),
-        signal: AbortSignal.timeout(100_000),
+        signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(100_000)]) : AbortSignal.timeout(100_000),
         redirect: 'error',
       });
     }
@@ -145,6 +147,6 @@ export async function fetchCityMapData(request: CityMapDataRequest, endpoint = '
     }
     return data;
   })();
-  inFlight.set(key, operation);
-  try { return await operation; } finally { inFlight.delete(key); }
+  if (!options.signal) inFlight.set(key, operation);
+  try { return await operation; } finally { if (!options.signal) inFlight.delete(key); }
 }

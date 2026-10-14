@@ -3,6 +3,7 @@ import type { TerrainCropRegion } from "../types/terrain.js";
 import type { ElevationSampleWindow } from "../types/elevation.js";
 import { containerPointToLatLng } from "./leaflet-projection.js";
 import { buildMaskGeometry } from "./mask-geometry.js";
+import { cropSelectionFrame } from './crop-selection.js';
 
 export interface MaskMmScale {
   scaleX: number;
@@ -18,8 +19,10 @@ export function maskMmScale(
   viewportWidth: number,
   viewportHeight: number,
 ): MaskMmScale {
-  const w = Math.max(viewportWidth, 64);
-  const h = Math.max(viewportHeight, 64);
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  mapCrop = frame.mapCrop;
+  const w = frame.width;
+  const h = frame.height;
   const mask = buildMaskGeometry(mapCrop, w, h);
   const cx = w / 2;
   const cy = h / 2;
@@ -68,8 +71,10 @@ export function modelMmToLatLon(
   viewportWidth: number,
   viewportHeight: number,
 ): { lat: number; lon: number } {
-  const w = Math.max(viewportWidth, 64);
-  const h = Math.max(viewportHeight, 64);
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  mapCrop = frame.mapCrop;
+  const w = frame.width;
+  const h = frame.height;
   const scale = maskMmScale(mapCrop, crop, w, h);
   const scr = modelMmToScreen(xMm, yMm, scale);
   return containerPointToLatLng(scr.x, scr.y, mapCrop, w, h);
@@ -100,6 +105,8 @@ export function heightfieldSampleGeo(
   viewportHeight: number,
   window?: ElevationSampleWindow,
 ): { lats: number[]; lons: number[] } {
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  mapCrop = frame.mapCrop; viewportWidth = frame.width; viewportHeight = frame.height;
   const lats: number[] = [];
   const lons: number[] = [];
   const rowStart = window?.rowStart ?? 0;

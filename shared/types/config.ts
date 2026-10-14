@@ -31,6 +31,11 @@ export interface MapCropConfig {
   /** Leaflet mapPane 像素偏移；中心与 mapCenter 同步时通常为 0 */
   mapPaneX?: number;
   mapPaneY?: number;
+  /** Geographic crop reference, independent of the current map camera. */
+  selection?: Pick<MapCropConfig, 'mapCenterLat' | 'mapCenterLon' | 'mapZoom' | 'mapBearingDeg'> & {
+    viewportWidth: number;
+    viewportHeight: number;
+  };
 }
 
 // ─── 模块二：主模型生成 ─────────────────────────────────────────────
@@ -71,14 +76,28 @@ export interface WaterConfig {
   thicknessMm: number;
   /** Clearance on each shoreline and island edge. */
   clearanceMm: number;
-  pinDiameterMm: number;
-  /** Socket depth in each half of the assembly. */
-  pinDepthMm: number;
+  categories: Array<'lake' | 'reservoir' | 'river' | 'sea'>;
+  minimumAreaMm2: number;
+  minimumWidthMm: number;
+  riverWidthMultiplier: number;
+  minimumRiverWidthMm: number;
+  excludedFeatureIds: string[];
 }
 
 export function createDefaultWaterConfig(): WaterConfig {
-  return { enabled: false, thicknessMm: 1, clearanceMm: 0.2, pinDiameterMm: 2, pinDepthMm: 0.6 };
+  return { enabled: false, thicknessMm: 1, clearanceMm: 0.15,
+    categories: ['lake', 'reservoir', 'river', 'sea'], minimumAreaMm2: 0.16,
+    minimumWidthMm: 0.4, riverWidthMultiplier: 1, minimumRiverWidthMm: 0.8, excludedFeatureIds: [] };
 }
+
+/** Copy known fields only; obsolete alignment pins never survive a preset load. */
+export function normalizeWaterConfig(value?: Partial<WaterConfig>): WaterConfig {
+  const defaults = createDefaultWaterConfig();
+  return Object.fromEntries(Object.entries(defaults).map(([key, fallback]) =>
+    [key, value?.[key as keyof WaterConfig] ?? fallback])) as unknown as WaterConfig;
+}
+
+export type ModelPrintMode = 'separate' | 'fused';
 
 // ─── 模块三：轨迹模型 ─────────────────────────────────────────────────
 
@@ -255,6 +274,7 @@ export interface MapModelConfig {
 }
 
 export interface MountainTrailConfig extends MapModelConfig {
+  printMode: ModelPrintMode;
   gpx: GpxState;
   terrain: TerrainConfig;
   water: WaterConfig;
@@ -273,9 +293,10 @@ export type AppConfig = MountainTrailConfig;
  * 不含 GPX 与 API Key。地图取景可选；旧方案加载时沿用当前取景。
  */
 export interface ConfigSchemePayload {
+  printMode?: ModelPrintMode;
   colors?: ModelColors;
   mapCrop: MapCropConfig;
-  mapView?: Pick<MapCropConfig, "mapCenterLat" | "mapCenterLon" | "mapZoom" | "mapBearingDeg">;
+  mapView?: Pick<MapCropConfig, "mapCenterLat" | "mapCenterLon" | "mapZoom" | "mapBearingDeg" | "selection">;
   terrain: Omit<TerrainConfig, "openTopographyApiKey">;
   /** Optional for presets saved before water inserts were introduced. */
   water?: WaterConfig;
@@ -296,6 +317,7 @@ export interface ConfigScheme {
 
 export function createDefaultConfig(): AppConfig {
   return {
+    printMode: 'separate',
     colors: createDefaultModelColors(),
     gpx: {
       imported: false,

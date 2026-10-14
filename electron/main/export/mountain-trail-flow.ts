@@ -1,6 +1,7 @@
 import {
   STL_FILE_NAMES,
   TRAY_AMS_FILE_NAME,
+  MODEL_3MF_FILE_NAME,
   type MountainTrailExportRequest,
   type ExportFileSink,
   type ExportProgressCallback,
@@ -31,6 +32,7 @@ import { assertTrailLineMesh, assertWatertightMesh } from "@shared/utils/mesh-ma
 import { encodeBinaryStl } from "@shared/utils/binary-stl";
 import type { TerrainMeshPayload } from "@shared/types/terrain";
 import { normalizeModelColors } from "@shared/types/model-colors";
+import { encodeColored3mf, normalizePartToBed, type PrintableGroup } from "@shared/export/colored-3mf";
 import { encodeTrayAms3mf } from "@shared/export/tray-ams-3mf";
 import { segmentSprayPaint } from "../spray-paint/segment-service";
 import { generateSprayMasks } from "../spray-paint/mask-generate-service";
@@ -45,9 +47,13 @@ async function generateMountainTrailFiles(
   onFile: ExportFileSink,
 ): Promise<void> {
   const names: string[] = [];
+  const placements: Array<{ file: string; assemblyTranslationMm: number[] }> = [];
   const fileName = (part: string) => modelExportFileName(req.config, part);
   async function writeBinaryStl(name: string, mesh: TerrainMeshPayload): Promise<void> {
-    await onFile(name, encodeBinaryStl(mesh, name.replace(/\.stl$/i, "")));
+    if (req.target === "model-3mf") return;
+    const normalized = normalizePartToBed(mesh);
+    placements.push({ file: name, assemblyTranslationMm: normalized.assemblyTranslation });
+    await onFile(name, encodeBinaryStl(normalized.mesh, name.replace(/\.stl$/i, "")));
     names.push(name);
   }
   let { config, viewportWidth, viewportHeight } = req;
@@ -107,6 +113,7 @@ async function generateMountainTrailFiles(
     viewportWidth,
     viewportHeight,
     stlExport: true,
+    waterCatalog: req.waterCatalog,
     trailOnly: req.target === "trail",
     trailLineWidthMm: trailLineWidthMmForPrint(config),
   });
@@ -201,58 +208,58 @@ async function generateMountainTrailFiles(
       waterNames.push(fileName(name));
       await writeBinaryStl(fileName(name), part);
     }
-    const pins = terrainWithGroove.waterPinMeshes ?? [];
-    if (pins.length) {
-      // Dowels are loose parts: arrange upright on the print bed rather than
-      // leaving them suspended at their terrain assembly elevations.
-      const positions: number[] = [], indices: number[] = [];
-      const columns = Math.ceil(Math.sqrt(pins.length));
-      const spacing = config.water.pinDiameterMm + 3;
-      for (let i = 0; i < pins.length; i++) {
-        const pin = pins[i]!;
-        const offset = positions.length / 3;
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        for (let v = 0; v < pin.positions.length; v += 3) {
-          minX = Math.min(minX, pin.positions[v]!); maxX = Math.max(maxX, pin.positions[v]!);
-          minY = Math.min(minY, pin.positions[v + 1]!); maxY = Math.max(maxY, pin.positions[v + 1]!);
-        }
-        for (let v = 0; v < pin.positions.length; v += 3) {
-          positions.push(pin.positions[v]! - (minX + maxX) / 2 + i % columns * spacing,
-            pin.positions[v + 1]! - (minY + maxY) / 2 + Math.floor(i / columns) * spacing,
-            pin.positions[v + 2]! - pin.bottomZ);
-        }
-        indices.push(...pin.indices.map((index) => index + offset));
-      }
-      const printPins = { ...pins[0]!, positions, indices, bottomZ: 0, minSurfaceZ: 0 };
-      assertWatertightMesh(printPins, 'Water_Pins');
-      await writeBinaryStl(fileName(STL_FILE_NAMES.waterPins), printPins);
-    }
     const instructions = [
-      'TrailPrint water assembly', '',
-      `Water inserts: ${waterParts.length}. Alignment pins: ${pins.length}.`,
-      `Water files: ${waterNames.join(', ') || 'None detected at this print scale.'}`,
-      '',
-      ...(waterParts.length ? [
-      '1. Print Terrain_Main and each water insert separately. Water insert files retain terrain assembly coordinates: move each part down to the print bed without scaling it.',
-      '2. Print Water_Pins.stl upright as supplied. The dowels are already arranged at Z=0.',
-      '3. Put the dowels into the sockets in each terrain pocket. Match the water outline, then lower its underside sockets onto the exposed dowels.',
-      '4. Dry-fit all parts before adding a small amount of glue if a permanent connection is wanted.',
-      ] : ['No water inserts or pins were generated. Print the terrain and trail parts as usual.']),
-      '',
-      `Minimum water thickness: ${config.water.thicknessMm} mm. Pin diameter: ${config.water.pinDiameterMm} mm. Socket depth in each part: ${config.water.pinDepthMm} mm.`,
-      `Fitting clearance: ${config.water.clearanceMm} mm per side. Pin length: ${(2 * config.water.pinDepthMm - 0.1).toFixed(2)} mm.`,
-      'Islands and the trail corridor remain part of the terrain. A 0.6 mm terrain wall protects the crop edge. Small areas that cannot hold a pin socket are omitted.',
-      'Detection uses mapped inland water polygons; unmapped water, river centerlines and ocean coastlines are not detected.',
+      'TrailPrint water assembly', '', `Water inserts: ${waterParts.length}.`,
+      `Water files: ${waterNames.join(', ') || 'None at this print scale.'}`, '',
+      ...(config.printMode === 'fused' ? [
+        'Open Model.3mf in Bambu Studio and map terrain, trail and water colors to your AMS filaments.',
+        'Print the touching material volumes together. Use your own printer and filament profiles.',
+      ] : [
+        '1. Print each STL on the print bed without scaling. STL coordinates are centered with minimum Z = 0.',
+        '2. Match each water outline to its terrain recess, then lower it onto the flat pocket floor.',
+        '3. Dry-fit the parts; leave inserts seated or use a small amount of glue.',
+        '4. Test a clearance coupon first. Increase clearance for easier fitting.',
+      ]), '',
+      `Minimum water thickness: ${config.water.thicknessMm} mm.`,
+      `Fitting clearance: ${config.printMode === 'fused' ? 0 : config.water.clearanceMm} mm per side of shoreline and island edges.`,
+      `Print mode: ${config.printMode ?? 'separate'}.`,
+      'Islands, trail support and a 0.6 mm crop border remain in the terrain.',
       ...(terrainWithGroove.waterWarnings ?? []), '',
-      'Water map data © OpenStreetMap contributors, https://www.openstreetmap.org/copyright (ODbL).', '',
+      ...(terrainWithGroove.waterAttribution ?? []).map(source => `${source.attribution}, ${source.url} (${source.license}; version ${source.version})`), '',
     ].join('\n');
-    await onFile(fileName('Water_Assembly.txt'), new TextEncoder().encode(instructions));
+    if (req.target !== 'model-3mf') await onFile(fileName('Water_Assembly.txt'), new TextEncoder().encode(instructions));
   }
   if (trayRes.mesh.baseMesh && trayRes.mesh.textMesh) {
     assertWatertightMesh(trayRes.mesh.textMesh, "Tray_Text");
     await writeBinaryStl(fileName(STL_FILE_NAMES.trayText), trayRes.mesh.textMesh);
     const colors = normalizeModelColors(config.colors);
-    await onFile(fileName(TRAY_AMS_FILE_NAME), encodeTrayAms3mf(trayRes.mesh.baseMesh, trayRes.mesh.textMesh, colors.tray, colors.text));
+    if (req.target !== "model-3mf") await onFile(fileName(TRAY_AMS_FILE_NAME), encodeTrayAms3mf(trayRes.mesh.baseMesh, trayRes.mesh.textMesh, colors.tray, colors.text));
+  }
+
+  const colors = normalizeModelColors(config.colors);
+  const groups: PrintableGroup[] = [{ name: 'Terrain, trail and water', parts: [
+    { name: 'Terrain', color: colors.terrain, mesh: terrainWithGroove.mesh },
+    { name: 'Trail', color: colors.trail, mesh: terrainWithGroove.trailMesh },
+    ...(terrainWithGroove.waterMeshes ?? []).map((mesh, i) => {
+      const mapping = terrainWithGroove.waterPartMappings?.find(part => part.partIndex === i);
+      const names = mapping?.featureIds.map(id => terrainWithGroove.waterFeatureDetails?.find(feature => feature.id === id)?.name).filter(Boolean);
+      return { name: `Water ${i + 1}: ${names?.join(', ') || 'Water'}`, color: colors.water, mesh };
+    }),
+  ] }, { name: 'Tray and text', parts: [
+    { name: 'Tray', color: colors.tray, mesh: trayRes.mesh.baseMesh ?? trayRes.mesh },
+    ...(trayRes.mesh.textMesh ? [{ name: 'Text', color: colors.text, mesh: trayRes.mesh.textMesh }] : []),
+  ] }];
+  const waterManifest = { printMode: config.printMode ?? 'separate',
+    sources: terrainWithGroove.waterAttribution ?? [], coverageErrors: terrainWithGroove.waterCoverageErrors ?? [],
+    featureStatuses: terrainWithGroove.waterFeatureStatuses ?? [], features: terrainWithGroove.waterFeatureDetails ?? [], partMappings: terrainWithGroove.waterPartMappings ?? [] };
+  const model3mf = req.target === "model-3mf" || config.printMode === "fused" ? encodeColored3mf(groups, modelExportStem(config), waterManifest) : undefined;
+  if (req.target === 'model-3mf') {
+    // A single-file target emits exactly its described artifact.
+    await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
+    return;
+  }
+  if (config.printMode === 'fused') {
+    await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
   }
 
   if (config.tray.nfc.enabled) {
@@ -403,10 +410,23 @@ async function generateMountainTrailFiles(
       throw new IpcException("SPRAY_MASK_FAILED", msg);
     }
   }
+  await onFile(fileName('Assembly.json'), new TextEncoder().encode(JSON.stringify({
+    units: 'millimeter', stlToAssembly: placements, water: waterManifest,
+  }, null, 2)));
+  await onFile(fileName('Assembly.txt'), new TextEncoder().encode([
+    'TrailPrint assembly placement', 'Every STL is centered in XY and placed on the print bed (minimum Z = 0).',
+    'Add each translation below to the STL vertices to restore model assembly coordinates. Do not scale parts.',
+    ...placements.map(p => `${p.file}: translate [${p.assemblyTranslationMm.join(', ')}] mm`),
+    '', `Print mode: ${config.printMode ?? 'separate'}.`,
+    config.printMode === 'fused' ? 'Use Model.3mf to print the touching material volumes together.' : 'Assemble the separate terrain, trail and water pieces after printing.',
+  ].join('\n')));
+
 }
 
 export const mountainTrailExportFlow: ModelExportFlow<MountainTrailExportRequest> = {
-  describeArtifact: (request) => request.target === "ams-base"
+  describeArtifact: (request) => request.target === "model-3mf"
+    ? { kind: "file", fileName: modelExportFileName(request.config, MODEL_3MF_FILE_NAME), extension: "3mf", mimeType: "model/3mf", saveDialogTitle: "Save complete multicolor model" }
+    : request.target === "ams-base"
     ? { kind: "file", fileName: modelExportFileName(request.config, TRAY_AMS_FILE_NAME), extension: "3mf", mimeType: "model/3mf", saveDialogTitle: "Save AMS base with text" }
     : request.target === "trail"
     ? {

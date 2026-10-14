@@ -58,10 +58,12 @@ export interface CityMapDataRequest {
   roads: boolean;
   /** Mapped inland water polygons; omitted by city-only callers. */
   water?: boolean;
+  refresh?: boolean;
 }
 export interface CityMapData {
   /** Complete OSM ways/relations and their referenced nodes, converted locally. */
   elements: unknown[];
+  osm3s?: { timestamp_osm_base?: string };
 }
 export interface CityGenerateRequest {
   config: CityMapConfig;

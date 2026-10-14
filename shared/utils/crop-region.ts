@@ -4,6 +4,7 @@ import { containerPointToLatLng } from "./leaflet-projection";
 import { regularPolygonFootprintMm } from "./footprint";
 import { buildMaskGeometry, type MaskScreenGeometry } from "./mask-geometry";
 import { clampCornerRadiusMm, roundedRectanglePolygon } from "./rounded-footprint";
+import { cropSelectionFrame } from './crop-selection';
 
 export function physicalFootprintMm(mapCrop: MapCropConfig): {
   widthMm: number;
@@ -24,7 +25,7 @@ export function physicalFootprintMm(mapCrop: MapCropConfig): {
   return regularPolygonFootprintMm(mapCrop.polygonSideLengthMm, n);
 }
 
-function maskBoundaryPoints(
+export function maskBoundaryPoints(
   mask: MaskScreenGeometry,
   samples = 32,
 ): Array<{ x: number; y: number }> {
@@ -86,8 +87,10 @@ export function computeTerrainCropRegion(
   viewportWidth: number,
   viewportHeight: number,
 ): TerrainCropRegion {
-  const w = Math.max(viewportWidth, 64);
-  const h = Math.max(viewportHeight, 64);
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  mapCrop = frame.mapCrop;
+  const w = frame.width;
+  const h = frame.height;
   const mask = buildMaskGeometry(mapCrop, w, h);
   const boundary = maskBoundaryPoints(mask);
   const geoPts = boundary.map((p) =>

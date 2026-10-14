@@ -1,4 +1,5 @@
 import type { CityGenerateRequest, CityGenerateResponse, CityGenerateProgress } from '@shared/types/city'
+import type { WaterCatalogRequest, WaterCatalog } from '@shared/types/water'
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/ipc/channels'
 import type {
@@ -67,6 +68,8 @@ async function invoke<T>(channel: string, payload?: unknown): Promise<T> {
 
 /** 暴露给渲染进程的类型安全 IPC API */
 const api = {
+  fetchWaterCatalog: (req: WaterCatalogRequest) => invoke<WaterCatalog>(IpcChannels.WATER_CATALOG, req),
+  cancelWaterCatalog: (requestId: string) => invoke<void>(IpcChannels.WATER_CANCEL, requestId),
   ping: (req?: PingRequest) => invoke<PingResponse>(IpcChannels.APP_PING, req),
   enqueueTask: (req: TaskEnqueueRequest) =>
     invoke<TaskEnqueueResponse>(IpcChannels.TASK_ENQUEUE, req),

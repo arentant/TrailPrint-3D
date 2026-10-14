@@ -29,6 +29,7 @@ export function ensureMapZoomFitsTrail(
   viewportWidth: number,
   viewportHeight: number,
 ): AppConfig {
+  if (config.mapCrop.selection) return config;
   if (!config.gpx.imported || !config.gpx.bounds) return config;
   if (resolveTrailPoints(config).length < 2) return config;
 

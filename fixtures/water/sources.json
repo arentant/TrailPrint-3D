@@ -1,0 +1,38 @@
+{
+  "version": "fixture-v1",
+  "datasets": [
+    {
+      "id": "hydrolakes",
+      "name": "lakes",
+      "version": "fixture-v1",
+      "input": "lakes.geojson",
+      "category": "lake",
+      "attribution": "TrailPrint synthetic test fixture",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/arentant/TrailPrint-3D",
+      "idField": "source_id"
+    },
+    {
+      "id": "grwl",
+      "name": "rivers",
+      "version": "fixture-v1",
+      "input": "rivers.geojson",
+      "category": "river",
+      "attribution": "TrailPrint synthetic test fixture",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/arentant/TrailPrint-3D",
+      "idField": "source_id"
+    },
+    {
+      "id": "coastline",
+      "name": "seas",
+      "version": "fixture-v1",
+      "input": "seas.geojson",
+      "category": "sea",
+      "attribution": "TrailPrint synthetic test fixture",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/arentant/TrailPrint-3D",
+      "idField": "source_id"
+    }
+  ]
+}

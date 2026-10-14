@@ -2,13 +2,15 @@ import { resolve } from 'path'
 import { readFileSync } from 'node:fs'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
+import { loadEnv } from 'vite'
 
 const sharedAlias = {
   '@shared': resolve(__dirname, 'shared')
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   main: {
+    define: { __TRAILPRINT_WATER_CATALOG_URL__: JSON.stringify(process.env.WATER_CATALOG_URL || loadEnv(mode, process.cwd(), '').WATER_CATALOG_URL || '') },
     plugins: [externalizeDepsPlugin(), {
       name: 'city-manifold-wasm',
       generateBundle() { this.emitFile({ type: 'asset', fileName: 'manifold.wasm', source: readFileSync(resolve('node_modules/manifold-3d/manifold.wasm')) }); }
@@ -48,4 +50,4 @@ export default defineConfig({
     },
     plugins: [vue()]
   }
-})
+}))

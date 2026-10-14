@@ -44,19 +44,19 @@ Launch the app and upload the `.gpx` file from the previous step.
 
 ### 2. Frame and tune parameters
 
-Choose a base shape (circle, rectangle, or regular polygon), then pan and zoom the map to position your track. Use **Map rotation** at the top left: the arrow buttons turn the map by 15°, the slider adjusts the angle, and **Reset north** restores north without changing position or zoom. You can also hold **Alt / Option** and drag to rotate. These controls work in both Mountain and City views. Use the sidebar to set print dimensions, corner radius, elevation exaggeration, surface smoothing, tray base, and assembly tolerances.
+Choose a base shape (circle, rectangle, or regular polygon). The shape stays anchored to the same geographic area while you zoom and pan. Drag its center handle to move it or its edge handle to resize it. **Place shape here** creates a selection in the current view; **Show shape** brings an existing selection back into view. Print dimensions set the physical model size independently of map zoom. Use **Map rotation** at the top left: the arrow buttons turn the map by 15°, the slider adjusts the angle, and **Reset north** restores north without changing position or zoom. You can also hold **Alt / Option** and drag to rotate. These controls work in both Mountain and City views. Use the sidebar to set print dimensions, corner radius, elevation exaggeration, surface smoothing, tray base, and assembly tolerances.
 
 Use **Grid on/off** above the map for positioning guides. **Save preset** can also save the map coordinates, zoom, and rotation; leave **Save map coordinates and framing** unchecked to reuse only the print settings. Presets are stored locally on this device and do not include GPX data or your API key.
 
 ![Frame and tune parameters](docs/images/readme/02-compose-framing.webp)
 
-Open **Colors** below the rotation controls to choose the trail, terrain, and tray colors (or the city base in City view). Enabling **Text on base** adds a separate **Text** color. Changes apply to the map and 3D preview one second after you stop editing. Mountain presets save the palette. STL files contain geometry; the AMS 3MF includes the base and text colors as separate parts.
+Open **Colors** below the rotation controls to choose the trail, terrain, and tray colors (or the city base in City view). Enabling **Text on base** adds a separate **Text** color. Changes apply to the map and 3D preview one second after you stop editing. Mountain presets save the palette. STL files contain geometry; the complete model 3MF includes terrain, trail and water colors, with tray/text in their own printable group.
 
 ### 3. Preview and export
 
 Check the terrain, trail, and tray in the 3D preview, then generate and download the model archive.
 
-To export the trail separately, choose **Download trail STL** in Trail settings or the 3D preview. This saves `<gpx-name>_Trail_Line.stl` directly, with the same terrain height and assembly coordinates as the trail in the full archive.
+To export the trail separately, choose **Download trail STL** in Trail settings or the 3D preview. This saves `<gpx-name>_Trail_Line.stl` directly with its terrain-following surface, centered in XY and placed on the print bed.
 
 ![Export model](docs/images/readme/03-export-model.webp)
 
@@ -144,8 +144,8 @@ TRAILPRINT_HEAP_MB=8192
 
 - **Base shape:** Circular, rectangular, or regular polygon crop regions.
 - **Print size:** Scale the model to your actual print dimensions (e.g. 150mm × 150mm).
-- **Map framing:** Pan and zoom on the map to select the trail and terrain area to keep.
-- **Map rotation:** Arrow buttons, an angle slider, and Reset north in both workspaces; Alt / Option + drag also rotates the map while the crop mask stays fixed.
+- **Map framing:** Move and resize the crop shape to select an area, then pan and zoom independently without changing its geographic coverage.
+- **Map rotation:** Arrow buttons, an angle slider, and Reset north in both workspaces; Alt / Option + drag also rotates the map while the crop stays anchored to its geographic area.
 - **Corner radius:** Rounded outer contours for rectangles and polygons (0 = sharp corners).
 
 ### ⛰️ 2. Terrain generation and trail processing
@@ -155,7 +155,7 @@ TRAILPRINT_HEAP_MB=8192
 - **DEM dataset:** Choose OpenTopography datasets (e.g. COP30 30m) based on region and resolution needs.
 - **Surface smoothing:** Raw, light, medium, and heavy levels to reduce noise and stair-stepping for cleaner prints.
 - **Trail filtering:** Optional GPX simplification to filter GPS drift and noise for smoother trail lines.
-- **Water inserts:** Enable **Print water separately** in **2. Terrain** to detect mapped lakes, reservoirs and river areas. The preview shows water in blue; the complete ZIP includes separate flat-bottom water inserts, matching terrain pockets, loose alignment pins and an assembly guide. Adjust water thickness, fitting clearance, pin diameter and socket depth. Islands and the trail remain clear; a 0.6 mm terrain border protects the crop edge. Detection depends on OpenStreetMap inland polygons; ocean coastlines, river centerlines and areas too small for pins are omitted.
+- **Water review and printing:** Enable **Include water** in **2. Terrain** to review OSM lake/reservoir polygons and river centerlines directly on the map. Toggle categories or individual features, filter small parts, widen rivers and choose a water color. Separate flat-bottom inserts remain the default; islands, trail support and the crop border are preserved. **Fused multicolor** creates touching terrain/trail/water volumes for **Download model 3MF**, with tray/text in an independent group. Every STL is bed-normalized and the ZIP records its assembly translation. Extra large-lake, river-width and sea coverage requires the indexed dataset host; unavailable coverage is shown explicitly. See [water printing and dataset setup](docs/water-printing.md).
 
 ### 🖼️ 3. Tray base
 
@@ -186,12 +186,13 @@ The Mountain archive contains:
 | `<gpx-name>_Terrain_Main.stl` | Main terrain mesh with base thickness and trail grooves | Always              |
 | `<gpx-name>_Trail_Line.stl`   | Separate trail line mesh for color-swap printing        | Always              |
 | `<gpx-name>_Tray_Base.stl`    | Tray base with inset groove and magnet holes            | Always              |
-| `<gpx-name>_Tray_Text.stl`    | Raised text at its position on the base                 | With enabled labels |
+| `<gpx-name>_Tray_Text.stl`    | Bed-ready raised text; assembly placement in the guide                 | With enabled labels |
 | `<gpx-name>_Tray_AMS.3mf`     | Base and text assembly with separate filament assignments | With enabled labels |
 | `<gpx-name>_Tray_Cover.stl`   | NFC / LED cover plate                                   | When NFC is enabled |
-| `<gpx-name>_Water_Insert.stl` (or numbered inserts) | Water parts with flat undersides and alignment sockets | With detected printable water |
-| `<gpx-name>_Water_Pins.stl` | Loose dowels arranged upright on the print bed | With detected printable water |
+| `<gpx-name>_Water_Insert.stl` (or numbered inserts) | Water parts with flat undersides, sized to sit in matching terrain recesses | With detected printable water |
 | `<gpx-name>_Water_Assembly.txt` | Fit settings, assembly steps and water-detection status | When water is enabled |
+| `<gpx-name>_Model.3mf` | Named colored terrain/trail/water and independent tray/text group | Direct 3MF target; fused ZIP |
+| `<gpx-name>_Assembly.json` / `.txt` | STL placement transforms, water sources, versions and feature mappings | Complete ZIP |
 
 Import the STL files into your slicer, assign colors and print settings, and start making.
 

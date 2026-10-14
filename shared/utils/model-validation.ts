@@ -1,3 +1,4 @@
+import { normalizeWaterConfig } from "../types/config";
 import type { AppConfig } from "../types/config";
 import type { TrayValidationResult } from "../types/tray";
 import { computeTerrainCropRegion } from "./crop-region";
@@ -112,7 +113,7 @@ export function validateTrailInPrintArea(
   if (polyline.length < 2) {
     return fail(
       "trail",
-      "The trail is outside the print area. Move the red trail inside the white outline on the 2D map, or adjust the map position and zoom.",
+      config.mapCrop.selection ? "The trail is outside the selected area. Move or resize the white shape to include the trail, or place the shape over the track." : "The trail is outside the print area. Move the red trail inside the white outline on the 2D map, or adjust the map position and zoom.",
     );
   }
 
@@ -261,6 +262,7 @@ export function validateModelGeneration(
   config: AppConfig,
   options: ModelValidationOptions = {},
 ): ModelValidationResult {
+  if (config.printMode && !['separate', 'fused'].includes(config.printMode)) return fail('water', 'Choose separate inserts or fused multicolor printing.');
   const requireGpx = options.requireGpx ?? true;
 
   if (requireGpx && !config.gpx.imported) {
@@ -289,21 +291,25 @@ export function validateModelGeneration(
 
   if (!options.trailOnly) {
     if (config.water?.enabled) {
+      const water = normalizeWaterConfig(config.water);
+      if (!Array.isArray(water.categories) || water.categories.some(c => !['lake', 'reservoir', 'river', 'sea'].includes(c)) ||
+          !Array.isArray(water.excludedFeatureIds) || water.excludedFeatureIds.some(id => typeof id !== 'string')) {
+        return fail('water', 'Choose valid water categories and feature exclusions.');
+      }
+      if (!Number.isFinite(water.minimumAreaMm2) || water.minimumAreaMm2 < 0.16 ||
+          !Number.isFinite(water.minimumWidthMm) || water.minimumWidthMm < 0.4 ||
+          !Number.isFinite(water.riverWidthMultiplier) || water.riverWidthMultiplier <= 0 || water.riverWidthMultiplier > 20 ||
+          !Number.isFinite(water.minimumRiverWidthMm) || water.minimumRiverWidthMm < 0.4 || water.minimumRiverWidthMm > 20) {
+        return fail('water', 'Water area must be at least 0.16 mm², width at least 0.4 mm, and river multiplier between 0 and 20.');
+      }
       if (!Number.isFinite(config.water.thicknessMm) || config.water.thicknessMm < 0.4 || config.water.thicknessMm > 5) {
         return fail("water", "Water insert thickness must be between 0.4 and 5 mm.");
       }
       if (!Number.isFinite(config.water.clearanceMm) || config.water.clearanceMm < 0 || config.water.clearanceMm > 1) {
         return fail("water", "Water fitting clearance must be between 0 and 1 mm per side.");
       }
-      if (!Number.isFinite(config.water.pinDiameterMm) || config.water.pinDiameterMm < 1 || config.water.pinDiameterMm > 5 ||
-          !Number.isFinite(config.water.pinDepthMm) || config.water.pinDepthMm < 0.4 || config.water.pinDepthMm > 2) {
-        return fail("water", "Water pin diameter must be between 1 and 5 mm, and socket depth between 0.4 and 2 mm.");
-      }
-      if (config.water.thicknessMm < config.water.pinDepthMm + 0.4) {
-        return fail("water", "Water insert thickness must be at least the pin socket depth plus 0.4 mm.");
-      }
-      if (config.terrain.baseSolidThicknessMm + 1e-6 < config.water.thicknessMm + config.water.pinDepthMm + 0.4) {
-        return fail("water", "Increase terrain base thickness to at least water thickness + pin socket depth + 0.4 mm to keep a solid pocket floor.");
+      if (config.terrain.baseSolidThicknessMm + 1e-6 < config.water.thicknessMm + 0.4) {
+        return fail("water", "Increase terrain base thickness to at least water thickness + 0.4 mm to keep a solid pocket floor.");
       }
     }
     const trayCheck = validateTrayFromAppConfig(config);

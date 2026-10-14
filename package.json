@@ -1,7 +1,7 @@
 {
   "name": "trailprint-3d",
   "version": "0.1.0",
-  "description": "TrailPrint 3D — Turn GPX tracks into 3D terrain keepsakes",
+  "description": "TrailPrint 3D \u2014 Turn GPX tracks into 3D terrain keepsakes",
   "main": "./out/main/index.js",
   "author": "TrailPrint",
   "license": "MIT",
@@ -18,12 +18,14 @@
     "preview:web": "vite preview --config vite.web.config.ts",
     "test:web": "playwright test",
     "test:export": "node --test tests/export/*.test.mjs",
-    "test:api": "node --test tests/runtime/*.test.mjs"
+    "test:api": "node --test tests/runtime/*.test.mjs",
+    "water:validate": "node scripts/water/validate_catalog.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
     "archiver": "^7.0.1",
     "fflate": "^0.8.3",
+    "flatgeobuf": "^4.6.0",
     "geotiff": "^3.0.5",
     "leaflet": "^1.9.4",
     "leaflet-rotate": "^0.2.8",

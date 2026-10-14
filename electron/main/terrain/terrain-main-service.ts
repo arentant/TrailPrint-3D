@@ -15,7 +15,7 @@ import {
   heightPreviewFromField,
   minHeightFieldMm,
 } from "@shared/utils/heightfield-mesh";
-import { buildTrailLineMesh } from "./trail-line-mesh";
+import { closedTrailVolume } from "@shared/water/closed-trail";
 import { buildTrailGrooveSpec, buildTrailLinePolyline } from "./trail-pipeline";
 import { applyGrooveToHeightField } from "./trail-groove";
 import { imprintGrooveOnTerrainMesh } from "@shared/utils/trail-groove-imprint";
@@ -29,11 +29,13 @@ import { ensureMapZoomFitsTrail } from "@shared/utils/trail-fit";
 import {
   demFetchTimeoutMs,
   gridResolutionForQuality,
-  terrainMeshQualitySpec,
 } from "@shared/utils/terrain-mesh-quality";
 
 import { elevationsToHeightMmInPlace } from "./prepare-heightfield";
 import { generateWaterAssembly } from "../city/water-model-service";
+import { getManifold } from '../city/manifold-runtime';
+import { fuseModelMaterials } from '@shared/water/fused-materials';
+import { normalizeWaterConfig } from '@shared/types/config';
 
 const EMPTY_TERRAIN_MESH: TerrainMeshPayload = {
   positions: [],
@@ -64,6 +66,7 @@ export async function generateTerrainMain(
 
   reportProgress(onProgress, "prepare", 0.02, "Preparing settings…");
   config = await hydrateGpxConfig(config);
+  config = { ...config, water: normalizeWaterConfig(config.water), printMode: config.printMode ?? 'separate' };
   config = ensureMapZoomFitsTrail(config, viewportWidth, viewportHeight);
 
   const modelCheck = validateModelGeneration(config, {
@@ -102,9 +105,9 @@ export async function generateTerrainMain(
     meshQuality,
     meshQualityCustom,
   );
-  const qualitySpec = terrainMeshQualitySpec(meshQuality, meshQualityCustom);
-  const buildTrailMesh = Boolean(req.stlExport || req.trailOnly);
-  const buildExportMesh = Boolean(req.stlExport && !req.trailOnly);
+  const fused = config.printMode === 'fused' && !req.trailOnly;
+  const buildTrailMesh = Boolean(req.stlExport || req.trailOnly || fused);
+  const buildExportMesh = Boolean((req.stlExport || fused) && !req.trailOnly);
   const buildWater = Boolean(config.water?.enabled && !req.trailOnly);
 
   reportProgress(
@@ -137,7 +140,7 @@ export async function generateTerrainMain(
     config.terrain.smoothing,
   );
 
-  elevationsToHeightMmInPlace(
+  const elevationTransform = elevationsToHeightMmInPlace(
     smoothed,
     crop,
     config.terrain.zExaggeration,
@@ -159,7 +162,7 @@ export async function generateTerrainMain(
     if (exportGroove) {
       grooveFloorZ = computeGrooveFloorZMm(exportGroove.depthMm);
       exportGroove.floorZMm = grooveFloorZ;
-      if (buildExportMesh) {
+      if (buildExportMesh && !fused) {
         applyGrooveToHeightField(heightMm, cols, rows, crop, exportGroove);
       }
     }
@@ -178,7 +181,7 @@ export async function generateTerrainMain(
     ? buildHeightfieldTerrainMesh(crop, heightMm, cols, rows, baseThicknessMm)
     : { ...EMPTY_TERRAIN_MESH, gridCols: cols, gridRows: rows };
 
-  if (buildExportMesh && exportGroove) {
+  if (buildExportMesh && exportGroove && !fused) {
     mesh = imprintGrooveOnTerrainMesh(mesh, exportGroove);
   }
 
@@ -201,38 +204,42 @@ export async function generateTerrainMain(
   const printWidth = req.trailLineWidthMm ?? trailLineWidthMmForPrint(config);
   let trailMesh: TerrainMeshPayload | null = null;
   if (buildTrailMesh && trailPolylineMm.length >= 2) {
-    trailMesh = buildTrailLineMesh({
-      polylineMm: trailPolylineMm,
-      widthMm: printWidth,
-      depthMm: config.trail.trailDepthMm,
-      heightMm: surfaceForTrail,
-      cols,
-      rows,
-      crop,
-      grooveFloorZMm: grooveFloorZ,
-      zTopOffsetMm: trailHeightAboveMainMm(config),
-      sampleStepMm: Math.max(
-        qualitySpec.trailMinStepMm,
-        printWidth / qualitySpec.trailStepDivisor,
-      ),
-    });
+    const trailSurface = buildHeightfieldTerrainMesh(crop,
+      Float64Array.from(surfaceForTrail, height => height + trailHeightAboveMainMm(config)),
+      cols, rows, config.trail.trailDepthMm);
+    trailMesh = closedTrailVolume(await getManifold(), trailSurface, trailPolylineMm, printWidth);
   }
 
   let waterMeshes: TerrainMeshPayload[] = [];
-  let waterPinMeshes: TerrainMeshPayload[] = [];
   let waterWarnings: string[] = [];
+  let waterMetadata: Partial<TerrainGenerateResponse> = {};
   if (buildWater) {
-    reportProgress(onProgress, "water", 0.94, "Detecting mapped water and building alignment sockets…");
+    reportProgress(onProgress, "water", 0.94, "Detecting mapped water and building fitted inserts…");
     // Water uses the uncut DEM surface in both preview and export. The service
     // cuts an exact trail groove in the remaining terrain after splitting water.
     const waterSource = buildExportMesh
       ? buildHeightfieldTerrainMesh(crop, surfaceForTrail, cols, rows, baseThicknessMm)
       : mesh;
-    const water = await generateWaterAssembly({ ...req, config }, crop, waterSource, polylineMm, buildExportMesh ? exportGroove : undefined);
+    const water = await generateWaterAssembly({ ...req, config }, crop, waterSource, polylineMm, buildExportMesh && !fused ? exportGroove : undefined, elevationTransform.seaLevelMm);
     if (water.waterMeshes.length) mesh = water.mesh;
     waterMeshes = water.waterMeshes;
-    waterPinMeshes = water.waterPinMeshes;
     waterWarnings = water.waterWarnings;
+    waterMetadata = { waterFeatureStatuses: water.waterFeatureStatuses, waterFeatureDetails: water.waterFeatureDetails, waterPartMappings: water.waterPartMappings,
+      waterAttribution: water.waterAttribution, waterCoverageErrors: water.waterCoverageErrors };
+  }
+
+  if (fused) {
+    if (!trailMesh) throw new Error('A printable trail is required for the fused model.');
+    const materials = fuseModelMaterials(await getManifold(), mesh, trailMesh, waterMeshes);
+    mesh = materials.mesh; trailMesh = materials.trailMesh; waterMeshes = materials.waterMeshes;
+    waterMetadata.waterPartMappings = waterMetadata.waterPartMappings?.flatMap(mapping => {
+      const index = materials.waterPartRemap[mapping.partIndex]!;
+      return index < 0 ? [] : [{ ...mapping, partIndex: index }];
+    });
+    for (const status of waterMetadata.waterFeatureStatuses ?? []) {
+      status.partIndices = status.partIndices.map(index => materials.waterPartRemap[index]!).filter(index => index >= 0);
+      if (status.state === 'included' && !status.partIndices.length) { status.state = 'too-small'; status.reason = 'Covered by the trail material in fused mode'; }
+    }
   }
 
   reportProgress(onProgress, "done", 1, "Terrain data ready");
@@ -242,8 +249,8 @@ export async function generateTerrainMain(
     heightPreview,
     trailMesh,
     waterMeshes,
-    waterPinMeshes,
     waterWarnings,
+    ...waterMetadata,
     trailPolylineMm: polylineMm,
     trailDisplayWidthMm: config.trail.trailWidthMm,
     demSource: dem.source,

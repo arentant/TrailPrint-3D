@@ -1,6 +1,7 @@
 import type { TerrainCropRegion, TerrainGenerateRequest, TerrainMeshPayload, TrailGrooveSpec } from '@shared/types/terrain';
 import { buildWaterGeometry } from '@shared/water/geometry';
-import { loadCityMapData } from './city-map-provider';
+import { fetchWaterCatalog } from './water-catalog-service';
+import { waterCatalogKey } from '@shared/water/catalog';
 import { getManifold } from './manifold-runtime';
 
 export async function generateWaterAssembly(
@@ -9,8 +10,10 @@ export async function generateWaterAssembly(
   terrain: TerrainMeshPayload,
   trail: Array<{ x: number; y: number }>,
   groove?: TrailGrooveSpec,
+  seaLevelMm?: number,
 ) {
-  const data = await loadCityMapData({ bounds: { minLat: crop.minLat, maxLat: crop.maxLat, minLon: crop.minLon, maxLon: crop.maxLon },
-    buildings: false, roads: false, water: true });
-  return buildWaterGeometry(await getManifold(), request, crop, data, terrain, trail, groove);
+  const catalogRequest = { mapCrop: request.config.mapCrop, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
+  const data = request.waterCatalog?.key === waterCatalogKey(catalogRequest) ? request.waterCatalog : await fetchWaterCatalog(catalogRequest);
+  const result = buildWaterGeometry(await getManifold(), request, crop, data, terrain, trail, groove, seaLevelMm);
+  return { ...result, waterCoverageErrors: data.errors, waterWarnings: [...result.waterWarnings, ...data.errors.map(e => `${e.source}: ${e.message}`)] };
 }

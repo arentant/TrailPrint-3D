@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
+import { EventEmitter } from 'node:events';
 import { authEnv, sessionCookie } from '../auth-fixture.mjs';
 import { compactCityMap } from '../city-fixture.mjs';
 let output, city, provider;
@@ -22,8 +23,8 @@ after(async()=>{await rm(output,{recursive:true,force:true});for(const[key,value
 const body={bounds:{minLat:40.17,maxLat:40.19,minLon:44.50,maxLon:44.52},buildings:true,roads:true};
 async function invoke(request) {
   const result={status:0,headers:{},body:null};
-  const res={setHeader(name,value){result.headers[name.toLowerCase()]=value;return this;},writeHead(status,headers={}){result.status=status;for(const[name,value]of Object.entries(headers))this.setHeader(name,value);return this;},end(value){result.body=value;return this;}};
-  await city({headers:{},...request},res);return result;
+  const res=Object.assign(new EventEmitter(), {setHeader(name,value){result.headers[name.toLowerCase()]=value;return this;},writeHead(status,headers={}){result.status=status;for(const[name,value]of Object.entries(headers))this.setHeader(name,value);return this;},end(value){result.body=value;this.writableEnded=true;return this;}});
+  await city(Object.assign(new EventEmitter(), {headers:{},...request}),res);return result;
 }
 async function headers() {const c=await sessionCookie();return{cookie:`${c.name}=${c.value}`};}
 test('city endpoint compiles in plain Node, authenticates and validates bounds before fetching',async(t)=>{
@@ -45,6 +46,7 @@ test('water-only requests fetch complete inland polygons and validate the layer 
   t.mock.method(globalThis,'fetch',async (_url,init)=>{
     calls++;
     const query = new URLSearchParams(init.body).get('data');
+    assert.match(query,/waterway~"\^\(river\|stream\|canal\)\$"/); assert.match(query,/is_in\(/); assert.match(query,/pivot.waterareas/);
     assert.match(query,/natural=water/); assert.match(query,/waterway=riverbank/); assert.match(query,/landuse=reservoir/);
     assert.match(query,/way\.complete;out body geom;rel\.complete;out body;/);
     assert.doesNotMatch(query,/building|highway|gpx|trkpt/);
@@ -93,4 +95,17 @@ test('pretty provider JSON has a bounded allowance while normalized data and geo
   assert.throws(()=>provider.validateCityMapData({elements:[{type:'way',id:1,nodes:Array(1_000_001).fill(1)}]}),/too detailed/);
   assert.throws(()=>provider.validateCityMapData({elements:[{type:'way',id:1,geometry:[{lat:91,lon:44}]}]}),/invalid coordinates/);
   assert.throws(()=>provider.validateCityMapData({elements:[{type:'relation',id:1,members:[{type:'way',ref:2,geometry:[{lat:40,lon:NaN}]}]}]}),/invalid coordinates/);
+});
+
+test('refresh replaces the ordinary provider cache instead of leaving stale geometry', async(t) => {
+  provider.clearCityMapCache(); let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ elements: [], generation: ++calls }));
+  const first = await invoke({ method: 'POST', body, headers: await headers() });
+  const refreshed = await invoke({ method: 'POST', body: { ...body, refresh: true }, headers: await headers() });
+  const reused = await invoke({ method: 'POST', body, headers: await headers() });
+  assert.equal(first.status, 200); assert.equal(refreshed.status, 200); assert.equal(reused.status, 200);
+  assert.equal(JSON.parse(gunzipSync(first.body)).generation, 1);
+  assert.equal(JSON.parse(gunzipSync(refreshed.body)).generation, 2);
+  assert.equal(JSON.parse(gunzipSync(reused.body)).generation, 2);
+  assert.equal(calls, 2);
 });

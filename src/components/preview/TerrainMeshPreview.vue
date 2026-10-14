@@ -92,7 +92,7 @@ const trailMaterial = new THREE.MeshBasicMaterial({
   depthTest: true,
   depthWrite: true,
 });
-const waterMaterial = new THREE.MeshStandardMaterial({ color: '#268fbc', roughness: 0.3, metalness: 0.05 });
+const waterMaterial = new THREE.MeshStandardMaterial({ color: config.value.colors.water, roughness: 0.3, metalness: 0.05 });
 
 const demLabel = computed(() => {
   const r = props.result;
@@ -331,7 +331,7 @@ async function rebuildScene(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   if (token !== rebuildToken) return;
 
-  const terrainGeo = r.waterMeshes?.length && r.mesh.indices.length
+  const terrainGeo = (r.waterMeshes?.length || config.value.printMode === "fused") && r.mesh.indices.length
     ? payloadToBufferGeometry(r.mesh, { hardEdges: true })
     : buildTerrainGeometryFromPreview(r.crop, preview);
   terrainGeo.computeVertexNormals();
@@ -396,7 +396,11 @@ async function rebuildScene(): Promise<void> {
   const polyline = r.trailPolylineMm ?? [];
   const trailWidth = r.trailDisplayWidthMm ?? 4;
 
-  if (polyline.length >= 2) {
+  if (config.value.printMode === 'fused' && r.trailMesh?.indices.length) {
+    const trail = new THREE.Mesh(payloadToBufferGeometry(r.trailMesh, { hardEdges: true }), trailMaterial);
+    trail.frustumCulled = false;
+    overlayRoot.add(trail);
+  } else if (polyline.length >= 2) {
     reportScene("trail", 0.78, "Drawing trail…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (token !== rebuildToken) return;
@@ -718,6 +722,7 @@ watch(
   () => config.value.colors,
   (colors) => {
     trailMaterial.color.set(colors.trail);
+    waterMaterial.color.set(colors.water);
     trayMaterial?.color.set(colors.tray);
     textMaterial?.color.set(colors.text);
     if (terrainMaterial && !terrainMaterial.vertexColors) terrainMaterial.color.set(colors.terrain);
@@ -862,7 +867,7 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
       class="terrain-preview__water"
       role="status"
     >
-      <strong v-if="result.waterMeshes?.length">{{ result.waterMeshes.length }} water {{ result.waterMeshes.length === 1 ? 'insert' : 'inserts' }} · Alignment pins</strong>
+      <strong v-if="result.waterMeshes?.length">{{ result.waterMeshes.length }} water {{ result.waterMeshes.length === 1 ? 'part' : 'parts' }} · {{ config.printMode === 'fused' ? 'Fused multicolor volumes' : 'Place or glue into terrain' }}</strong>
       <p v-for="warning in result.waterWarnings ?? []" :key="warning">{{ warning }}</p>
     </div>
     <div

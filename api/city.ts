@@ -28,7 +28,12 @@ export default async function city(req: IncomingMessage & { body?: unknown }, re
   try { body = await readJson(req); validateCityMapRequest(body); }
   catch (error) { res.writeHead(error instanceof CityProviderError ? error.status : 400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid city request' })); return; }
   try {
-    const data = await fetchCityMapData(body, process.env.CITY_OVERPASS_URL || undefined);
+    const controller = new AbortController();
+    const cancel = () => { if (!res.writableEnded) controller.abort(); };
+    req.once('aborted', cancel); res.once('close', cancel);
+    let data;
+    try { data = await fetchCityMapData(body, process.env.CITY_OVERPASS_URL || undefined, { signal: controller.signal, refresh: body.refresh }); }
+    finally { req.removeListener('aborted', cancel); res.removeListener('close', cancel); }
     const output = gzipSync(Buffer.from(JSON.stringify(data)));
     if (output.length > 4_400_000) throw new CityProviderError('The city response is too large. Zoom in or choose a smaller selection.', 413);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip', 'Content-Length': output.length }).end(output);

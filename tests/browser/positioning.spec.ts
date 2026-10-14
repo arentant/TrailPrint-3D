@@ -35,13 +35,63 @@ async function applyPreset(page: Page, name: string): Promise<void> {
 
 async function panMap(page: Page): Promise<void> {
   const box = (await page.locator('.leaflet-map').boundingBox())!
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.move(box.x + box.width / 2 + 70, box.y + box.height / 2 + 50)
   await page.mouse.down()
-  await page.mouse.move(box.x + box.width / 2 + 75, box.y + box.height / 2 + 40, { steps: 12 })
+  await page.mouse.move(box.x + box.width / 2 + 145, box.y + box.height / 2 + 90, { steps: 12 })
   await page.mouse.up()
   // Leaflet finishes pan inertia after pointer release.
   await page.waitForTimeout(600)
 }
+
+test('geographic crop stays unchanged during zoom, pan and viewport resize, and its handles edit the selection independently', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'))
+  const move = page.getByRole('button', { name: 'Move crop shape', exact: true })
+  await expect(move).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  await page.getByRole('button', { name: 'Place shape here', exact: true }).click()
+  const before = await savePreset(page, 'Anchored area')
+  expect(before.payload.mapView!.selection).toBeTruthy()
+  const outline = page.locator('.crop-shape-outline')
+  const originalBox = (await outline.boundingBox())!
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).click()
+  await expect.poll(async () => (await outline.boundingBox())!.width).toBeLessThan(originalBox.width * .8)
+  await panMap(page)
+  const navigated = await savePreset(page, 'Independent camera')
+  expect(navigated.payload.mapView!.selection).toEqual(before.payload.mapView!.selection)
+  expect(navigated.payload.mapView!.mapZoom).toBeLessThan(before.payload.mapView!.mapZoom)
+  expect(navigated.payload.mapView!.mapCenterLon).not.toBeCloseTo(before.payload.mapView!.mapCenterLon, 6)
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
+  await page.setViewportSize({ width: 1100, height: 850 })
+  const resizedWindow = await savePreset(page, 'Same area after resize')
+  expect(resizedWindow.payload.mapView!.selection).toEqual(before.payload.mapView!.selection)
+  await page.getByRole('button', { name: 'Show shape', exact: true }).click()
+  const cameraBeforeMove = await savePreset(page, 'Camera before shape edit')
+  const handle = (await move.boundingBox())!
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + handle.width / 2 + 60, handle.y + handle.height / 2 + 30, { steps: 8 })
+  await page.mouse.up()
+  const movedShape = await savePreset(page, 'Moved shape')
+  expect(movedShape.payload.mapView!.selection!.mapCenterLon).not.toBeCloseTo(before.payload.mapView!.selection!.mapCenterLon, 6)
+  for (const field of ['mapCenterLat', 'mapCenterLon', 'mapZoom', 'mapBearingDeg'] as const) {
+    expect(movedShape.payload.mapView![field]).toBeCloseTo(cameraBeforeMove.payload.mapView![field], 6)
+  }
+  await page.getByRole('button', { name: 'Show shape', exact: true }).click()
+  const cameraBeforeResize = await savePreset(page, 'Camera before resize')
+  const resize = (await page.getByRole('button', { name: 'Resize crop shape', exact: true }).boundingBox())!
+  await page.mouse.move(resize.x + resize.width / 2, resize.y + resize.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(resize.x + resize.width / 2 + 45, resize.y + resize.height / 2, { steps: 8 })
+  await page.mouse.up()
+  const larger = await savePreset(page, 'Larger selected area')
+  expect(larger.payload.mapView!.selection!.mapZoom).toBeLessThan(movedShape.payload.mapView!.selection!.mapZoom)
+  expect(larger.payload.mapView!.mapZoom).toBe(cameraBeforeResize.payload.mapView!.mapZoom)
+  await applyPreset(page, 'Anchored area')
+  const restored = await savePreset(page, 'Restored selected area')
+  expect(restored.payload.mapView).toEqual(before.payload.mapView)
+  await page.screenshot({ path: 'test-results/geographic-crop.png', fullPage: true })
+})
 
 test('presets restore coordinates, zoom and rotation, while settings-only presets keep the current view', async ({ page }) => {
   const errors: string[] = []
@@ -117,7 +167,7 @@ test('positioning grid toggles, follows the crop shape, and allows panning throu
   await expect(grid).toBeHidden()
 })
 
-test('rotation controls wrap angles, keep framing fixed, and follow saved presets', async ({ page }) => {
+test('rotation controls wrap angles, preserve the geographic crop, and follow saved presets', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto('/')
@@ -130,16 +180,17 @@ test('rotation controls wrap angles, keep framing fixed, and follow saved preset
   const controlsBox = (await controls.boundingBox())!
   expect(controlsBox.y).toBeGreaterThan(legendBox.y + legendBox.height)
   const before = await savePreset(page, 'Before rotation')
-  const mask = await page.locator('.mask-hole').getAttribute('style')
+  const mask = await page.locator('.crop-shape-outline').getAttribute('points')
   const pane = page.locator('.leaflet-rotate-pane')
   const initialTransform = await pane.getAttribute('style')
 
   await controls.getByRole('button', { name: 'Rotate map counterclockwise', exact: true }).click()
   await expect(controls.locator('output')).toHaveText('345°')
   await expect(pane).not.toHaveAttribute('style', initialTransform!)
-  await expect(page.locator('.mask-hole')).toHaveAttribute('style', mask!)
+  await expect(page.locator('.crop-shape-outline')).not.toHaveAttribute('points', mask!)
   const rotated = await savePreset(page, 'Rotated framing')
   expect(rotated.payload.mapView!.mapBearingDeg).toBeCloseTo(345, 6)
+  expect(rotated.payload.mapView!.selection).toEqual(before.payload.mapView!.selection)
   for (const field of ['mapCenterLat', 'mapCenterLon', 'mapZoom'] as const) {
     expect(rotated.payload.mapView![field], field).toBeCloseTo(before.payload.mapView![field], 6)
   }

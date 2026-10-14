@@ -10,3 +10,7 @@ release
 .vercel
 test-results
 playwright-report
+
+.venv-water/
+data/water/
+scripts/water/sources.local.json

@@ -47,6 +47,16 @@ function request(shape = 'rectangle', real = false, bearing = 0) {
   return { req, crop, data: compactCityMap({ elements }), originalData: { elements }, heights, cols, rows };
 }
 function generate(fixture) { return api.buildCityGeometry(wasm, fixture.req, fixture.crop, fixture.data, fixture.heights, fixture.cols, fixture.rows); }
+test('anchored city retains its crop, road widths and meshes after camera navigation and window resizing', () => {
+  const f = request('polygon', true, 37), initial = generate(f);
+  const { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg } = f.req.config.mapCrop;
+  f.req.config.mapCrop.selection = { mapCenterLat, mapCenterLon, mapZoom, mapBearingDeg, viewportWidth: 800, viewportHeight: 600 };
+  Object.assign(f.req.config.mapCrop, { mapCenterLat: 42, mapCenterLon: 46, mapZoom: 12, mapBearingDeg: 95 });
+  Object.assign(f.req, { viewportWidth: 390, viewportHeight: 700 });
+  const selectedCrop = api.computeTerrainCropRegion(f.req.config.mapCrop, 390, 700);
+  assert.deepEqual(selectedCrop, f.crop);
+  assert.deepEqual(generate({ ...f, crop: selectedCrop }), initial);
+});
 for (const real of [false, true]) test(`cached ${real ? 'Real' : 'Flat'} city matches fresh geometry through trail edits and restores narrowed grooves`, () => {
   const f = request('circle', real, 37), builder = api.createCityGeometryBuilder(wasm);
   const stages = [];

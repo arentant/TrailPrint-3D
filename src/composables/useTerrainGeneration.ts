@@ -13,6 +13,8 @@ import type {
 } from "@shared/types/terrain";
 import { validateModelGeneration } from "@shared/utils/model-validation";
 
+import { useWaterStore } from '@/stores/water';
+
 const DEBOUNCE_MS = 450;
 
 export function useTerrainGeneration(
@@ -21,6 +23,7 @@ export function useTerrainGeneration(
 ) {
   const enabled = options?.enabled;
   const configStore = useConfigStore();
+  const waterStore = useWaterStore();
   const { config } = storeToRefs(configStore);
 
   const generating = ref(false);
@@ -102,6 +105,7 @@ export function useTerrainGeneration(
     try {
       const res = await ipcGenerateTerrain({
         config: configStore.toSnapshot(),
+        waterCatalog: waterStore.currentCatalog,
         viewportWidth: Math.round(w),
         viewportHeight: Math.round(h),
       });
@@ -144,9 +148,9 @@ export function useTerrainGeneration(
       config.value.terrain.openTopographyApiKey,
       config.value.water.enabled,
       config.value.water.thicknessMm,
-      config.value.water.clearanceMm,
-      config.value.water.pinDiameterMm,
-      config.value.water.pinDepthMm,
+      JSON.stringify(config.value.water),
+      config.value.printMode,
+      waterStore.currentCatalog,
       config.value.mapCrop.shape,
       config.value.mapCrop.radiusMm,
       config.value.mapCrop.lengthMm,
@@ -154,10 +158,10 @@ export function useTerrainGeneration(
       config.value.mapCrop.polygonSides,
       config.value.mapCrop.polygonSideLengthMm,
       config.value.mapCrop.cornerRadiusMm,
-      config.value.mapCrop.mapCenterLat,
-      config.value.mapCrop.mapCenterLon,
-      config.value.mapCrop.mapZoom,
-      config.value.mapCrop.mapBearingDeg,
+      config.value.mapCrop.selection?.mapCenterLat ?? config.value.mapCrop.mapCenterLat,
+      config.value.mapCrop.selection?.mapCenterLon ?? config.value.mapCrop.mapCenterLon,
+      config.value.mapCrop.selection?.mapZoom ?? config.value.mapCrop.mapZoom,
+      config.value.mapCrop.selection?.mapBearingDeg ?? config.value.mapCrop.mapBearingDeg,
       config.value.gpx.imported,
       config.value.gpx.pointCount,
       config.value.trail.gpxSimplify,
@@ -173,10 +177,11 @@ export function useTerrainGeneration(
       config.value.assembly.magnet.thicknessMm,
       config.value.assembly.magnet.toleranceMm,
       config.value.assembly.magnet.circleCount,
-      viewport.value.w,
-      viewport.value.h,
+      config.value.mapCrop.selection?.viewportWidth ?? viewport.value.w,
+      config.value.mapCrop.selection?.viewportHeight ?? viewport.value.h,
     ],
-    () => {
+    (values, previous) => {
+      if (previous && values.every((value, i) => value === previous[i])) return;
       if (enabled && !enabled.value) return;
       scheduleGeneration();
     },

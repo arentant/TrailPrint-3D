@@ -14,6 +14,7 @@ import CityMeshPreview from './CityMeshPreview.vue';
 import CityTrailControls from './CityTrailControls.vue';
 import CityPictureEditor from './CityPictureEditor.vue';
 import ModelColorControls from '@/components/ui/ModelColorControls.vue';
+import { cropSelectionFrame } from '@shared/utils/crop-selection';
 const api = window.trailPrint;
 const store = useCityStore(), ui = useUiStore();
 const { config } = storeToRefs(store);
@@ -33,7 +34,8 @@ const error = ref<string | null>(null), progress = ref(0), progressMessage = ref
 let revision = 0, disposed = false;
 const requestKey = computed(() => {
   const { colors: _colors, picture: _picture, ...geometry } = config.value;
-  return JSON.stringify([geometry, viewport.value]);
+  const frame = cropSelectionFrame(config.value.mapCrop, viewport.value.w, viewport.value.h);
+  return JSON.stringify([{ ...geometry, mapCrop: frame.mapCrop }, { w: frame.width, h: frame.height }]);
 });
 const previewStale = computed(() => !!result.value && resultKey.value !== requestKey.value);
 const canExportModel = computed(() => !!result.value && !previewStale.value && !previewBusy.value && !ui.generating && !error.value);

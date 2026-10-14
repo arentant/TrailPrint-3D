@@ -3,6 +3,7 @@ export interface ModelColors {
   trail: string;
   tray: string;
   text: string;
+  water: string;
 }
 
 export function createDefaultModelColors(workspace: 'mountain' | 'city' = 'mountain'): ModelColors {
@@ -11,6 +12,7 @@ export function createDefaultModelColors(workspace: 'mountain' | 'city' = 'mount
     trail: '#e84335',
     tray: '#5c6670',
     text: '#ffffff',
+    water: '#268fbc',
   };
 }
 

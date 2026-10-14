@@ -1,4 +1,5 @@
 import type { MapCropConfig } from "../types/config.js";
+import { cropSelectionFrame } from './crop-selection.js';
 import {
   computeRotatePanePos,
   containerPointToLayerPoint,
@@ -79,8 +80,11 @@ export function computePixelOrigin(
   viewportHeight: number,
   pane: MapPaneState = mapPaneFromConfig(mapCrop),
 ): { x: number; y: number } {
-  const w = Math.max(viewportWidth, 64);
-  const h = Math.max(viewportHeight, 64);
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  if (mapCrop.selection) pane = { mapPaneX: 0, mapPaneY: 0 };
+  mapCrop = frame.mapCrop;
+  const w = frame.width;
+  const h = frame.height;
   const bearingRad = ((mapCrop.mapBearingDeg ?? 0) * Math.PI) / 180;
   const mpx = pane.mapPaneX ?? 0;
   const mpy = pane.mapPaneY ?? 0;
@@ -114,6 +118,9 @@ export function latLngToContainerPoint(
   viewportHeight: number,
   pane: MapPaneState = mapPaneFromConfig(mapCrop),
 ): { x: number; y: number } {
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  if (mapCrop.selection) pane = { mapPaneX: 0, mapPaneY: 0 };
+  mapCrop = frame.mapCrop; viewportWidth = frame.width; viewportHeight = frame.height;
   const proj = latLngToCrsPoint(lat, lon, mapCrop.mapZoom);
   const origin = computePixelOrigin(
     mapCrop,
@@ -142,6 +149,9 @@ export function containerPointToLatLng(
   viewportHeight: number,
   pane: MapPaneState = mapPaneFromConfig(mapCrop),
 ): { lat: number; lon: number } {
+  const frame = cropSelectionFrame(mapCrop, viewportWidth, viewportHeight);
+  if (mapCrop.selection) pane = { mapPaneX: 0, mapPaneY: 0 };
+  mapCrop = frame.mapCrop; viewportWidth = frame.width; viewportHeight = frame.height;
   const layer = containerPointToLayerPoint(
     x,
     y,
