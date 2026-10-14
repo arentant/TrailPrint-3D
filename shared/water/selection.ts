@@ -12,7 +12,12 @@ export interface PreparedWaterFeature {
   feature: WaterFeature;
   status: WaterFeatureStatus;
   reviewPolygonsMm: number[][][];
-  parts: Array<{ insert: CrossSection; pocket: CrossSection }>;
+}
+export interface PreparedWaterPart {
+  insert: CrossSection;
+  pocket: CrossSection;
+  featureIds: string[];
+  sea: boolean;
 }
 
 /** One planar selection pipeline for map review, preview and every export. */
@@ -30,6 +35,8 @@ export function prepareWaterSelection(wasm: ManifoldToplevel, request: { config:
   const mmPerM = Math.hypot(projectedMeter[0] - projectedOrigin[0], projectedMeter[1] - projectedOrigin[1]);
   const stroke = (points: Vec2[], width: number) => own(strokeSection(wasm, points, width));
   const entries: PreparedWaterFeature[] = [];
+  const parts: PreparedWaterPart[] = [];
+  const candidates: Array<{ entry: PreparedWaterFeature; section: CrossSection; bounds: ReturnType<CrossSection['bounds']> }> = [];
   try {
     const vertices = buildFootprintPolygonMm(crop);
     const outer = vertices ? own(new CS([vertices.map((v): Vec2 => [v.x, v.y])], 'EvenOdd')) : own(CS.circle(crop.radiusMm!, 128));
@@ -37,6 +44,8 @@ export function prepareWaterSelection(wasm: ManifoldToplevel, request: { config:
     const trailWidth = request.config.trail.trailWidthMm + (request.config.printMode === 'fused' ? 0 : 2 * request.config.assembly.trailToleranceMm + 0.1);
     const corridor = stroke(trail.map(p => [p.x, p.y]), trailWidth);
     let occupied = own(new CS([[]]));
+    let sourcePriority = -1;
+    let sourceCoverage: CrossSection[] = [];
     const priority = (f: WaterFeature) => f.category === 'sea' ? 5 : !f.geometry.type.includes('Line') ? (f.source.id === 'osm' ? 0 : 1) : f.source.id === 'osm' ? 2 : 3;
     const widthSources = features.filter(f => f.source.id === 'grwl' && f.widthM && f.complete).flatMap(f => {
       const g = f.geometry;
@@ -54,8 +63,17 @@ export function prepareWaterSelection(wasm: ManifoldToplevel, request: { config:
     };
     const sorted = [...features].sort((a, b) => priority(a) - priority(b) || a.id.localeCompare(b.id));
     for (const feature of sorted) {
+      const nextPriority = priority(feature);
+      if (nextPriority !== sourcePriority) {
+        // Hidden preferred sources still block lower-priority fallbacks. Within
+        // one source tier, only kept features claim geometry: hiding an
+        // overlapping record must not erase another record the user kept.
+        if (sourceCoverage.length) occupied = own(CS.union([occupied, ...sourceCoverage]));
+        sourceCoverage = [];
+        sourcePriority = nextPriority;
+      }
       const status: WaterFeatureStatus = { featureId: feature.id, state: 'included', areaMm2: 0, exaggerated: false, partIndices: [] };
-      const entry: PreparedWaterFeature = { feature, status, reviewPolygonsMm: [], parts: [] }; entries.push(entry);
+      const entry: PreparedWaterFeature = { feature, status, reviewPolygonsMm: [] }; entries.push(entry);
       if (!feature.complete) { status.state = 'incomplete'; status.reason = 'Incomplete source geometry'; continue; }
       const g = feature.geometry;
       const sections: CrossSection[] = [];
@@ -82,32 +100,56 @@ export function prepareWaterSelection(wasm: ManifoldToplevel, request: { config:
       entry.reviewPolygonsMm = clipped.toPolygons();
       status.areaMm2 = clipped.area();
       if (clipped.isEmpty()) { status.state = 'outside-crop'; status.reason = 'Outside the protective crop border'; continue; }
-      // Reserve source coverage even when excluded. A fallback cannot restore a
-      // deselected body. Complete OSM outlines take precedence over large lakes.
+      sourceCoverage.push(clipped);
       const overlap = own(clipped.intersect(occupied));
       const unique = own(clipped.subtract(occupied));
-      const merged = own(occupied.add(clipped)); occupied = merged;
       if (unique.isEmpty() || (feature.source.id === 'hydrolakes' && overlap.area() >= clipped.area() * 0.5)) {
         status.state = 'covered'; status.reason = 'Already covered by a preferred source'; continue;
       }
       if (settings.excludedFeatureIds.includes(feature.id)) { status.state = 'excluded'; status.reason = 'Excluded from this model'; continue; }
       if (!settings.categories.includes(feature.category)) { status.state = 'category-disabled'; status.reason = `${feature.category} category disabled`; continue; }
+      occupied = own(occupied.add(clipped));
       const reserved = request.config.printMode === 'fused' ? unique : own(unique.subtract(corridor));
+      candidates.push({ entry, section: reserved, bounds: reserved.bounds() });
+    }
+    const retained = new Set<string>(), omitted = new Map<string, number>();
+    const intersecting = (section: CrossSection, group: typeof candidates) => {
+      const bounds = section.bounds();
+      return group.filter(candidate => {
+        if ([0, 1].some(axis => bounds.max[axis]! <= candidate.bounds.min[axis]! || bounds.min[axis]! >= candidate.bounds.max[axis]!)) return false;
+        const overlap = section.intersect(candidate.section);
+        try { return overlap.area() > 1e-8; } finally { overlap.delete(); }
+      });
+    };
+    // Offset the selected wet footprint once. Offsetting adjoining OSM ways
+    // separately creates an artificial gap of twice the fitting clearance.
+    // Sea and inland water retain their distinct surface-height rules.
+    for (const sea of [false, true]) {
+      const group = candidates.filter(candidate => (candidate.entry.feature.category === 'sea') === sea);
+      if (!group.length) continue;
+      const reserved = own(CS.union(group.map(candidate => candidate.section)));
       const insetRaw = own(reserved.offset(-clearance, 'Round', 2, 24));
       const inset = own(insetRaw.simplify(0.02));
-      let omitted = 0;
       for (const part of inset.decompose()) {
         own(part);
+        const members = intersecting(part, group);
         const core = own(part.offset(-settings.minimumWidthMm / 2, 'Round', 2, 24));
-        if (part.area() < settings.minimumAreaMm2 || core.isEmpty()) { omitted++; continue; }
+        if (part.area() < settings.minimumAreaMm2 || core.isEmpty()) {
+          for (const member of members) omitted.set(member.entry.feature.id, (omitted.get(member.entry.feature.id) ?? 0) + 1);
+          continue;
+        }
         const expanded = own(part.offset(clearance, 'Round', 2, 24));
         const pocketRaw = own(expanded.intersect(reserved));
         const pocket = clearance === 0 ? part : own(pocketRaw.simplify(0.02));
-        entry.parts.push({ insert: part, pocket });
+        const featureIds = members.map(member => member.entry.feature.id);
+        featureIds.forEach(id => retained.add(id));
+        parts.push({ insert: part, pocket, featureIds, sea });
       }
-      if (!entry.parts.length) { status.state = 'too-small'; status.reason = 'No printable area remains after clearance, width filtering and trail support'; }
-      else if (omitted) status.reason = `${omitted} small pieces omitted after clearance`;
     }
-    return { entries, corridor, dispose };
+    for (const { entry } of candidates) {
+      if (!retained.has(entry.feature.id)) { entry.status.state = 'too-small'; entry.status.reason = 'No printable area remains after clearance, width filtering and trail support'; }
+      else if (omitted.has(entry.feature.id)) entry.status.reason = `${omitted.get(entry.feature.id)} small pieces omitted after clearance`;
+    }
+    return { entries, parts, corridor, dispose };
   } catch (error) { dispose(); throw error; }
 }

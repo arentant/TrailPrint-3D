@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { resolve } from 'node:path';
 import Module from 'manifold-3d';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -267,6 +267,47 @@ test('complete OSM geometry suppresses duplicate lake sources, even when exclude
   req.config.water.excludedFeatureIds = [];
   req.config.water.categories = ['river'];
   assert.equal(api.buildWaterGeometry(wasm, req, crop, data, terrain, []).waterMeshes.length, 0);
+});
+
+test('the real Azat river remains continuous when its overlapping short records are hidden', async () => {
+  const req = request();
+  Object.assign(req.config.mapCrop, { lengthMm: 120, widthMm: 80, mapCenterLat: 40.04, mapCenterLon: 44.56, mapZoom: 12.9, mapBearingDeg: 45 });
+  const { crop, terrain } = setup(req, []);
+  const data = JSON.parse(await readFile('fixtures/water/azat-osm.json', 'utf8'));
+  data.key = api.waterCatalogKey({ mapCrop: req.config.mapCrop, viewportWidth: req.viewportWidth, viewportHeight: req.viewportHeight });
+  const keep = ['osm:relation/17884226', 'osm:way/419632551', 'osm:way/74412858', 'osm:way/1010915009'];
+  req.config.water.excludedFeatureIds = data.features.filter(feature => !keep.includes(feature.id)).map(feature => feature.id);
+  const result = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+  assert.equal(result.waterMeshes.length, 1, 'hidden overlapping records must not cut holes out of the selected Azat river');
+  assertClosed(result.mesh); assertClosed(result.waterMeshes[0]);
+  assert.deepEqual(result.waterPartMappings[0].featureIds, ['osm:way/1010915009', 'osm:way/419632551', 'osm:way/74412858']);
+  assert.equal(result.waterFeatureStatuses.find(status => status.featureId === 'osm:way/419632554').state, 'excluded');
+});
+
+for (const geometryType of ['Polygon', 'LineString']) test(`adjacent river ${geometryType} segments remain continuous after clearance and can still be hidden individually`, () => {
+  const req = request(), { crop, terrain } = setup(req, []);
+  const data = catalogFor(req, crop, [[box(-30, -.8, -10, .8)], [box(-10, -.8, 10, .8)], [box(10, -.8, 30, .8)]]);
+  data.features = data.features.map(feature => ({ ...feature, category: 'river', name: 'Connected river',
+    ...(geometryType === 'LineString' ? { geometry: { type: 'LineString', coordinates: feature.geometry.coordinates[0].slice(0, 2) } } : {}) }));
+  const joined = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+  assert.equal(joined.waterMeshes.length, 1, 'adjoining source segments should produce one connected printable insert');
+  assert.deepEqual(joined.waterPartMappings[0].featureIds, data.features.map(feature => feature.id));
+  assert.ok(joined.waterFeatureStatuses.every(status => status.state === 'included' && status.partIndices[0] === 0));
+  assertClosed(joined.mesh); assertClosed(joined.waterMeshes[0]);
+  const river = solid(joined.waterMeshes[0]), cube = wasm.Manifold.cube([.08, .08, .5], true);
+  const seam = cube.translate([-10, geometryType === 'LineString' ? -.8 : 0, -.25]), wet = river.intersect(seam);
+  try { assert.ok(wet.volume() > .003, 'clearance must not cut an artificial dry gap at the source boundary'); }
+  finally { wet.delete(); seam.delete(); cube.delete(); river.delete(); }
+  req.config.water.excludedFeatureIds = [data.features[1].id];
+  const hidden = api.buildWaterGeometry(wasm, req, crop, data, terrain, []);
+  assert.equal(hidden.waterMeshes.length, 2);
+  assert.equal(hidden.waterFeatureStatuses.find(status => status.featureId === data.features[1].id).state, 'excluded');
+  assert.ok(hidden.waterPartMappings.every(part => !part.featureIds.includes(data.features[1].id)));
+  assertClosed(hidden.mesh); hidden.waterMeshes.forEach(assertClosed);
+  req.config.water.excludedFeatureIds = [];
+  const crossing = api.buildWaterGeometry(wasm, req, crop, data, terrain, [{ x: -10, y: -5 }, { x: -10, y: 5 }]);
+  assert.equal(crossing.waterMeshes.length, 2, 'the terrain supporting a trail crossing must still separate the inserts');
+  assertClosed(crossing.mesh); crossing.waterMeshes.forEach(assertClosed);
 });
 
 test('river centerlines use measured widths, printable widening and stable feature mappings', () => {

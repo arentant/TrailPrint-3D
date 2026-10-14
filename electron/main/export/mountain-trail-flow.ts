@@ -242,7 +242,7 @@ async function generateMountainTrailFiles(
     { name: 'Trail', color: colors.trail, mesh: terrainWithGroove.trailMesh },
     ...(terrainWithGroove.waterMeshes ?? []).map((mesh, i) => {
       const mapping = terrainWithGroove.waterPartMappings?.find(part => part.partIndex === i);
-      const names = mapping?.featureIds.map(id => terrainWithGroove.waterFeatureDetails?.find(feature => feature.id === id)?.name).filter(Boolean);
+      const names = [...new Set(mapping?.featureIds.map(id => terrainWithGroove.waterFeatureDetails?.find(feature => feature.id === id)?.name).filter(Boolean))];
       return { name: `Water ${i + 1}: ${names?.join(', ') || 'Water'}`, color: colors.water, mesh };
     }),
   ] }, { name: 'Tray and text', parts: [

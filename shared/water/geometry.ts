@@ -47,37 +47,39 @@ export function buildWaterGeometry(wasm: ManifoldToplevel, request: TerrainGener
     if (source.status() !== 'NoError') throw new Error('Terrain could not be prepared for water pockets. Choose a lower mesh quality.');
     let main = source;
     const maxZ = Math.max(source.boundingBox().max[2] + 1, (seaLevelMm ?? 0) + 1);
-    for (const { feature, status, parts } of selection.entries) {
-      for (const part of parts) {
-        const fullPrism = extrude(part.pocket, terrain.bottomZ, maxZ);
-        const fullWater = own(source.intersect(fullPrism)); drop(fullPrism);
-        if (fullWater.isEmpty()) { status.reason = 'No terrain beneath this part'; drop(fullWater); continue; }
-        const waterMesh = fullWater.getMesh();
-        let minSurface = Infinity;
-        for (let i = 2; i < waterMesh.vertProperties.length; i += waterMesh.numProp) {
-          const z = waterMesh.vertProperties[i]!;
-          if (z > terrain.bottomZ + 1e-4) minSurface = Math.min(minSurface, z);
-        }
-        const sea = feature.category === 'sea';
-        if (sea && !Number.isFinite(seaLevelMm)) throw new Error('Sea water requires the terrain elevation transformation.');
-        const floor = Math.min(minSurface, sea ? seaLevelMm! : Infinity) - settings.thicknessMm;
-        if (!Number.isFinite(floor) || floor < terrain.bottomZ + 0.4 - 1e-4) throw new Error('A water pocket would leave too little material beneath it. Increase terrain base thickness or reduce water thickness.');
-        const prism = extrude(part.insert, floor, sea ? seaLevelMm! : maxZ);
-        const insert = sea ? prism : own(source.intersect(prism));
-        if (!sea) drop(prism);
-        if (insert.isEmpty()) { status.reason = 'Empty part after terrain intersection'; drop(insert); drop(fullWater); continue; }
-        // A pocket is cut only after its printable insert exists.
-        const insertPayload = payload(insert, floor);
-        const pocket = extrude(part.pocket, floor, maxZ);
-        const cutMain = own(main.subtract(pocket)); if (main !== source) drop(main); main = cutMain;
-        drop(pocket);
-        const partIndex = result.waterMeshes.length;
-        result.waterMeshes.push(insertPayload);
-        status.partIndices.push(partIndex);
-        result.waterPartMappings.push({ partIndex, featureIds: [feature.id] });
-        drop(insert); drop(fullWater);
-        if (result.waterMeshes.length > 200) throw new Error('Too many water parts. Increase minimum area or select a smaller crop.');
+    const statusesById = new Map(result.waterFeatureStatuses.map(status => [status.featureId, status]));
+    for (const part of selection.parts) {
+      const statuses = part.featureIds.map(id => statusesById.get(id)!);
+      const fullPrism = extrude(part.pocket, terrain.bottomZ, maxZ);
+      const fullWater = own(source.intersect(fullPrism)); drop(fullPrism);
+      if (fullWater.isEmpty()) { statuses.forEach(status => { status.reason = 'No terrain beneath this part'; }); drop(fullWater); continue; }
+      const waterMesh = fullWater.getMesh();
+      let minSurface = Infinity;
+      for (let i = 2; i < waterMesh.vertProperties.length; i += waterMesh.numProp) {
+        const z = waterMesh.vertProperties[i]!;
+        if (z > terrain.bottomZ + 1e-4) minSurface = Math.min(minSurface, z);
       }
+      const sea = part.sea;
+      if (sea && !Number.isFinite(seaLevelMm)) throw new Error('Sea water requires the terrain elevation transformation.');
+      const floor = Math.min(minSurface, sea ? seaLevelMm! : Infinity) - settings.thicknessMm;
+      if (!Number.isFinite(floor) || floor < terrain.bottomZ + 0.4 - 1e-4) throw new Error('A water pocket would leave too little material beneath it. Increase terrain base thickness or reduce water thickness.');
+      const prism = extrude(part.insert, floor, sea ? seaLevelMm! : maxZ);
+      const insert = sea ? prism : own(source.intersect(prism));
+      if (!sea) drop(prism);
+      if (insert.isEmpty()) { statuses.forEach(status => { status.reason = 'Empty part after terrain intersection'; }); drop(insert); drop(fullWater); continue; }
+      // A pocket is cut only after its printable insert exists.
+      const insertPayload = payload(insert, floor);
+      const pocket = extrude(part.pocket, floor, maxZ);
+      const cutMain = own(main.subtract(pocket)); if (main !== source) drop(main); main = cutMain;
+      drop(pocket);
+      const partIndex = result.waterMeshes.length;
+      result.waterMeshes.push(insertPayload);
+      statuses.forEach(status => status.partIndices.push(partIndex));
+      result.waterPartMappings.push({ partIndex, featureIds: part.featureIds });
+      drop(insert); drop(fullWater);
+      if (result.waterMeshes.length > 200) throw new Error('Too many water parts. Increase minimum area or select a smaller crop.');
+    }
+    for (const status of result.waterFeatureStatuses) {
       if (status.state === 'included' && !status.partIndices.length) { status.state = 'too-small'; status.reason ??= 'No printable part remains'; }
     }
     if (result.waterMeshes.length) {

@@ -19,6 +19,7 @@ const statusLabels: Record<WaterFeatureStatus['state'], string> = {
       </div>
     </div>
     <p>Check a feature to keep it. Uncheck it to hide it from the model and exports.</p>
+    <p>Overlapping water remains where another feature covering it is kept.</p>
     <p role="status">{{ water.loading ? 'Fetching water coverage…' : water.reviewing ? 'Checking print scale…' : water.cancelled ? 'Water fetch cancelled. Refresh to try again.' : `${water.includedCount} kept · ${water.review.length} detected` }}</p>
     <p v-if="water.error" role="alert" class="water-review__error">{{ water.error }}</p>
     <p v-for="failure in water.coverageErrors" :key="failure.source" class="water-review__error" role="alert">{{ failure.source }}: {{ failure.message }}</p>
