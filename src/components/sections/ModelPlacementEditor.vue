@@ -5,6 +5,7 @@ import { useConfigStore } from '@/stores/config';
 import { buildModelTextLayout, modelFootprint } from '@shared/utils/model-features';
 import { computeTerrainCropRegion } from '@shared/utils/crop-region';
 import { createDefaultFeaturePosition, type ModelFeaturePosition } from '@shared/types/config';
+import { MODEL_PLACEMENT_PRESETS, modelPlacementPresetPosition, type ModelPlacementPreset } from '@shared/utils/model-placement-presets';
 import type { TrayTextShape } from '@shared/utils/tray-text-layout';
 import NumberField from '@/components/ui/NumberField.vue';
 
@@ -14,6 +15,8 @@ const { config } = storeToRefs(useConfigStore());
 const kind = ref<Kind>('text'), surface = ref<Surface>('underside');
 const svg = ref<SVGSVGElement | null>(null);
 const frozenBox = ref<string | null>(null);
+const presetError = ref('');
+const chosenPresets = ref<Record<string, { id: ModelPlacementPreset; position: ModelFeaturePosition }>>({});
 let drag: { pointerId: number; x: number; y: number; position: ModelFeaturePosition; startX: number; startY: number } | null = null;
 const features = computed<Kind[]>(() => {
   const result: Kind[] = [];
@@ -28,6 +31,21 @@ watch(features, values => { if (!values.includes(kind.value)) kind.value = value
 watch(surfaces, values => { if (!values.includes(surface.value)) surface.value = values[0]!; }, { immediate: true });
 const position = computed(() => surface.value === 'front' ? settings.value.frontPosition : settings.value.undersidePosition);
 const name = computed(() => kind.value === 'text' ? 'Text' : 'Logo');
+const presetKey = computed(() => `${kind.value}:${surface.value}`);
+const activePreset = computed(() => {
+  const chosen = chosenPresets.value[presetKey.value];
+  return chosen && (['xMm', 'yMm', 'rotationDeg'] as const).every(key => Math.abs(chosen.position[key] - position.value[key]) < 0.0001) ? chosen.id : null;
+});
+watch([kind, surface, () => position.value.xMm, () => position.value.yMm, () => position.value.rotationDeg], () => { presetError.value = ''; });
+function applyPreset(id: ModelPlacementPreset) {
+  try {
+    const next = modelPlacementPresetPosition(config.value, kind.value, surface.value, id);
+    if (!next) { presetError.value = 'This position does not fit or overlaps the keychain hole. Reduce the artwork size or choose another position.'; return; }
+    Object.assign(position.value, next);
+    chosenPresets.value[presetKey.value] = { id, position: { ...next } };
+    presetError.value = '';
+  } catch (cause) { presetError.value = cause instanceof Error ? cause.message : 'Check the artwork size and placement.'; }
+}
 const crop = computed(() => computeTerrainCropRegion(config.value.mapCrop, 800, 600));
 const footprint = computed(() => modelFootprint(crop.value));
 const layout = computed(() => {
@@ -98,6 +116,10 @@ function endDrag(event: PointerEvent) {
     <div class="placement-editor__tabs" role="group" aria-label="Placement surface">
       <button v-for="side in surfaces" :key="side" type="button" :aria-pressed="surface === side" @click="surface = side">{{ side === 'front' ? 'Front layout' : 'Underside layout' }}</button>
     </div>
+    <div class="placement-editor__presets" role="group" aria-label="Quick placement">
+      <button v-for="preset in MODEL_PLACEMENT_PRESETS" :key="preset.id" type="button" :aria-pressed="activePreset === preset.id" :disabled="!shapes(kind).length" :title="`Place ${name.toLowerCase()} at ${preset.label.toLowerCase()}`" @click="applyPreset(preset.id)">{{ preset.label }}</button>
+    </div>
+    <p v-if="presetError" class="placement-editor__error" role="alert">{{ presetError }}</p>
     <svg ref="svg" class="placement-editor__canvas" :viewBox="viewBox" role="group" aria-label="Model placement editor" @pointermove="move" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
       <path :d="path([footprint])" class="placement-editor__model" />
       <path v-if="surface === 'front' && layout?.plaque.length" :d="path([layout.plaque])" class="placement-editor__model" />
@@ -106,7 +128,7 @@ function endDrag(event: PointerEvent) {
         <path :d="markPath(feature)" fill-rule="evenodd" />
       </g>
     </svg>
-    <p>{{ surface === 'underside' ? 'Seen from below, as it will read on the model.' : 'The front ledge grows to fit the artwork.' }} Drag an item or enter exact offsets below. Each surface has its own position.</p>
+    <p>{{ surface === 'underside' ? 'Seen from below, as it will read on the model.' : 'The front ledge grows to fit the artwork.' }} Choose a position, drag an item or enter exact offsets below. Quick placement keeps its size and rotation. Each surface has its own position.</p>
     <div class="placement-editor__row">
       <NumberField v-model="position.xMm" :label="`${name} horizontal offset`" suffix="mm" :min="-500" :max="500" :step="0.5" />
       <NumberField v-model="position.yMm" :label="`${name} vertical offset`" suffix="mm" :min="-500" :max="500" :step="0.5" />
@@ -122,8 +144,12 @@ function endDrag(event: PointerEvent) {
 .placement-editor__heading { justify-content: space-between; font-size: 12px; }
 .placement-editor__heading span, p { color: var(--tp-text-secondary); font-size: 11px; }
 p { margin: 0; line-height: 1.5; }
-.placement-editor__tabs button { flex: 1; padding: 8px; border: 1px solid var(--tp-border); border-radius: 7px; background: var(--tp-bg-input); color: var(--tp-text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
-.placement-editor__tabs button[aria-pressed="true"] { border-color: var(--tp-text-accent); color: var(--tp-text-accent); font-weight: 600; }
+.placement-editor__tabs button, .placement-editor__presets button { flex: 1; padding: 8px; border: 1px solid var(--tp-border); border-radius: 7px; background: var(--tp-bg-input); color: var(--tp-text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.placement-editor__tabs button[aria-pressed="true"], .placement-editor__presets button[aria-pressed="true"] { border-color: var(--tp-text-accent); color: var(--tp-text-accent); font-weight: 600; }
+.placement-editor__presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.placement-editor__presets button { min-height: 34px; padding: 6px 3px; font-size: 11px; }
+.placement-editor__presets button:disabled { opacity: 0.45; cursor: default; }
+.placement-editor__error { color: var(--tp-danger, #b42318); }
 .placement-editor__canvas { display: block; width: 100%; height: 230px; border: 1px solid var(--tp-border); border-radius: 10px; background: var(--tp-bg-input); touch-action: none; }
 .placement-editor__model { fill: var(--tp-bg-panel); stroke: var(--tp-border-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .placement-editor__mark { fill: var(--tp-text-primary); cursor: move; }

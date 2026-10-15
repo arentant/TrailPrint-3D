@@ -123,3 +123,59 @@ test('PNG artwork, validation, removal and imported-logo presets work locally', 
   await expect(page.getByRole('button', { name: 'Import SVG or PNG', exact: true })).toBeVisible();
   expect(await page.locator('.sidebar').evaluate(el => el.scrollWidth - el.clientWidth)).toBe(0);
 });
+
+test('quick placement presets arrange text and logos independently and preserve manual editing', async ({ page }) => {
+  await page.goto('/'); await page.waitForLoadState('networkidle');
+  await page.getByRole('switch', { name: 'Text on model', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Model text title', exact: true }).fill('RIDGE');
+  await page.getByRole('combobox', { name: 'Model text placement', exact: true }).selectOption('both');
+  await page.getByRole('spinbutton', { name: 'Text rotation', exact: true }).fill('20');
+  const quick = page.getByRole('group', { name: 'Quick placement', exact: true });
+  await expect(quick.getByRole('button')).toHaveCount(9);
+  await quick.getByRole('button', { name: 'Center', exact: true }).click();
+  await expect(quick.getByRole('button', { name: 'Center', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const front = { x: await page.getByRole('spinbutton', { name: 'Text horizontal offset', exact: true }).inputValue(),
+    y: await page.getByRole('spinbutton', { name: 'Text vertical offset', exact: true }).inputValue() };
+  await page.getByRole('button', { name: 'Underside layout', exact: true }).click();
+  for (const [label, xSign, ySign] of [['Top left', -1, 1], ['Top', 0, 1], ['Top right', 1, 1], ['Left', -1, 0],
+    ['Right', 1, 0], ['Bottom left', -1, -1], ['Bottom', 0, -1], ['Bottom right', 1, -1]] as const) {
+    await quick.getByRole('button', { name: label, exact: true }).click();
+    const x = Number(await page.getByRole('spinbutton', { name: 'Text horizontal offset', exact: true }).inputValue());
+    const y = Number(await page.getByRole('spinbutton', { name: 'Text vertical offset', exact: true }).inputValue());
+    expect(Math.sign(x)).toBe(xSign); expect(Math.sign(y)).toBe(ySign);
+    await expect(page.locator('.model-features__error')).toHaveCount(0);
+    await expect(page.getByRole('spinbutton', { name: 'Text rotation', exact: true })).toHaveValue('0');
+  }
+  await page.getByRole('spinbutton', { name: 'Text rotation', exact: true }).fill('25');
+  await quick.getByRole('button', { name: 'Center', exact: true }).click();
+  await expect(quick.getByRole('button', { name: 'Center', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // Rotated glyph bounds can need a small offset to center the visible lettering.
+  const centeredY = Number(await page.getByRole('spinbutton', { name: 'Text vertical offset', exact: true }).inputValue());
+  await expect(page.getByRole('spinbutton', { name: 'Text rotation', exact: true })).toHaveValue('25');
+  await page.getByRole('spinbutton', { name: 'Text horizontal offset', exact: true }).fill('2');
+  await expect(quick.getByRole('button', { name: 'Center', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Front layout', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Text horizontal offset', exact: true })).toHaveValue(front.x);
+  await expect(page.getByRole('spinbutton', { name: 'Text vertical offset', exact: true })).toHaveValue(front.y);
+  await expect(page.getByRole('spinbutton', { name: 'Text rotation', exact: true })).toHaveValue('20');
+  await page.getByRole('switch', { name: 'Logo on model', exact: true }).click();
+  await page.getByLabel('Logo file', { exact: true }).setInputFiles(resolve('fixtures/model-logo.svg'));
+  await expect(page.getByRole('img', { name: 'Imported logo: model-logo.svg', exact: true })).toBeVisible();
+  await page.getByRole('group', { name: 'Feature to position', exact: true }).getByRole('button', { name: 'Logo', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Logo rotation', exact: true }).fill('15');
+  await quick.getByRole('button', { name: 'Bottom right', exact: true }).click();
+  await expect(quick.getByRole('button', { name: 'Bottom right', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(Number(await page.getByRole('spinbutton', { name: 'Logo horizontal offset', exact: true }).inputValue())).toBeGreaterThan(0);
+  expect(Number(await page.getByRole('spinbutton', { name: 'Logo vertical offset', exact: true }).inputValue())).toBeLessThan(0);
+  await expect(page.getByRole('spinbutton', { name: 'Logo rotation', exact: true })).toHaveValue('15');
+  await expect(page.locator('.model-features__error')).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/quick-placement-presets.png', fullPage: true });
+  await page.getByRole('group', { name: 'Feature to position', exact: true }).getByRole('button', { name: 'Text', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Text horizontal offset', exact: true })).toHaveValue('2');
+  await page.getByRole('button', { name: 'Save preset', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Preset name', exact: true }).fill('Quick positions');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  const payload = await page.evaluate(() => JSON.parse(localStorage.getItem('trailprint.configSchemes')!)[0].payload);
+  expect(payload.terrain.text.undersidePosition).toEqual({ xMm: 2, yMm: centeredY, rotationDeg: 25 });
+  expect(payload.terrain.logo.undersidePosition.xMm).toBeGreaterThan(0);
+});

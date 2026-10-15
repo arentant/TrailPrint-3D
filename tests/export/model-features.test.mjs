@@ -15,6 +15,7 @@ const compiled = await build({
     export * from './shared/utils/model-validation'; export * from './shared/utils/assembly-layout';
     export * from './shared/utils/map-mm-projection';
     export * from './shared/utils/logo-trace';
+    export * from './shared/utils/model-placement-presets';
     export * from './electron/main/terrain/terrain-main-service'; export * from './electron/main/export/mountain-trail-flow';`, resolveDir: resolve('.') },
   bundle: true, write: false, platform: 'node', format: 'esm',
   plugins: [{ name: 'model-fixtures', setup(plugin) {
@@ -291,4 +292,60 @@ test('logo-only preview and STL / 3MF keep the same engraving with no GPX or sep
   await api.mountainTrailExportFlow.generateFiles({ ...req, target: 'model-3mf' }, () => {}, (name, data) => { colored[name] = data; });
   const xml = strFromU8(unzipSync(Object.values(colored)[0])['3D/3dmodel.model']);
   assert.equal((xml.match(/<triangle /g) ?? []).length, preview.mesh.indices.length / 3);
+});
+
+for (const [shape, sides, corner] of [['circle', 6, 0], ['rectangle', 6, 0], ['rectangle', 6, 8], ['polygon', 3, 0], ['polygon', 6, 4], ['polygon', 8, 0]]) {
+  test(`${shape} ${sides} corners ${corner}: all nine placement presets fit rotated text and logos on both surfaces`, () => {
+    const { config } = request(shape, sides, corner);
+    Object.assign(config.terrain.text, { enabled: true, title: 'RIDGE', sizeMm: 4, placement: 'both',
+      frontPosition: { xMm: 0, yMm: -8, rotationDeg: 15 }, undersidePosition: { xMm: 0, yMm: 0, rotationDeg: 25 } });
+    Object.assign(config.terrain.logo, { enabled: true, asset: logoAsset(), widthMm: 8, placement: 'both',
+      frontPosition: { xMm: 0, yMm: -10, rotationDeg: 25 }, undersidePosition: { xMm: 0, yMm: 0, rotationDeg: -15 } });
+    for (const kind of ['text', 'logo']) for (const surface of ['front', 'underside']) {
+      const settings = config.terrain[kind], field = surface === 'front' ? 'frontPosition' : 'undersidePosition';
+      const otherField = surface === 'front' ? 'undersidePosition' : 'frontPosition';
+      const other = { ...settings[otherField] }, rotation = settings[field].rotationDeg;
+      for (const preset of api.MODEL_PLACEMENT_PRESETS) {
+        const next = api.modelPlacementPresetPosition(config, kind, surface, preset.id);
+        assert.ok(next, `${kind} ${surface} ${preset.id} has a fitting position`);
+        assert.equal(next.rotationDeg, rotation);
+        settings[field] = next;
+        const valid = api.validateModelGeneration(config);
+        assert.equal(valid.valid, true, `${kind} ${surface} ${preset.id}: ${valid.message}`);
+        assert.deepEqual(settings[otherField], other, 'the other surface stays independent');
+      }
+    }
+    assert.equal(config.terrain.text.sizeMm, 4); assert.equal(config.terrain.logo.widthMm, 8);
+  });
+}
+
+test('quick placement centers visible bounds, recovers off-model items and clears keychain holes', () => {
+  const { config } = request();
+  Object.assign(config.terrain.logo, { enabled: true, asset: logoAsset(), widthMm: 12,
+    undersidePosition: { xMm: 200, yMm: 100, rotationDeg: 30 } });
+  const center = api.modelPlacementPresetPosition(config, 'logo', 'underside', 'center');
+  assert.ok(center); config.terrain.logo.undersidePosition = center;
+  const bounds = api.modelMarkBounds(api.buildModelTextLayout(config).logoUnderside);
+  assert.ok(Math.abs(bounds.minX + bounds.maxX) < 1e-7);
+  assert.ok(Math.abs(bounds.minY + bounds.maxY) < 1e-7);
+  config.terrain.keychain.enabled = true;
+  const left = api.modelPlacementPresetPosition(config, 'logo', 'underside', 'left');
+  assert.ok(left); config.terrain.logo.undersidePosition = left;
+  const check = api.validateModelGeneration(config); assert.equal(check.valid, true, check.message);
+  config.terrain.keychain.insetMm = 59;
+  const before = { ...config.terrain.logo.undersidePosition };
+  assert.equal(api.modelPlacementPresetPosition(config, 'logo', 'underside', 'center'), null);
+  assert.deepEqual(config.terrain.logo.undersidePosition, before, 'an unavailable position does not move the logo');
+});
+
+test('Center aligns the visible bounds of asymmetric rotated letters', () => {
+  const { config } = request();
+  Object.assign(config.terrain.text, { enabled: true, title: 'RIDGE', placement: 'underside',
+    undersidePosition: { xMm: -20, yMm: 14, rotationDeg: 25 } });
+  const next = api.modelPlacementPresetPosition(config, 'text', 'underside', 'center');
+  assert.ok(next); config.terrain.text.undersidePosition = next;
+  const bounds = api.modelMarkBounds(api.buildModelTextLayout(config).underside);
+  assert.ok(Math.abs(bounds.minX + bounds.maxX) < 0.0011);
+  assert.ok(Math.abs(bounds.minY + bounds.maxY) < 0.0011);
+  assert.equal(next.rotationDeg, 25);
 });
