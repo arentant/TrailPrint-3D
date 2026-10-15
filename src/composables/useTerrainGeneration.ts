@@ -131,6 +131,9 @@ export function useTerrainGeneration(
   watch(
     () => [
       config.value.terrain.baseSolidThicknessMm,
+      JSON.stringify(config.value.terrain.text),
+      JSON.stringify(config.value.terrain.logo),
+      JSON.stringify(config.value.terrain.keychain),
       config.value.terrain.zExaggeration,
       config.value.terrain.meshQuality,
       config.value.terrain.meshQualityCustom?.maxGrid,

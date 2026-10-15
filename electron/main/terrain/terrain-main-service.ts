@@ -36,6 +36,8 @@ import { generateWaterAssembly } from "../city/water-model-service";
 import { getManifold } from '../city/manifold-runtime';
 import { fuseModelMaterials } from '@shared/water/fused-materials';
 import { normalizeWaterConfig } from '@shared/types/config';
+import { hasModelFeatures } from '@shared/utils/model-features';
+import { applyModelFeatures } from '@shared/utils/model-features-mesh';
 
 const EMPTY_TERRAIN_MESH: TerrainMeshPayload = {
   positions: [],
@@ -106,8 +108,9 @@ export async function generateTerrainMain(
     meshQualityCustom,
   );
   const fused = config.printMode === 'fused' && !req.trailOnly;
-  const buildTrailMesh = Boolean(req.stlExport || req.trailOnly || fused);
-  const buildExportMesh = Boolean((req.stlExport || fused) && !req.trailOnly);
+  const modelFeatures = !req.trailOnly && hasModelFeatures(config);
+  const buildTrailMesh = Boolean(req.stlExport || req.trailOnly || fused || modelFeatures);
+  const buildExportMesh = Boolean((req.stlExport || fused || modelFeatures) && !req.trailOnly);
   const buildWater = Boolean(config.water?.enabled && !req.trailOnly);
 
   reportProgress(
@@ -241,10 +244,29 @@ export async function generateTerrainMain(
     }
   }
 
+  if (modelFeatures) {
+    const result = applyModelFeatures(await getManifold(), config, crop, mesh, trailMesh, waterMeshes);
+    mesh = result.mesh; trailMesh = result.trailMesh; waterMeshes = result.waterMeshes;
+    waterMetadata.waterPartMappings = waterMetadata.waterPartMappings?.flatMap(mapping => {
+      const index = result.waterPartRemap[mapping.partIndex]!;
+      return index < 0 ? [] : [{ ...mapping, partIndex: index }];
+    });
+    for (const status of waterMetadata.waterFeatureStatuses ?? []) {
+      status.partIndices = status.partIndices.map(index => result.waterPartRemap[index]!).filter(index => index >= 0);
+      if (status.state === 'included' && !status.partIndices.length) { status.state = 'too-small'; status.reason = 'Removed by the keychain hole'; }
+    }
+  }
+
+  if (req.trailOnly && trailMesh && config.terrain.keychain?.enabled) {
+    const holeOnly = { ...config, terrain: { ...config.terrain, text: { ...config.terrain.text, enabled: false }, logo: { ...config.terrain.logo, enabled: false } } };
+    trailMesh = applyModelFeatures(await getManifold(), holeOnly, crop, trailMesh, null, []).mesh;
+  }
+
   reportProgress(onProgress, "done", 1, "Terrain data ready");
   return {
     crop,
     mesh,
+    modelFeaturesApplied: Boolean(modelFeatures),
     heightPreview,
     trailMesh,
     waterMeshes,

@@ -147,6 +147,9 @@ TRAILPRINT_HEAP_MB=8192
 - **DEM dataset:** Choose OpenTopography datasets (e.g. COP30 30m) based on region and resolution needs.
 - **Surface smoothing:** Raw, light, medium, and heavy levels to reduce noise and stair-stepping for cleaner prints.
 - **Trail filtering:** Optional GPX simplification to filter GPS drift and noise for smoother trail lines.
+- **Text on model:** In **2. Terrain**, add a front caption on an integrated ledge, centered underside lettering, or both. Choose raised or engraved text, an optional second line, size and relief. Use **View underside** in the 3D preview to inspect the bottom. Engraved text keeps a flat bottom; raised underside text lifts the model by its relief. Front captions require the separate base to be off.
+- **Keychain hole on model:** In **2. Terrain**, cut a hole directly through the terrain and any crossing trail or water parts. Set its diameter, edge, inset and offset; keep at least 2 mm of material around it. Model text and hole settings are saved in presets and included in the terrain STL and model 3MF. Turn off the mold kit when using either feature.
+- **Logos and placement:** Enable **Logo on model** to import an SVG or PNG for engraving or raised artwork. Select dark, light or opaque shapes; SVG text must be outlined. Use **Arrange text & logo** to drag either item or enter exact horizontal/vertical offsets and rotation. Front and underside positions are independent, and the front ledge grows to fit. Imported outlines, size, depth and positions are retained in presets and included in the 3D preview, STL and 3MF. Logos use the terrain material.
 
 ### 🖼️ 3. Tray base
 

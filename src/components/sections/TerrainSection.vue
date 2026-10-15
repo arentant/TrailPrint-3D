@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import WaterReview from './WaterReview.vue';
+import ModelFeatureControls from './ModelFeatureControls.vue';
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import type { TerrainMeshQuality, TerrainSmoothing } from "@shared/types";
@@ -181,6 +182,7 @@ const demHint = computed(() => {
       </select>
       <p class="field-hint">{{ config.printMode === 'fused' ? 'Touching terrain, trail and water volumes with no assembly gaps. Export the complete 3MF for multiple filaments.' : 'Print each part on the bed, then assemble. Test a clearance coupon before printing the full model.' }}</p>
     </div>
+    <ModelFeatureControls />
     <div class="water-settings">
       <div class="water-settings__heading">
         <span>Include water</span>

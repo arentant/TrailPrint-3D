@@ -32,6 +32,17 @@ function cleanLoop(points: Vector2[], clockwise: boolean): Vector2[] {
   return loop;
 }
 
+/** Bundled printable glyphs, shared by tray labels and model lettering. */
+export function buildTextGlyphs(value: string, sizeMm: number, name = 'Base text'): TrayTextShape[] {
+  for (const character of value) {
+    if (!font.data.glyphs[character]) throw new Error(`${name} font does not support “${character}”. Use Armenian, Latin or Greek letters, numbers and supported punctuation.`);
+  }
+  return font.generateShapes(value, sizeMm).map(shape => {
+    const points = shape.extractPoints(8);
+    return { contour: cleanLoop(points.shape, false), holes: points.holes.map(hole => cleanLoop(hole, true)) };
+  });
+}
+
 function boundaryDistance(point: Vec2, polygon: Vec2[]): number {
   return Math.min(...polygon.map((a, i) => {
     const b = polygon[(i + 1) % polygon.length]!;
@@ -50,13 +61,7 @@ export function buildTrayTextLayout(config: AppConfig, footprint = computeTrayFo
   for (const label of text.labels) {
     const value = label.text.trim().normalize("NFC");
     if (!value) continue;
-    for (const character of value) {
-      if (!font.data.glyphs[character]) throw new Error(`Base text font does not support “${character}”. Use Armenian, Latin or Greek letters, numbers and supported punctuation.`);
-    }
-    const raw = font.generateShapes(value, text.sizeMm).map(shape => {
-      const points = shape.extractPoints(8);
-      return { contour: cleanLoop(points.shape, false), holes: points.holes.map(hole => cleanLoop(hole, true)) };
-    });
+    const raw = buildTextGlyphs(value, text.sizeMm);
     const points = raw.flatMap(s => s.contour);
     if (!points.length) continue;
     const minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));

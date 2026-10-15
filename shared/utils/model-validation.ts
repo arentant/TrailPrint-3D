@@ -17,6 +17,7 @@ import { resolveTrailPoints } from "./trail-resolve";
 import { validateTrayFromAppConfig } from "./tray-validation";
 import { validateMoldKitFromAppConfig } from "./mold-kit-validation";
 import { assertKeychainClearance, computeTrayKeychainHole, KEYCHAIN_MIN_WALL_MM } from "./tray-keychain-layout";
+import { computeModelKeychainHole, validateModelFeatures } from './model-features';
 
 const MIN_BOTTOM_FLOOR_MM = 0.3;
 const MIN_MAGNET_WALL_MM = 0.8;
@@ -28,6 +29,7 @@ export type ModelValidationScope =
   | "tray"
   | "trail"
   | "water"
+  | "personalization"
   | "magnet"
   | "nfc"
   | "moldKit";
@@ -293,6 +295,8 @@ export function validateModelGeneration(
   }
 
   if (!options.trailOnly) {
+    try { validateModelFeatures(config); }
+    catch (error) { return fail('personalization', error instanceof Error ? error.message : 'Check model text and keychain settings.'); }
     if (config.water?.enabled) {
       const water = normalizeWaterConfig(config.water);
       if (!Array.isArray(water.categories) || water.categories.some(c => !['lake', 'reservoir', 'river', 'sea'].includes(c)) ||
@@ -326,6 +330,11 @@ export function validateModelGeneration(
     if (!moldCheck.valid) {
       return { ...moldCheck, scope: "moldKit" };
     }
+  }
+
+  if (options.trailOnly) {
+    try { computeModelKeychainHole(config); }
+    catch (error) { return fail('personalization', error instanceof Error ? error.message : 'Check the model keychain hole settings.'); }
   }
 
   if (config.gpx.imported && hasViewport) {

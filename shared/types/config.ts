@@ -58,6 +58,9 @@ export interface TerrainMeshQualityCustom {
 
 export interface TerrainConfig {
   baseSolidThicknessMm: number;
+  text: ModelTextConfig;
+  logo: ModelLogoConfig;
+  keychain: ModelKeychainConfig;
   zExaggeration: number;
   /** DEM 网格密度：影响 3D 预览与 STL 导出 */
   meshQuality: TerrainMeshQuality;
@@ -68,6 +71,81 @@ export interface TerrainConfig {
   demDataset: OpenTopoDemType;
   /** OpenTopography API Key（在应用面板填写，可选由 .env 预填） */
   openTopographyApiKey: string;
+}
+
+export interface ModelTextConfig {
+  enabled: boolean;
+  placement: 'front' | 'underside' | 'both';
+  style: 'raised' | 'engraved';
+  title: string;
+  subtitle: string;
+  sizeMm: number;
+  heightMm: number;
+  frontPosition: ModelFeaturePosition;
+  undersidePosition: ModelFeaturePosition;
+}
+
+export interface ModelFeaturePosition {
+  xMm: number;
+  yMm: number;
+  rotationDeg: number;
+}
+
+/** Normalized outlines only; imported source markup is never stored or executed. */
+export interface ModelLogoAsset {
+  name: string;
+  aspectRatio: number;
+  traceMode?: 'dark' | 'light' | 'opaque';
+  contours: Array<Array<{ x: number; y: number }>>;
+}
+
+export interface ModelLogoConfig {
+  enabled: boolean;
+  asset: ModelLogoAsset | null;
+  placement: 'front' | 'underside' | 'both';
+  style: 'raised' | 'engraved';
+  widthMm: number;
+  heightMm: number;
+  frontPosition: ModelFeaturePosition;
+  undersidePosition: ModelFeaturePosition;
+}
+
+export function createDefaultFeaturePosition(): ModelFeaturePosition {
+  return { xMm: 0, yMm: 0, rotationDeg: 0 };
+}
+
+export function createDefaultModelLogo(): ModelLogoConfig {
+  return { enabled: false, asset: null, placement: 'underside', style: 'engraved', widthMm: 20, heightMm: 0.6,
+    frontPosition: createDefaultFeaturePosition(), undersidePosition: createDefaultFeaturePosition() };
+}
+
+export interface ModelKeychainConfig {
+  enabled: boolean;
+  diameterMm: number;
+  edge: number;
+  offsetMm: number;
+  /** Distance from the model edge to the hole center. */
+  insetMm: number;
+}
+
+export function createDefaultModelText(): ModelTextConfig {
+  return { enabled: false, placement: 'front', style: 'raised', title: '', subtitle: '', sizeMm: 5, heightMm: 0.6,
+    frontPosition: createDefaultFeaturePosition(), undersidePosition: createDefaultFeaturePosition() };
+}
+
+export function createDefaultModelKeychain(): ModelKeychainConfig {
+  return { enabled: false, diameterMm: 4, edge: 1, offsetMm: 0, insetMm: 5 };
+}
+
+/** Legacy presets leave model personalization switched off. */
+export function normalizeTerrainFeatures(terrain: TerrainConfig): TerrainConfig {
+  const positions = (value?: { frontPosition?: ModelFeaturePosition; undersidePosition?: ModelFeaturePosition }) => ({
+    frontPosition: { ...createDefaultFeaturePosition(), ...value?.frontPosition },
+    undersidePosition: { ...createDefaultFeaturePosition(), ...value?.undersidePosition },
+  });
+  return { ...terrain, text: { ...createDefaultModelText(), ...terrain.text, ...positions(terrain.text) },
+    logo: { ...createDefaultModelLogo(), ...terrain.logo, ...positions(terrain.logo) },
+    keychain: { ...createDefaultModelKeychain(), ...terrain.keychain } };
 }
 
 export interface WaterConfig {
@@ -344,6 +422,9 @@ export function createDefaultConfig(): AppConfig {
     },
     terrain: {
       baseSolidThicknessMm: 2,
+      text: createDefaultModelText(),
+      logo: createDefaultModelLogo(),
+      keychain: createDefaultModelKeychain(),
       zExaggeration: 2,
       meshQuality: "studio",
       meshQualityCustom: { maxGrid: 512 },

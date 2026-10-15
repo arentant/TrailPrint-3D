@@ -3,6 +3,7 @@ import { ref, watch } from "vue";
 import {
   createDefaultConfig,
   normalizeWaterConfig,
+  normalizeTerrainFeatures,
   createDefaultTrayText,
   createDefaultTrayKeychain,
   normalizeModelColors,
@@ -180,10 +181,10 @@ function applySchemePayload(cfg: AppConfig, payload: ConfigSchemePayload): void 
       selection: deepClone(payload.mapView.selection ?? { ...payload.mapView,
         viewportWidth: Math.max(useUiStore().previewViewport.w, 64), viewportHeight: Math.max(useUiStore().previewViewport.h, 64) }) }
     : { ...nextMap, ...framing };
-  cfg.terrain = {
+  cfg.terrain = normalizeTerrainFeatures({
     ...deepClone(payload.terrain),
     openTopographyApiKey: apiKey,
-  };
+  });
   cfg.water = normalizeWaterConfig(payload.water);
   cfg.printMode = payload.printMode === 'fused' ? 'fused' : 'separate';
   cfg.trail = deepClone(payload.trail);

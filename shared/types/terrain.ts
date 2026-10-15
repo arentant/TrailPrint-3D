@@ -82,6 +82,8 @@ export interface TerrainGenerateRequest {
 export interface TerrainGenerateResponse {
   crop: TerrainCropRegion;
   mesh: TerrainMeshPayload;
+  /** The exact printable mesh includes model lettering and/or a through-hole. */
+  modelFeaturesApplied?: boolean;
   /** 规则高度场，供 3D 预览可靠重建山体 */
   heightPreview: TerrainHeightPreview;
   /** Trail_Line 可打印实体；无 GPX 或点数不足时为 null */

@@ -25,6 +25,11 @@ import { storeToRefs } from "pinia";
 
 const configStore = useConfigStore();
 const { config } = storeToRefs(configStore);
+const hasFrontArtwork = computed(() => {
+  const { text, logo } = config.value.terrain;
+  return (text?.enabled && text.placement !== 'underside' && Boolean(text.title.trim() || text.subtitle.trim())) ||
+    (logo?.enabled && Boolean(logo.asset) && logo.placement !== 'underside');
+});
 const { paintAtMm, endPaintStroke } = useSpraySegmentation();
 
 const props = defineProps<{
@@ -66,6 +71,32 @@ let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
 let camera: THREE.PerspectiveCamera | null = null;
 let controls: OrbitControls | null = null;
+const view = ref<'model' | 'underside'>('model');
+
+function setModelView(next: 'model' | 'underside'): void {
+  if (!camera || !controls || !terrainRoot) return;
+  view.value = next;
+  if (trayRoot) trayRoot.visible = next === 'model';
+  controls.autoRotate = next === 'model';
+  if (next === 'underside') {
+    terrainRoot.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(terrainRoot);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const span = Math.max(size.x / camera.aspect, size.y, size.z, 1);
+    const distance = span / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.35;
+    camera.up.set(0, 0, 1);
+    // Approach from the back by a tiny amount to keep the Z-up orbit stable.
+    camera.position.set(center.x, center.y + distance * 0.001, box.min.z - distance);
+    controls.target.copy(center);
+    camera.lookAt(center);
+  } else {
+    camera.up.set(0, 0, 1);
+    fitCameraToTerrain(camera, controls, terrainRoot, ...(trayRoot?.children.length ? [trayRoot] : []));
+    if (hasFrontArtwork.value) camera.position.y = controls.target.y - Math.abs(camera.position.y - controls.target.y);
+  }
+  controls.update();
+}
 let trayRoot: THREE.Group | null = null;
 let terrainRoot: THREE.Group | null = null;
 let maskRoot: THREE.Group | null = null;
@@ -331,7 +362,7 @@ async function rebuildScene(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   if (token !== rebuildToken) return;
 
-  const terrainGeo = (r.waterMeshes?.length || config.value.printMode === "fused") && r.mesh.indices.length
+  const terrainGeo = (r.modelFeaturesApplied || r.waterMeshes?.length || config.value.printMode === "fused") && r.mesh.indices.length
     ? payloadToBufferGeometry(r.mesh, { hardEdges: true })
     : buildTerrainGeometryFromPreview(r.crop, preview);
   terrainGeo.computeVertexNormals();
@@ -396,11 +427,11 @@ async function rebuildScene(): Promise<void> {
   const polyline = r.trailPolylineMm ?? [];
   const trailWidth = r.trailDisplayWidthMm ?? 4;
 
-  if (config.value.printMode === 'fused' && r.trailMesh?.indices.length) {
+  if ((r.modelFeaturesApplied || config.value.printMode === 'fused') && r.trailMesh?.indices.length) {
     const trail = new THREE.Mesh(payloadToBufferGeometry(r.trailMesh, { hardEdges: true }), trailMaterial);
     trail.frustumCulled = false;
     overlayRoot.add(trail);
-  } else if (polyline.length >= 2) {
+  } else if (!r.modelFeaturesApplied && polyline.length >= 2) {
     reportScene("trail", 0.78, "Drawing trail…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (token !== rebuildToken) return;
@@ -443,6 +474,8 @@ async function rebuildScene(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   if (token !== rebuildToken) return;
   fitCameraToTerrain(camera, controls, ...fitTargets);
+  if (view.value === 'underside') setModelView('underside');
+  else if (hasFrontArtwork.value) setModelView('model');
 
   if (token === rebuildToken) {
     terrainRoot.updateWorldMatrix(true, true);
@@ -848,6 +881,10 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
     :class="{ 'terrain-preview--paint': sprayPaintMode }"
   >
     <div ref="containerRef" class="terrain-preview__viewport" />
+    <div v-if="result?.modelFeaturesApplied && !sceneBuilding && !generating && !error" class="terrain-preview__views" role="group" aria-label="Model views">
+      <button type="button" :aria-pressed="view === 'model'" @click="setModelView('model')">Model view</button>
+      <button type="button" :aria-pressed="view === 'underside'" :title="config.tray.enabled ? 'Show the terrain underside with the base hidden' : 'Show the terrain underside'" @click="setModelView('underside')">View underside</button>
+    </div>
     <div
       v-if="dimensions && !sceneBuilding && !imageryLoading && !generating && !error"
       class="terrain-preview__dimensions"
@@ -946,6 +983,11 @@ defineExpose({ imageryLoading, sceneBuilding, refreshSprayColors });
   width: 100% !important;
   height: 100% !important;
 }
+
+.terrain-preview__views { position: absolute; bottom: 60px; left: 16px; z-index: 3; display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: rgba(255, 255, 255, 0.94); }
+.terrain-preview__views button { padding: 8px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--tp-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.terrain-preview__views button[aria-pressed="true"] { background: var(--tp-bg-input); font-weight: 600; }
+.terrain-preview__views button:focus-visible { outline: 2px solid var(--tp-text-accent); outline-offset: 2px; }
 
 .terrain-preview__dimensions {
   position: absolute;
