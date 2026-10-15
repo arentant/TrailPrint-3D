@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { ConfigScheme } from '../../shared/types/config'
+import type { ConfigScheme, MapCropConfig } from '../../shared/types/config'
 import { resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { test, expect } from './authenticated'
@@ -110,7 +110,8 @@ test('presets restore coordinates, zoom and rotation, while settings-only preset
   await page.mouse.up()
   await page.keyboard.up('Alt')
   const original = await savePreset(page, 'Saved location')
-  expect(original.payload.mapView!.mapBearingDeg).toBeGreaterThan(20)
+  expect(original.payload.mapView!.mapBearingDeg).toBe(0)
+  expect(original.payload.mapView!.selection!.mapBearingDeg).toBeGreaterThan(270)
   expect(original.payload).not.toHaveProperty('gpx')
   expect(original.payload.terrain).not.toHaveProperty('openTopographyApiKey')
   const settings = await savePreset(page, 'Print settings', false)
@@ -167,14 +168,15 @@ test('positioning grid toggles, follows the crop shape, and allows panning throu
   await expect(grid).toBeHidden()
 })
 
-test('rotation controls wrap angles, preserve the geographic crop, and follow saved presets', async ({ page }) => {
+test('rotation controls turn the selected shape clockwise without moving the map, and follow saved presets', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto('/')
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'))
   await expect(page.locator('.leaflet-interactive')).toBeVisible()
-  const controls = page.getByRole('group', { name: 'Map rotation controls' })
-  const slider = controls.getByRole('slider', { name: 'Map rotation', exact: true })
+  await page.getByRole('button', { name: 'Rectangle', exact: true }).click()
+  const controls = page.getByRole('group', { name: 'Shape rotation controls' })
+  const slider = controls.getByRole('slider', { name: 'Shape rotation', exact: true })
   await expect(slider).toBeEnabled()
   const legendBox = (await page.locator('.mask-legend').boundingBox())!
   const controlsBox = (await controls.boundingBox())!
@@ -184,25 +186,24 @@ test('rotation controls wrap angles, preserve the geographic crop, and follow sa
   const pane = page.locator('.leaflet-rotate-pane')
   const initialTransform = await pane.getAttribute('style')
 
-  await controls.getByRole('button', { name: 'Rotate map counterclockwise', exact: true }).click()
+  await controls.getByRole('button', { name: 'Rotate shape counterclockwise', exact: true }).click()
   await expect(controls.locator('output')).toHaveText('345°')
-  await expect(pane).not.toHaveAttribute('style', initialTransform!)
+  await expect(pane).toHaveAttribute('style', initialTransform!)
   await expect(page.locator('.crop-shape-outline')).not.toHaveAttribute('points', mask!)
   const rotated = await savePreset(page, 'Rotated framing')
-  expect(rotated.payload.mapView!.mapBearingDeg).toBeCloseTo(345, 6)
-  expect(rotated.payload.mapView!.selection).toEqual(before.payload.mapView!.selection)
-  for (const field of ['mapCenterLat', 'mapCenterLon', 'mapZoom'] as const) {
+  expect(rotated.payload.mapView!.selection).toEqual({ ...before.payload.mapView!.selection, mapBearingDeg: 15 })
+  for (const field of ['mapCenterLat', 'mapCenterLon', 'mapZoom', 'mapBearingDeg'] as const) {
     expect(rotated.payload.mapView![field], field).toBeCloseTo(before.payload.mapView![field], 6)
   }
 
-  await controls.getByRole('button', { name: 'Rotate map clockwise', exact: true }).click()
+  await controls.getByRole('button', { name: 'Rotate shape clockwise', exact: true }).click()
   await expect(controls.locator('output')).toHaveText('0°')
   await slider.focus()
   await slider.press('Home')
   for (let i = 0; i < 3; i++) await slider.press('ArrowRight')
   await expect(controls.locator('output')).toHaveText('3°')
   await expect(slider).toHaveAttribute('aria-valuetext', '3 degrees clockwise from north')
-  await controls.getByRole('button', { name: 'Reset map rotation to north' }).click()
+  await controls.getByRole('button', { name: 'Reset shape rotation to north' }).click()
   const reset = await savePreset(page, 'North reset')
   expect(reset.payload.mapView).toEqual(before.payload.mapView)
 
@@ -220,8 +221,8 @@ test('Mountain and City rotation controls keep separate workspace bearings', asy
   await page.goto('/')
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'))
   await expect(page.locator('.leaflet-interactive')).toBeVisible()
-  const controls = page.getByRole('group', { name: 'Map rotation controls' })
-  const clockwise = controls.getByRole('button', { name: 'Rotate map clockwise', exact: true })
+  const controls = page.getByRole('group', { name: 'Shape rotation controls' })
+  const clockwise = controls.getByRole('button', { name: 'Rotate shape clockwise', exact: true })
   await expect(clockwise).toBeEnabled()
   await clockwise.click()
   await clockwise.click()
@@ -231,7 +232,7 @@ test('Mountain and City rotation controls keep separate workspace bearings', asy
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'))
   await expect(page.locator('.leaflet-interactive')).toBeVisible()
   await expect(controls.locator('output')).toHaveText('0°')
-  await controls.getByRole('button', { name: 'Rotate map counterclockwise', exact: true }).click()
+  await controls.getByRole('button', { name: 'Rotate shape counterclockwise', exact: true }).click()
   await expect(controls.locator('output')).toHaveText('345°')
   await page.getByRole('button', { name: 'Mountain', exact: true }).click()
   await expect(clockwise).toBeEnabled()
@@ -240,8 +241,96 @@ test('Mountain and City rotation controls keep separate workspace bearings', asy
   await expect(clockwise).toBeEnabled()
   await expect(controls.locator('output')).toHaveText('345°')
   await page.getByRole('button', { name: 'Fit track', exact: true }).click()
-  await expect(controls.locator('output')).toHaveText('0°')
+  await expect(controls.locator('output')).toHaveText('345°')
   expect(errors).toEqual([])
+})
+
+test('without GPX, place search moves the shape across the world while preserving its size and rotation', async ({ page }) => {
+  let searches = 0
+  await page.route('https://geocoding-api.open-meteo.com/v1/search**', route => {
+    searches++
+    expect(new URL(route.request().url()).searchParams.get('name')).toBe('Mount Aragats')
+    return route.fulfill({ json: { results: [
+      { latitude: 40.523, longitude: 44.194, name: 'Mount Aragats', country: 'Armenia' },
+      { latitude: 100, longitude: 200, name: 'Invalid place' },
+    ] } })
+  })
+  await page.goto('/')
+  const controls = page.getByRole('group', { name: 'Shape rotation controls' })
+  await expect(controls.getByRole('slider')).toBeEnabled()
+  await page.getByRole('button', { name: 'Rectangle', exact: true }).click()
+  await controls.getByRole('button', { name: 'Rotate shape clockwise', exact: true }).click()
+  await page.getByRole('button', { name: 'Smaller shape', exact: true }).click()
+  const before = await savePreset(page, 'Shape before searching')
+  const search = page.getByRole('search', { name: 'Find a place' })
+  const input = search.getByRole('searchbox', { name: 'Go to a place' })
+  await input.fill('Mount Aragats')
+  expect(searches).toBe(0)
+  await input.press('Enter')
+  await search.getByRole('button', { name: 'Mount Aragats, Armenia', exact: true }).click()
+  expect(searches).toBe(1)
+  await expect(search.getByRole('status')).toContainText('Shape moved to Mount Aragats')
+  const after = await savePreset(page, 'Aragats without GPX')
+  expect(after.payload.mapView!.selection).toEqual({ ...before.payload.mapView!.selection, mapCenterLat: 40.523, mapCenterLon: 44.194 })
+  expect(after.payload.mapView!.mapCenterLat).toBeCloseTo(40.523, 6)
+  expect(after.payload.mapView!.mapCenterLon).toBeCloseTo(44.194, 6)
+  await expect(page.getByRole('button', { name: 'Move crop shape', exact: true })).toBeVisible()
+  await expect(controls.locator('output')).toHaveText('15°')
+  await page.screenshot({ path: 'test-results/place-search.png', fullPage: true })
+
+  await input.press('Enter')
+  await search.getByRole('button', { name: 'Mount Aragats, Armenia', exact: true }).click()
+  expect(searches).toBe(1) // Repeated searches use the session cache.
+  await input.fill('-33.8688, 151.2093')
+  await input.press('Enter')
+  const sydney = await savePreset(page, 'Sydney coordinates')
+  expect(sydney.payload.mapView!.selection).toEqual({ ...before.payload.mapView!.selection, mapCenterLat: -33.8688, mapCenterLon: 151.2093 })
+  expect(searches).toBe(1)
+})
+
+test('search errors and empty results keep the shape in place, and coordinates work offline in City', async ({ page }) => {
+  await page.route('https://geocoding-api.open-meteo.com/v1/search**', route => new URL(route.request().url()).searchParams.get('name') === 'missing'
+    ? route.fulfill({ json: {} }) : route.abort('failed'))
+  await page.goto('/')
+  await page.evaluate(() => {
+    window.trailPrint.generateCityModel = async request => {
+      Object.assign(window, { capturedCityCrop: request.config.mapCrop })
+      throw new Error('Captured city framing')
+    }
+  })
+  await page.getByRole('button', { name: 'City', exact: true }).click()
+  const controls = page.getByRole('group', { name: 'Shape rotation controls' })
+  await expect(controls.getByRole('slider')).toBeEnabled()
+  async function cityCrop(): Promise<MapCropConfig> {
+    await page.getByRole('button', { name: 'Preview & export City STL', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('Captured city framing')
+    const crop = await page.evaluate(() => (window as unknown as { capturedCityCrop: MapCropConfig }).capturedCityCrop)
+    await page.getByRole('button', { name: 'Close city preview', exact: true }).click()
+    return crop
+  }
+  const before = await cityCrop()
+  const search = page.getByRole('search', { name: 'Find a place' })
+  const input = search.getByRole('searchbox', { name: 'Go to a place' })
+  await input.fill('missing')
+  await input.press('Enter')
+  await expect(search.getByRole('status')).toContainText('No places found')
+  await input.fill('offline')
+  await input.press('Enter')
+  await expect(search.getByRole('status')).toContainText('Place search is unavailable')
+  await input.fill('90, 44.51')
+  await input.press('Enter')
+  await expect(search.getByRole('status')).toContainText('Enter latitude between')
+  const unchanged = await cityCrop()
+  expect(unchanged).toEqual(before)
+  await input.fill('40.1872, 44.5152')
+  await input.press('Enter')
+  const placed = await cityCrop()
+  expect(placed.selection!.mapCenterLat).toBe(40.1872)
+  expect(placed.selection!.mapCenterLon).toBe(44.5152)
+  await controls.getByRole('button', { name: 'Rotate shape clockwise', exact: true }).click()
+  const rotated = await cityCrop()
+  expect(rotated.selection!.mapBearingDeg).toBe(345)
+  expect(rotated.mapBearingDeg).toBe(placed.mapBearingDeg)
 })
 
 test('the sidebar downloads only the trail, independent of invalid tray settings', async ({ page }) => {

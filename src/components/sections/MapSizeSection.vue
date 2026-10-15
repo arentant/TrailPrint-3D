@@ -44,7 +44,7 @@ const maxCornerRadius = computed(() => maxCornerRadiusMm(config.value.mapCrop));
     </div>
 
     <p class="field-hint">
-      The shape stays over the same geographic area while you zoom and pan. Move or resize it using the handles on the map. Dimensions below set the STL print size.
+      Search for a place or paste coordinates on the map. Move or resize the shape with its handles, and use Shape rotation to turn it. Dimensions below set the STL print size.
     </p>
 
     <div class="row">

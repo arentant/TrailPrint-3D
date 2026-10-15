@@ -14,13 +14,13 @@ function setBearing(value: number): void {
 </script>
 
 <template>
-  <div class="map-rotation" role="group" aria-label="Map rotation controls">
+  <div class="map-rotation" role="group" aria-label="Shape rotation controls">
     <div class="map-rotation__heading">
-      <label :for="sliderId">Map rotation</label>
+      <label :for="sliderId">Shape rotation</label>
       <output :for="sliderId">{{ degrees }}°</output>
     </div>
     <div class="map-rotation__adjust">
-      <button type="button" :disabled="disabled" aria-label="Rotate map counterclockwise"
+      <button type="button" :disabled="disabled" aria-label="Rotate shape counterclockwise"
         title="Rotate counterclockwise 15°" @click="setBearing(bearing - 15)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path d="M3 11a9 9 0 1 1 2.6 7.4" /><path d="M3 4v7h7" />
@@ -29,7 +29,7 @@ function setBearing(value: number): void {
       <input :id="sliderId" type="range" min="0" max="360" step="1" :value="bearing"
         :disabled="disabled" :aria-valuetext="`${degrees} degrees clockwise from north`"
         @input="setBearing(Number(($event.target as HTMLInputElement).value))" />
-      <button type="button" :disabled="disabled" aria-label="Rotate map clockwise"
+      <button type="button" :disabled="disabled" aria-label="Rotate shape clockwise"
         title="Rotate clockwise 15°" @click="setBearing(bearing + 15)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path d="M21 11a9 9 0 1 0-2.6 7.4" /><path d="M21 4v7h-7" />
@@ -37,7 +37,7 @@ function setBearing(value: number): void {
       </button>
     </div>
     <div class="map-rotation__footer">
-      <button type="button" :disabled="disabled" aria-label="Reset map rotation to north"
+      <button type="button" :disabled="disabled" aria-label="Reset shape rotation to north"
         title="Reset rotation without changing position or zoom" @click="setBearing(0)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path :transform="`rotate(${bearing} 12 12)`" d="m12 3 6 17-6-4-6 4z" />

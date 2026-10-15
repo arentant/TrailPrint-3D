@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, useId, watch } from 
 import L from "leaflet";
 import "leaflet-rotate";
 import MapRotationControls from './MapRotationControls.vue';
+import MapLocationSearch from './MapLocationSearch.vue';
+import { validMapCoordinates, type MapPlace } from '@/utils/place-search';
 import ModelColorControls from '@/components/ui/ModelColorControls.vue';
 import type { WaterReviewFeature } from '@/stores/water';
 import type { ModelColors } from '@shared/types/model-colors';
@@ -100,6 +102,9 @@ const gridClipId = useId();
 let applyingMapView = false;
 const shapeHandles = ref<{ center: { x: number; y: number }; resize: { x: number; y: number } } | null>(null);
 const shapeSelected = computed(() => !!props.crop.selection);
+// The crop reference frame rotates the map into model space. Its inverse is
+// the shape's clockwise ground orientation, independent of the map camera.
+const shapeRotation = computed(() => ((-(props.crop.selection?.mapBearingDeg ?? 0) % 360) + 360) % 360);
 
 function polygonPath(points: Array<{ x: number; y: number }>): string {
   return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ') + ' Z';
@@ -300,7 +305,24 @@ function placeShapeHere(): void {
   const center = map.getCenter(), wgs = fromMapLatLng(center.lat, center.lng);
   const pose = { mapCenterLat: wgs.lat, mapCenterLon: wgs.lon, mapZoom: map.getZoom(), mapBearingDeg: map.getBearing() };
   emit('update:crop', { ...props.crop, ...pose, mapPaneX: 0, mapPaneY: 0,
-    selection: { ...pose, viewportWidth: maskW.value, viewportHeight: maskH.value } });
+    selection: props.crop.selection
+      ? { ...props.crop.selection, mapCenterLat: wgs.lat, mapCenterLon: wgs.lon }
+      : { ...pose, viewportWidth: maskW.value, viewportHeight: maskH.value } });
+}
+
+function goToPlace(place: MapPlace): void {
+  const map = mapInstance.value;
+  if (!map || !validMapCoordinates(place.lat, place.lon)) return;
+  const selected = props.crop.selection;
+  const zoom = selected?.mapZoom ?? map.getZoom();
+  const selection = {
+    ...(selected ?? { mapZoom: zoom, mapBearingDeg: 0, viewportWidth: maskW.value, viewportHeight: maskH.value }),
+    mapCenterLat: place.lat, mapCenterLon: place.lon,
+  };
+  // Publish the camera and selection together so map events cannot restore an
+  // old selection while jumping to a distant location.
+  emit('update:crop', { ...props.crop, mapCenterLat: place.lat, mapCenterLon: place.lon,
+    mapZoom: zoom, mapPaneX: 0, mapPaneY: 0, selection });
 }
 
 function showShape(): void {
@@ -429,16 +451,16 @@ function scheduleFitTrackInView(): void {
   });
 }
 
-function setMapBearing(bearing: number): void {
-  const map = mapInstance.value;
-  if (!map || !Number.isFinite(bearing)) return;
-  map.setBearing(bearing);
-  syncStoreFromMap();
+function setShapeRotation(bearing: number): void {
+  const selected = props.crop.selection;
+  if (!selected || !Number.isFinite(bearing)) return;
+  emit('update:crop', { ...props.crop,
+    selection: { ...selected, mapBearingDeg: ((-bearing % 360) + 360) % 360 } });
 }
 
 function resetMapView(): void {
   if (!mapInstance.value) return;
-  setMapBearing(0);
+  mapInstance.value.setBearing(0);
 
   if (config.value.gpx.imported && config.value.gpx.bounds) {
     scheduleFitTrackInView();
@@ -447,28 +469,30 @@ function resetMapView(): void {
   }
 }
 
-/** Alt/Option + 拖拽：绕视窗中心旋转地图（遮罩保持固定） */
+/** Alt/Option + drag rotates the crop around its center, leaving the camera still. */
 function setupAltDragRotate(map: L.Map, container: HTMLElement): () => void {
   let rotating = false;
   let startBearing = 0;
   let startAngle = 0;
   let pivotX = 0;
   let pivotY = 0;
+  let wasDragging = false;
 
   const angleFromPointer = (clientX: number, clientY: number) =>
     (Math.atan2(clientY - pivotY, clientX - pivotX) * 180) / Math.PI;
 
   const onPointerDown = (e: PointerEvent) => {
-    if (!e.altKey || e.button !== 0) return;
+    if (!e.altKey || e.button !== 0 || !props.crop.selection || !shapeHandles.value) return;
     const target = e.target as HTMLElement;
     if (target.closest(".leaflet-control, .crop-handle")) return;
 
     const rect = container.getBoundingClientRect();
-    pivotX = rect.left + rect.width / 2;
-    pivotY = rect.top + rect.height / 2;
-    startBearing = map.getBearing();
+    pivotX = rect.left + shapeHandles.value.center.x;
+    pivotY = rect.top + shapeHandles.value.center.y;
+    startBearing = shapeRotation.value;
     startAngle = angleFromPointer(e.clientX, e.clientY);
     rotating = true;
+    wasDragging = map.dragging.enabled();
     map.dragging.disable();
     container.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -477,17 +501,16 @@ function setupAltDragRotate(map: L.Map, container: HTMLElement): () => void {
   const onPointerMove = (e: PointerEvent) => {
     if (!rotating) return;
     const delta = angleFromPointer(e.clientX, e.clientY) - startAngle;
-    map.setBearing(startBearing + delta);
+    setShapeRotation(startBearing + delta);
   };
 
   const onPointerEnd = (e: PointerEvent) => {
     if (!rotating) return;
     rotating = false;
-    map.dragging.enable();
+    if (wasDragging) map.dragging.enable();
     if (container.hasPointerCapture(e.pointerId)) {
       container.releasePointerCapture(e.pointerId);
     }
-    syncStoreFromMap();
   };
 
   container.addEventListener("pointerdown", onPointerDown);
@@ -558,8 +581,8 @@ async function initMap(): Promise<void> {
     wheelDebounceTime: 60,
     rotate: true,
     bearing: mapBearingDeg ?? 0,
-    touchRotate: true,
-    shiftKeyRotate: true,
+    touchRotate: false,
+    shiftKeyRotate: false,
     rotateControl: false,
   });
 
@@ -722,11 +745,12 @@ defineExpose({
   <div ref="mapWrap" class="map-wrap">
     <div ref="mapRoot" class="leaflet-map" />
     <div class="map-controls">
-      <MapRotationControls :bearing="crop.mapBearingDeg" :disabled="!mapInstance"
-        @update:bearing="setMapBearing" />
+      <MapLocationSearch :disabled="!mapInstance" @select="goToPlace" />
+      <MapRotationControls :bearing="shapeRotation" :disabled="!mapInstance || !shapeSelected"
+        @update:bearing="setShapeRotation" />
       <div class="shape-controls" role="group" aria-label="Crop shape controls">
         <strong>Shape on map</strong>
-        <p>Zoom and pan freely. Drag the center to move the shape, or its edge handle to resize.</p>
+        <p>Drag the center to move the shape, or its edge handle to resize. Alt / Option + drag rotates the shape.</p>
         <div class="shape-controls__row">
           <button type="button" :disabled="!mapInstance" @click="placeShapeHere">Place shape here</button>
           <button type="button" :disabled="!shapeSelected" @click="showShape">Show shape</button>
@@ -846,9 +870,14 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 224px;
+  width: 256px;
   max-width: calc(100% - 32px);
+  max-height: calc(100% - 88px);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
+
+.map-controls > * { flex-shrink: 0; }
 
 .map-colors {
   padding: 0 12px;

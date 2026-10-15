@@ -26,7 +26,7 @@ const gpx = computed(() => config.value.gpx)
   </div>
   <div v-else class="gpx-summary">
     <p class="gpx-summary__title">Choose a place on the map</p>
-    <p class="gpx-summary__meta">Pan and zoom to frame your terrain. Import a GPX only if you want to add a trail.</p>
+    <p class="gpx-summary__meta">Search a place or paste coordinates, then move, resize or rotate the shape. Import a GPX to add a trail.</p>
   </div>
 </template>
 
