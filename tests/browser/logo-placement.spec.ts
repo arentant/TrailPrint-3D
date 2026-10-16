@@ -124,6 +124,88 @@ test('PNG artwork, validation, removal and imported-logo presets work locally', 
   expect(await page.locator('.sidebar').evaluate(el => el.scrollWidth - el.clientWidth)).toBe(0);
 });
 
+test('wide SVG wordmarks retain straight vector edges in engraving and exported STL', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/'); await page.waitForLoadState('networkidle');
+  await page.getByPlaceholder('Paste your API key').fill('browser-test-key');
+  await page.getByRole('button', { name: 'Standard', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Base thickness', exact: true }).fill('3');
+  await page.getByRole('switch', { name: 'Logo on model', exact: true }).click();
+  await page.getByLabel('Logo file', { exact: true }).setInputFiles(resolve('fixtures/wide-wordmark.svg'));
+  await expect(page.getByRole('img', { name: 'Imported logo: wide-wordmark.svg', exact: true })).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Logo width', exact: true }).fill('88');
+  await page.evaluate(() => {
+    const generate = window.trailPrint.generateTerrain;
+    window.trailPrint.generateTerrain = async request => {
+      const response = await generate(request);
+      Object.assign(window, { logoPlacementPreview: { config: request.config, response } }); return response;
+    };
+  });
+  await page.getByRole('button', { name: 'Preview & export STL', exact: true }).click();
+  const download = page.getByRole('dialog').getByRole('button', { name: 'Download', exact: true });
+  await expect(download).toBeEnabled({ timeout: 60_000 });
+  const { config, response } = await page.evaluate(() => (window as unknown as { logoPlacementPreview: Preview }).logoPlacementPreview);
+  const asset = config.terrain.logo.asset!;
+  expect(asset.contours).toHaveLength(12); // Nine letters, with one counter in R and two in B.
+  const firstA = asset.contours.find(loop => loop.every(p => p.x < -0.37))!;
+  expect(firstA.length).toBeLessThan(50);
+  // The original A has a long straight edge with this slope. Raster tracing breaks it into steps.
+  expect(firstA.some((p, i) => {
+    const q = firstA[(i + 1) % firstA.length]!;
+    return Math.hypot(q.x - p.x, q.y - p.y) > 0.045 && Math.abs(Math.abs((q.x - p.x) / (q.y - p.y)) - 149.7 / 269.399902) < 0.0001;
+  })).toBe(true);
+  const analysis = analyzeMesh(response.mesh);
+  expect(analysis.boundaryEdges).toBe(0);
+  expect(analysis.nonManifoldEdges).toBe(0);
+  expect(analysis.degenerateTriangles).toBe(0);
+  await page.getByRole('button', { name: 'View underside', exact: true }).click();
+  await page.screenshot({ path: 'test-results/wide-wordmark-engraving.png', fullPage: true });
+  const event = page.waitForEvent('download'); await download.click();
+  const files = unzipSync(await readFile((await (await event).path())!));
+  const stl = files[Object.keys(files).find(name => name.endsWith('_Terrain_Main.stl'))!]!;
+  expect(new DataView(stl.buffer, stl.byteOffset).getUint32(80, true)).toBe(response.mesh.indices.length / 3);
+  expect(errors).toEqual([]);
+});
+
+test('vector imports preserve transforms, fill rules, paint order and overlapping shapes', async ({ page }) => {
+  await page.goto('/'); await page.waitForLoadState('networkidle');
+  await page.getByRole('switch', { name: 'Logo on model', exact: true }).click();
+  const outline = page.locator('.logo-controls__preview path');
+  const cases = [
+    { shapes: '<g transform="translate(10 10) scale(0.8)"><path fill-rule="evenodd" d="M0 0H100V100H0Z M25 25H75V75H25Z"/></g>', area: 0.75, loops: 2 },
+    { shapes: '<path d="M10 10H90V90H10Z M30 30H70V70H30Z"/>', area: 1, loops: 1 },
+    { shapes: '<path d="M10 10H90V90H10Z M30 30V70H70V30Z"/>', area: 0.75, loops: 2 },
+    { shapes: '<rect x="10" y="10" width="80" height="80"/><rect x="30" y="30" width="40" height="40" fill="white"/>', area: 0.75, loops: 2 },
+    { shapes: '<rect x="10" y="10" width="60" height="80"/><rect x="30" y="10" width="60" height="80"/>', area: 1, loops: 1 },
+    // Clipping and strokes still use the browser renderer rather than losing their appearance.
+    { shapes: '<defs><clipPath id="clip"><rect x="10" y="10" width="80" height="80"/></clipPath></defs><rect width="100" height="100" clip-path="url(#clip)"/>', area: 1, loops: 1 },
+    { shapes: '<rect x="20" y="20" width="60" height="60" fill="none" stroke="black" stroke-width="20"/>', area: 0.75, loops: 2 },
+  ];
+  for (const { shapes, area, loops } of cases) {
+    await page.getByLabel('Logo file', { exact: true }).setInputFiles({ name: 'vectors.svg', mimeType: 'image/svg+xml',
+      buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${shapes}</svg>`) });
+    await expect(page.getByRole('button', { name: 'Replace logo', exact: true })).toBeEnabled();
+    await expect(page.locator('.logo-controls__error')).toHaveCount(0);
+    const result = await outline.evaluate(element => {
+      const contours = element.getAttribute('d')!.split('M').filter(Boolean).map(loop => loop.replace('Z', '').split('L').map(p => p.split(',').map(Number)));
+      const signedArea = contours.reduce((sum, loop) => sum + loop.reduce((a, p, i) => {
+        const q = loop[(i + 1) % loop.length]!; return a + p[0]! * q[1]! - q[0]! * p[1]!;
+      }, 0) / 2, 0);
+      return { loops: contours.length, area: Math.abs(signedArea) };
+    });
+    expect(result.loops, shapes).toBe(loops);
+    expect(result.area, shapes).toBeCloseTo(area, 2);
+  }
+  await page.getByLabel('Logo file', { exact: true }).setInputFiles({ name: 'white.svg', mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="white"/></svg>') });
+  await expect(page.locator('.logo-controls__error')).toContainText('No logo shapes');
+  for (const mode of ['light', 'opaque']) {
+    await page.getByRole('combobox', { name: 'Logo artwork', exact: true }).selectOption(mode);
+    await expect(page.getByRole('img', { name: 'Imported logo: white.svg', exact: true })).toBeVisible();
+    await expect(page.locator('.logo-controls__error')).toHaveCount(0);
+  }
+});
+
 test('quick placement presets arrange text and logos independently and preserve manual editing', async ({ page }) => {
   await page.goto('/'); await page.waitForLoadState('networkidle');
   await page.getByRole('switch', { name: 'Text on model', exact: true }).click();

@@ -86,8 +86,8 @@ function setModelView(next: 'model' | 'underside'): void {
     const span = Math.max(size.x / camera.aspect, size.y, size.z, 1);
     const distance = span / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.35;
     camera.up.set(0, 0, 1);
-    // Approach from the back by a tiny amount to keep the Z-up orbit stable.
-    camera.position.set(center.x, center.y + distance * 0.001, box.min.z - distance);
+    // Show the engraving walls as well as the floor, keeping lettering upright.
+    camera.position.set(center.x, center.y + distance * 0.5, box.min.z - distance);
     controls.target.copy(center);
     camera.lookAt(center);
   } else {
@@ -365,8 +365,7 @@ async function rebuildScene(): Promise<void> {
   const terrainGeo = (r.modelFeaturesApplied || r.waterMeshes?.length || config.value.printMode === "fused") && r.mesh.indices.length
     ? payloadToBufferGeometry(r.mesh, { hardEdges: true })
     : buildTerrainGeometryFromPreview(r.crop, preview);
-  terrainGeo.computeVertexNormals();
-  if (!terrainGeo.getIndex()?.count) {
+  if (!terrainGeo.getAttribute('position')?.count) {
     statusHint.value = "Terrain mesh is empty";
     terrainGeo.dispose();
     sceneBuilding.value = false;

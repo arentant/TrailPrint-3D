@@ -28,7 +28,13 @@ export async function importModelLogo(file: File, mode: LogoTraceMode): Promise<
   if (!svg && !png) throw new Error('Choose an SVG or PNG logo.');
   if (file.size > (svg ? 2 : 5) * 1024 * 1024) throw new Error(`Choose a logo smaller than ${svg ? 2 : 5} MB.`);
   let blob: Blob;
-  if (svg) blob = new Blob([prepareSvg(await file.text())], { type: 'image/svg+xml' });
+  if (svg) {
+    const source = prepareSvg(await file.text());
+    const { traceSvgLogo } = await import('./logo-svg');
+    const asset = await traceSvgLogo(source, file.name, mode);
+    if (asset) return asset;
+    blob = new Blob([source], { type: 'image/svg+xml' });
+  }
   else {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if ([137, 80, 78, 71, 13, 10, 26, 10].some((value, i) => bytes[i] !== value) || bytes.length < 24) throw new Error('Choose a valid PNG logo.');

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeVertices, toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { MapCropConfig } from "@shared/types/config";
 import type {
   TerrainCropRegion,
@@ -128,7 +128,7 @@ export function payloadToBufferGeometry(
   options?: {
     terrain?: boolean;
     crop?: TerrainCropRegion;
-    /** 托盘等硬边 CAD 网格：不合并顶点，避免底面法线被拉歪产生杂色高光 */
+    /** Keep CAD corners sharp while smoothing adjacent terrain and curved walls. */
     hardEdges?: boolean;
   },
 ): THREE.BufferGeometry {
@@ -163,12 +163,17 @@ export function payloadToBufferGeometry(
   }
 
   let result = geometry;
-  if (!options?.hardEdges && options?.crop?.shape !== "polygon") {
-    const mergeTol = options?.crop?.shape === "circle" ? 0.001 : 0.02;
-    result = mergeVertices(geometry, mergeTol);
+  if (options?.hardEdges) {
+    result = toCreasedNormals(geometry);
     geometry.dispose();
+  } else {
+    if (options?.crop?.shape !== "polygon") {
+      const mergeTol = options?.crop?.shape === "circle" ? 0.001 : 0.02;
+      result = mergeVertices(geometry, mergeTol);
+      geometry.dispose();
+    }
+    result.computeVertexNormals();
   }
-  result.computeVertexNormals();
   result.normalizeNormals();
   result.computeBoundingBox();
   result.computeBoundingSphere();
