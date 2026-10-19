@@ -1,6 +1,7 @@
 /** OpenTopography Global DEM API 数据集（与 portal 参数 demtype 一致） */
 export type OpenTopoDemType =
   | "COP30"
+  | "AW3D30"
   | "COP90"
   | "NASADEM"
   | "SRTMGL1"
@@ -28,6 +29,15 @@ export const OPEN_TOPO_DEM_OPTIONS: ReadonlyArray<OpenTopoDemOption> = [
     summary:
       "The Copernicus global 30m elevation model (GLO-30) offers broad coverage and is a good default for most 3D terrain prints.",
     bestFor: "General terrain keepsakes with detailed ridges and valleys.",
+  },
+  {
+    value: "AW3D30",
+    label: "ALOS AW3D30 (30m)",
+    hint: "Free ALOS satellite data · Compare mountain detail with COP30",
+    resolution: "Approx. 30 m",
+    summary:
+      "JAXA's ALOS World 3D surface model is derived from optical stereo imagery. It provides an alternative view of ridges and valleys to compare with COP30, but still has approximately 30m spacing and cannot resolve fine summit features below that scale. Uses your existing OpenTopography API key.",
+    bestFor: "Comparing mountain terrain with COP30 where either source has gaps or artifacts.",
   },
   {
     value: "COP90",

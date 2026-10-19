@@ -144,7 +144,7 @@ TRAILPRINT_HEAP_MB=8192
 
 - **Height multiplier:** Exaggerate Z-axis elevation so subtle real-world relief reads at desk scale.
 - **Mesh quality:** Standard / high / ultra / extreme / studio / custom tiers to control DEM sampling density and STL detail.
-- **DEM dataset:** Choose OpenTopography datasets (e.g. COP30 30m) based on region and resolution needs.
+- **DEM dataset:** Choose OpenTopography datasets based on region and resolution needs. COP30 is the default; the free ALOS AW3D30 (30m) option uses the same OpenTopography API key and offers an alternative source for comparing mountain detail. Both have approximately 30m spacing; higher mesh quality cannot add terrain detail missing from the source.
 - **Surface smoothing:** Raw, light, medium, and heavy levels to reduce noise and stair-stepping for cleaner prints.
 - **Trail filtering:** Optional GPX simplification to filter GPS drift and noise for smoother trail lines.
 - **Text on model:** In **2. Terrain**, add a front caption on an integrated ledge, centered underside lettering, or both. Choose raised or engraved text, an optional second line, size and relief. Use **View underside** in the 3D preview to inspect the bottom. Engraved text keeps a flat bottom; raised underside text lifts the model by its relief. Front captions require the separate base to be off.

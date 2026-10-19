@@ -111,6 +111,37 @@ test('1536 grids preserve rotated sample coordinates at chunk boundaries and reu
   assert.equal(upstream, 1)
 })
 
+test('ALOS selection reaches OpenTopography and switching datasets refreshes both caches', async t => {
+  source.clearElevationSamplerCache()
+  const datasets = []
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (String(url) !== '/api/elevation') {
+      const upstream = new URL(url)
+      assert.equal(upstream.origin + upstream.pathname, 'https://portal.opentopography.org/API/globaldem')
+      datasets.push(upstream.searchParams.get('demtype'))
+      const height = upstream.searchParams.get('demtype') === 'AW3D30' ? 3200 : 3100
+      return new Response(writeArrayBuffer(new Float32Array(4).fill(height), {
+        width: 2, height: 2,
+        ModelPixelScale: [(Number(upstream.searchParams.get('east')) - Number(upstream.searchParams.get('west'))) / 2,
+          (Number(upstream.searchParams.get('north')) - Number(upstream.searchParams.get('south'))) / 2, 0],
+        ModelTiepoint: [0, 0, 0, Number(upstream.searchParams.get('west')), Number(upstream.searchParams.get('north')), 0],
+        GeographicTypeGeoKey: 4326,
+      }))
+    }
+    const response = await invoke(JSON.parse(init.body))
+    assert.equal(response.status, 200, String(response.body))
+    return new Response(gunzipSync(response.body))
+  })
+  const req = request(8, 8, 0)
+  assert.ok((await sample(req)).elevations.every(value => value === 3100))
+  const alos = { ...req, dataset: 'AW3D30' }
+  assert.ok((await sample(alos)).elevations.every(value => value === 3200))
+  await sample(alos)
+  assert.deepEqual(datasets, ['COP30', 'AW3D30'])
+  assert.ok((await sample(req)).elevations.every(value => value === 3100))
+  assert.deepEqual(datasets, ['COP30', 'AW3D30', 'COP30'])
+})
+
 test('Studio keeps one response and custom rectangular grids retain a short final chunk', async t => {
   source.clearElevationSamplerCache()
   const bodies = []
