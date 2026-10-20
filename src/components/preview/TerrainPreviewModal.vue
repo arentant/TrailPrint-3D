@@ -76,6 +76,7 @@ const ui = useUiStore();
 const { config } = storeToRefs(configStore);
 
 const sprayPanelOpen = ref(true);
+const snowline = ref(50);
 const colorControlsRef = ref<InstanceType<typeof ModelColorControls> | null>(null);
 const downloadRequested = ref(false);
 function requestDownload(target: "all" | "trail" | "ams-base" | "model-3mf"): void {
@@ -95,6 +96,7 @@ const {
   progress: sprayProgress,
   error: sprayError,
   maskError,
+  applyNaturalSnow,
   runSegmentation,
   runMaskGeneration,
   updateColorHex,
@@ -136,6 +138,7 @@ const sprayEnabled = computed(() => config.value.sprayPaint.enabled);
 const canSegment = computed(
   () =>
     !props.generating &&
+    !props.downloading &&
     !segmenting.value &&
     !generatingMasks.value &&
     props.result?.heightPreview != null &&
@@ -162,9 +165,9 @@ const sprayStatusMessage = computed(() => {
   if (sprayMasks.value.length > 0) return "Paint masks ready. Select a mask to preview its fit.";
   if (sprayPlan.value) {
     if (paintMode.value) return "Paint mode: click and drag across the 3D terrain.";
-    return "Paint by hand or use automatic colors, then generate masks.";
+    return "Colors are included in Download model 3MF. Paint masks are optional.";
   }
-  return "Choose Paint by hand or Auto-color to begin.";
+  return "Choose Natural snow, Paint by hand or Auto-color to begin.";
 });
 
 const colorCount = computed(() => config.value.sprayPaint.colorCount);
@@ -202,6 +205,17 @@ function onStartManualPaint(): void {
   hideAllMasks();
   if (!startManualPaint(config.value, props.result, 0)) return;
   void nextTick(() => previewRef.value?.refreshSprayColors());
+}
+
+function onNaturalSnow(): void {
+  if (!props.result || !canSegment.value) return;
+  resetMaskPreview();
+  applyNaturalSnow(config.value, props.result, snowline.value / 100);
+}
+
+async function onResetRegions(): Promise<void> {
+  if (sprayPlan.value?.naturalSnow) onNaturalSnow();
+  else await onRunSegmentation();
 }
 
 async function onRunSegmentation(): Promise<void> {
@@ -244,6 +258,8 @@ const canDownload = computed(
   () =>
     !props.generating &&
     !props.downloading &&
+    !segmenting.value &&
+    !generatingMasks.value &&
     !sceneLoading.value &&
     props.result != null &&
     !props.error,
@@ -568,12 +584,22 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                         )
                       "
                     />
-                    <span>Enable paint masks</span>
+                    <span>Enable terrain colors and masks</span>
                   </label>
                   <SettingHelp guide="paintMasks" />
                 </div>
               </div>
 
+              <div class="spray-panel__section">
+                <button type="button" class="spray-panel__btn spray-panel__btn--primary"
+                  :disabled="!canSegment" @click="onNaturalSnow">Natural snow</button>
+                <p class="spray-panel__paint-hint">Black rock with white upper slopes and an irregular snowline. Included in model 3MF.</p>
+                <label v-if="sprayPlan?.naturalSnow" class="spray-panel__snowline">
+                  <span>Snow starts at {{ snowline }}% height</span>
+                  <input v-model.number="snowline" type="range" min="15" max="85" step="1"
+                    aria-label="Snowline height" :disabled="!canSegment" @input="onNaturalSnow" />
+                </label>
+              </div>
               <div class="spray-panel__section spray-panel__actions">
                 <button
                   type="button"
@@ -595,7 +621,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
                   type="button"
                   class="spray-panel__btn"
                   :disabled="!canSegment || !sprayPlan"
-                  @click="onRunSegmentation"
+                  @click="onResetRegions"
                 >
                   Reset regions
                 </button>
@@ -805,6 +831,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 </template>
 
 <style scoped>
+.spray-panel__snowline { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--tp-text-secondary); }
+.spray-panel__snowline input { width: 100%; accent-color: var(--tp-text-accent); }
 .spray-panel__guide-row { display: flex; align-items: center; gap: 6px; }
 .spray-panel__colors-title { display: flex; align-items: center; gap: 4px; }
 .terrain-modal__spray-panel :deep(.info-tip__btn) { color: #bcc9d6; }

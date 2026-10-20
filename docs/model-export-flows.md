@@ -32,6 +32,22 @@ City map pictures also work without GPX and contain no route overlay.
 - `src/composables/useModelExport.ts` owns shared export progress and delivery;
   workspaces own their inputs and preview lifecycles.
 
+## Terrain colors and natural snow
+
+In the 3D preview, choose **Natural snow** for black rock and white upper slopes.
+The snowline starts around mid-height; **Snowline height** adjusts where snow
+begins. Slope and repeatable spatial variation break up the boundary. This is a
+stylized terrain-based snow pattern, independent of satellite availability.
+**Auto-color** continues to classify satellite imagery, with a terrain fallback.
+Both palettes can be edited or painted by hand.
+
+**Download model 3MF** preserves these regions as closed, non-overlapping material
+volumes, together with the trail, water and optional tray. Assign the exported
+colors to filaments in the slicer. ZIP downloads with an active color plan also
+include the model 3MF; STL files retain geometry only. Paint masks remain available
+for painting a single-material print. Regenerating terrain clears its color plan;
+apply colors again after changing the model geometry.
+
 ## Mountain base and labels
 
 The separate tray base is optional and defaults to off. Enable **Generate base**

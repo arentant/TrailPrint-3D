@@ -1,0 +1,621 @@
+diff --git a/docs/model-export-flows.md b/docs/model-export-flows.md
+index 400d844..399c4dd 100644
+--- a/docs/model-export-flows.md
++++ b/docs/model-export-flows.md
+@@ -32,6 +32,22 @@ City map pictures also work without GPX and contain no route overlay.
+ - `src/composables/useModelExport.ts` owns shared export progress and delivery;
+   workspaces own their inputs and preview lifecycles.
+ 
++## Terrain colors and natural snow
++
++In the 3D preview, choose **Natural snow** for black rock and white upper slopes.
++The snowline starts around mid-height; **Snowline height** adjusts where snow
++begins. Slope and repeatable spatial variation break up the boundary. This is a
++stylized terrain-based snow pattern, independent of satellite availability.
++**Auto-color** continues to classify satellite imagery, with a terrain fallback.
++Both palettes can be edited or painted by hand.
++
++**Download model 3MF** preserves these regions as closed, non-overlapping material
++volumes, together with the trail, water and optional tray. Assign the exported
++colors to filaments in the slicer. ZIP downloads with an active color plan also
++include the model 3MF; STL files retain geometry only. Paint masks remain available
++for painting a single-material print. Regenerating terrain clears its color plan;
++apply colors again after changing the model geometry.
++
+ ## Mountain base and labels
+ 
+ The separate tray base is optional and defaults to off. Enable **Generate base**
+diff --git a/electron/main/export/mountain-trail-flow.ts b/electron/main/export/mountain-trail-flow.ts
+index 6570e80..892f056 100644
+--- a/electron/main/export/mountain-trail-flow.ts
++++ b/electron/main/export/mountain-trail-flow.ts
+@@ -31,6 +31,8 @@ import { buildMoldLidMesh } from "../mold/mold-lid-mesh";
+ import { assertTrailLineMesh, assertWatertightMesh } from "@shared/utils/mesh-manifold";
+ import { encodeBinaryStl } from "@shared/utils/binary-stl";
+ import type { TerrainMeshPayload } from "@shared/types/terrain";
++import { getManifold } from "../city/manifold-runtime";
++import { buildTerrainColorVolumes } from "@shared/utils/terrain-color-volumes";
+ import { normalizeModelColors } from "@shared/types/model-colors";
+ import { encodeColored3mf, normalizePartToBed, type PrintableGroup } from "@shared/export/colored-3mf";
+ import { encodeTrayAms3mf } from "@shared/export/tray-ams-3mf";
+@@ -225,8 +227,13 @@ async function generateMountainTrailFiles(
+   }
+ 
+   const colors = normalizeModelColors(config.colors);
++  const colorPlan = config.sprayPaint.enabled ? req.sprayPaintPlan : null;
++  if (colorPlan) onProgress({ phase: 'model', progress: 0.61, message: 'Preparing printable terrain colors…' });
++  const terrainParts = colorPlan
++    ? buildTerrainColorVolumes(await getManifold(), terrainWithGroove.mesh, terrainWithGroove.crop, colorPlan)
++    : [{ name: 'Terrain', color: colors.terrain, mesh: terrainWithGroove.mesh }];
+   const groups: PrintableGroup[] = [{ name: 'Terrain, trail and water', parts: [
+-    { name: 'Terrain', color: colors.terrain, mesh: terrainWithGroove.mesh },
++    ...terrainParts,
+     ...(terrainWithGroove.trailMesh ? [{ name: 'Trail', color: colors.trail, mesh: terrainWithGroove.trailMesh }] : []),
+     ...(terrainWithGroove.waterMeshes ?? []).map((mesh, i) => {
+       const mapping = terrainWithGroove.waterPartMappings?.find(part => part.partIndex === i);
+@@ -240,14 +247,14 @@ async function generateMountainTrailFiles(
+   const waterManifest = { printMode: config.printMode ?? 'separate',
+     sources: terrainWithGroove.waterAttribution ?? [], coverageErrors: terrainWithGroove.waterCoverageErrors ?? [],
+     featureStatuses: terrainWithGroove.waterFeatureStatuses ?? [], features: terrainWithGroove.waterFeatureDetails ?? [], partMappings: terrainWithGroove.waterPartMappings ?? [] };
+-  const model3mf = req.target === "model-3mf" || config.printMode === "fused" ? encodeColored3mf(groups, modelExportStem(config), waterManifest) : undefined;
++  const model3mf = req.target === "model-3mf" || config.printMode === "fused" || colorPlan ? encodeColored3mf(groups, modelExportStem(config), waterManifest) : undefined;
+   if (req.target === 'model-3mf') {
+     // A single-file target emits exactly its described artifact.
+     await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
+     return;
+   }
+-  if (config.printMode === 'fused') {
+-    await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
++  if (model3mf) {
++    await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf);
+   }
+ 
+   if (trayFootprint && config.tray.nfc.enabled) {
+diff --git a/shared/types/spray-paint.ts b/shared/types/spray-paint.ts
+index b32630f..69fb5da 100644
+--- a/shared/types/spray-paint.ts
++++ b/shared/types/spray-paint.ts
+@@ -23,6 +23,8 @@ export interface SprayPaintPlan {
+   /** 是否使用了卫星图颜色（false 表示仅地形规则降级） */
+   satelliteUsed: boolean;
+   warning?: string;
++  /** Stored boundary keeps preview and printable material volumes aligned. */
++  naturalSnow?: { snowline: number; boundaryHeights: number[]; widthMm: number; heightMm: number };
+ }
+ 
+ export interface SpraySegmentRequest {
+diff --git a/src/components/preview/TerrainMeshPreview.vue b/src/components/preview/TerrainMeshPreview.vue
+index 7951e8a..b244acf 100644
+--- a/src/components/preview/TerrainMeshPreview.vue
++++ b/src/components/preview/TerrainMeshPreview.vue
+@@ -149,6 +149,7 @@ function applySprayColorsToTerrain(
+     plan.gridRows,
+     plan.colors,
+     preview.bottomZ,
++    plan.naturalSnow,
+   );
+   const mat = mesh.material as THREE.MeshStandardMaterial;
+   mat.vertexColors = true;
+diff --git a/src/components/preview/TerrainPreviewModal.vue b/src/components/preview/TerrainPreviewModal.vue
+index 5641f59..895c847 100644
+--- a/src/components/preview/TerrainPreviewModal.vue
++++ b/src/components/preview/TerrainPreviewModal.vue
+@@ -76,6 +76,7 @@ const ui = useUiStore();
+ const { config } = storeToRefs(configStore);
+ 
+ const sprayPanelOpen = ref(true);
++const snowline = ref(50);
+ const colorControlsRef = ref<InstanceType<typeof ModelColorControls> | null>(null);
+ const downloadRequested = ref(false);
+ function requestDownload(target: "all" | "trail" | "ams-base" | "model-3mf"): void {
+@@ -95,6 +96,7 @@ const {
+   progress: sprayProgress,
+   error: sprayError,
+   maskError,
++  applyNaturalSnow,
+   runSegmentation,
+   runMaskGeneration,
+   updateColorHex,
+@@ -136,6 +138,7 @@ const sprayEnabled = computed(() => config.value.sprayPaint.enabled);
+ const canSegment = computed(
+   () =>
+     !props.generating &&
++    !props.downloading &&
+     !segmenting.value &&
+     !generatingMasks.value &&
+     props.result?.heightPreview != null &&
+@@ -162,9 +165,9 @@ const sprayStatusMessage = computed(() => {
+   if (sprayMasks.value.length > 0) return "Paint masks ready. Select a mask to preview its fit.";
+   if (sprayPlan.value) {
+     if (paintMode.value) return "Paint mode: click and drag across the 3D terrain.";
+-    return "Paint by hand or use automatic colors, then generate masks.";
++    return "Colors are included in Download model 3MF. Paint masks are optional.";
+   }
+-  return "Choose Paint by hand or Auto-color to begin.";
++  return "Choose Natural snow, Paint by hand or Auto-color to begin.";
+ });
+ 
+ const colorCount = computed(() => config.value.sprayPaint.colorCount);
+@@ -204,6 +207,17 @@ function onStartManualPaint(): void {
+   void nextTick(() => previewRef.value?.refreshSprayColors());
+ }
+ 
++function onNaturalSnow(): void {
++  if (!props.result || !canSegment.value) return;
++  resetMaskPreview();
++  applyNaturalSnow(config.value, props.result, snowline.value / 100);
++}
++
++async function onResetRegions(): Promise<void> {
++  if (sprayPlan.value?.naturalSnow) onNaturalSnow();
++  else await onRunSegmentation();
++}
++
+ async function onRunSegmentation(): Promise<void> {
+   if (!props.result) return;
+   config.value.sprayPaint.enabled = true;
+@@ -244,6 +258,8 @@ const canDownload = computed(
+   () =>
+     !props.generating &&
+     !props.downloading &&
++    !segmenting.value &&
++    !generatingMasks.value &&
+     !sceneLoading.value &&
+     props.result != null &&
+     !props.error,
+@@ -568,12 +584,22 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
+                         )
+                       "
+                     />
+-                    <span>Enable paint masks</span>
++                    <span>Enable terrain colors and masks</span>
+                   </label>
+                   <SettingHelp guide="paintMasks" />
+                 </div>
+               </div>
+ 
++              <div class="spray-panel__section">
++                <button type="button" class="spray-panel__btn spray-panel__btn--primary"
++                  :disabled="!canSegment" @click="onNaturalSnow">Natural snow</button>
++                <p class="spray-panel__paint-hint">Black rock with white upper slopes and an irregular snowline. Included in model 3MF.</p>
++                <label v-if="sprayPlan?.naturalSnow" class="spray-panel__snowline">
++                  <span>Snow starts at {{ snowline }}% height</span>
++                  <input v-model.number="snowline" type="range" min="15" max="85" step="1"
++                    aria-label="Snowline height" :disabled="!canSegment" @input="onNaturalSnow" />
++                </label>
++              </div>
+               <div class="spray-panel__section spray-panel__actions">
+                 <button
+                   type="button"
+@@ -595,7 +621,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
+                   type="button"
+                   class="spray-panel__btn"
+                   :disabled="!canSegment || !sprayPlan"
+-                  @click="onRunSegmentation"
++                  @click="onResetRegions"
+                 >
+                   Reset regions
+                 </button>
+@@ -805,6 +831,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
+ </template>
+ 
+ <style scoped>
++.spray-panel__snowline { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--tp-text-secondary); }
++.spray-panel__snowline input { width: 100%; accent-color: var(--tp-text-accent); }
+ .spray-panel__guide-row { display: flex; align-items: center; gap: 6px; }
+ .spray-panel__colors-title { display: flex; align-items: center; gap: 4px; }
+ .terrain-modal__spray-panel :deep(.info-tip__btn) { color: #bcc9d6; }
+diff --git a/src/composables/useSpraySegmentation.ts b/src/composables/useSpraySegmentation.ts
+index b8cdfdf..421c1ed 100644
+--- a/src/composables/useSpraySegmentation.ts
++++ b/src/composables/useSpraySegmentation.ts
+@@ -1,4 +1,5 @@
+ import { ref, markRaw } from "vue";
++import { createNaturalSnowPlan } from "@shared/utils/natural-snow";
+ import type {
+   SprayGenerateMasksResponse,
+   SprayMaskMeshPayload,
+@@ -102,6 +103,18 @@ export function useSpraySegmentation() {
+     return true;
+   }
+ 
++  function applyNaturalSnow(config: AppConfig, result: TerrainGenerateResponse, snowline = 0.5): void {
++    if (!result.heightPreview || !result.crop) return;
++    endPaintStroke();
++    setPaintMode(false);
++    config.sprayPaint.enabled = true;
++    config.sprayPaint.colorCount = 2;
++    plan.value = createNaturalSnowPlan(result.heightPreview, result.crop, snowline);
++    config.colors.terrain = '#000000';
++    clearMasksAfterEdit();
++    error.value = null;
++  }
++
+   async function runSegmentation(
+     config: AppConfig,
+     result: TerrainGenerateResponse,
+@@ -213,6 +226,7 @@ export function useSpraySegmentation() {
+   ): Set<number> {
+     const changed = new Set<number>();
+     if (!plan.value) return changed;
++    delete plan.value.naturalSnow;
+     const { gridCols: cols, gridRows: rows, cellRegions } = plan.value;
+     const r = paintBrushRadius.value;
+     if (lastPaintMm) {
+@@ -249,6 +263,7 @@ export function useSpraySegmentation() {
+   function syncPlanColorCount(colorCount: number): void {
+     const n = clampColorCount(colorCount);
+     if (!plan.value) return;
++    delete plan.value.naturalSnow;
+     const colors = plan.value.colors.slice(0, n);
+     while (colors.length < n) {
+       const regionId = colors.length;
+@@ -312,6 +327,7 @@ export function useSpraySegmentation() {
+     paintMode,
+     paintRegionId,
+     paintBrushRadius,
++    applyNaturalSnow,
+     runSegmentation,
+     runMaskGeneration,
+     initManualPaintPlan,
+diff --git a/src/features/mountain-trail/useMountainTrailExport.ts b/src/features/mountain-trail/useMountainTrailExport.ts
+index f0397f9..86111c2 100644
+--- a/src/features/mountain-trail/useMountainTrailExport.ts
++++ b/src/features/mountain-trail/useMountainTrailExport.ts
+@@ -61,7 +61,7 @@ export function useMountainTrailExport() {
+         viewportWidth: vw,
+         viewportHeight: vh,
+         target,
+-        sprayPaintPlan: target === "all" && exportConfig.sprayPaint.enabled && sprayPlan.value
++        sprayPaintPlan: (target === "all" || target === "model-3mf") && exportConfig.sprayPaint.enabled && sprayPlan.value
+           ? serializeSprayPlan(sprayPlan.value)
+           : undefined,
+       };
+diff --git a/src/utils/ipc-serialize.ts b/src/utils/ipc-serialize.ts
+index cb4237d..ce857e8 100644
+--- a/src/utils/ipc-serialize.ts
++++ b/src/utils/ipc-serialize.ts
+@@ -29,5 +29,6 @@ export function serializeSprayPlan(plan: SprayPaintPlan): SprayPaintPlan {
+     ...p,
+     colors: p.colors.map((c) => ({ ...c })),
+     cellRegions: [...p.cellRegions],
++    naturalSnow: p.naturalSnow ? { ...p.naturalSnow, boundaryHeights: [...p.naturalSnow.boundaryHeights] } : undefined,
+   };
+ }
+diff --git a/src/utils/spray-vertex-colors.ts b/src/utils/spray-vertex-colors.ts
+index 5d161bf..a3722b0 100644
+--- a/src/utils/spray-vertex-colors.ts
++++ b/src/utils/spray-vertex-colors.ts
+@@ -1,5 +1,6 @@
+ import * as THREE from "three";
+-import type { SprayColorSlot } from "@shared/types/spray-paint";
++import { sampleHeightBilinearMm } from "@shared/utils/heightfield-mesh";
++import type { SprayPaintPlan, SprayColorSlot } from "@shared/types/spray-paint";
+ import type { TerrainCropRegion } from "@shared/types/terrain";
+ 
+ const SPRAY_COLOR_CACHE_KEY = "sprayColorCache";
+@@ -286,6 +287,7 @@ export function applySprayVertexColors(
+   rows: number,
+   colors: SprayColorSlot[],
+   bottomZ: number,
++  naturalSnow?: SprayPaintPlan["naturalSnow"],
+ ): void {
+   const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
+   if (!pos) return;
+@@ -295,20 +297,22 @@ export function applySprayVertexColors(
+   const regionRgb = buildRegionRgb(colors);
+   const fallback = hexToLinearRgb("#9E9E9E", new THREE.Color());
+   const colorAttr = new Float32Array(pos.count * 3);
+-  const baseColor = new THREE.Color(0.95, 0.93, 0.86);
++  const baseColor = hexToLinearRgb(colors.find(c => c.regionId === 0)?.hex ?? "#000000", new THREE.Color());
+ 
+   for (let i = 0; i < pos.count; i++) {
+     const x = pos.getX(i);
+     const y = pos.getY(i);
+     const z = pos.getZ(i);
+-    if (z <= bottomZ + 0.05) {
++    if (z <= Math.max(0, bottomZ + 0.05)) {
+       colorAttr[i * 3] = baseColor.r;
+       colorAttr[i * 3 + 1] = baseColor.g;
+       colorAttr[i * 3 + 2] = baseColor.b;
+       continue;
+     }
+     const idx = gridIndexFromMm(x, y, crop, cols, rows);
+-    const regionId = cellRegions[idx] ?? 0;
++    const regionId = naturalSnow
++      ? (z > sampleHeightBilinearMm(x, y, naturalSnow.boundaryHeights, cols, rows, crop) ? 1 : 0)
++      : (cellRegions[idx] ?? 0);
+     const base = regionId * 3;
+     colorAttr[i * 3] = regionRgb[base] ?? fallback.r;
+     colorAttr[i * 3 + 1] = regionRgb[base + 1] ?? fallback.g;
+diff --git a/shared/utils/natural-snow.ts b/shared/utils/natural-snow.ts
+new file mode 100644
+index 0000000..c2bf462
+--- /dev/null
++++ b/shared/utils/natural-snow.ts
+@@ -0,0 +1,50 @@
++import type { SprayPaintPlan } from '../types/spray-paint';
++import type { TerrainCropRegion, TerrainHeightPreview } from '../types/terrain';
++
++// Continuous, seeded value noise keeps the snowline repeatable at any resolution.
++function noise(x: number, y: number): number {
++  const ix = Math.floor(x), iy = Math.floor(y);
++  const hash = (a: number, b: number) => {
++    const n = Math.sin(a * 127.1 + b * 311.7 + 19.19) * 43758.5453;
++    return (n - Math.floor(n)) * 2 - 1;
++  };
++  const smooth = (t: number) => t * t * (3 - 2 * t);
++  const u = smooth(x - ix), v = smooth(y - iy);
++  const a = hash(ix, iy) * (1 - u) + hash(ix + 1, iy) * u;
++  const b = hash(ix, iy + 1) * (1 - u) + hash(ix + 1, iy + 1) * u;
++  return a * (1 - v) + b * v;
++}
++
++/** A varying elevation boundary: snow reaches into gullies and retreats on cliffs. */
++export function createNaturalSnowPlan(preview: TerrainHeightPreview, crop: TerrainCropRegion, snowline = 0.5): SprayPaintPlan {
++  const { cols, rows, heights } = preview;
++  if (cols < 2 || rows < 2 || heights.length !== cols * rows || !Array.from(heights).every(Number.isFinite) || !Number.isFinite(snowline)) {
++    throw new Error('Complete terrain data is required for natural snow.');
++  }
++  let min = Infinity, max = -Infinity;
++  for (const height of heights) { min = Math.min(min, height); max = Math.max(max, height); }
++  const span = Math.max(max - min, 0.1);
++  const level = Math.max(0.15, Math.min(0.85, snowline));
++  const read = (c: number, r: number) => heights[Math.max(0, Math.min(rows - 1, r)) * cols + Math.max(0, Math.min(cols - 1, c))]!;
++  const boundary: number[] = [], cellRegions: number[] = [];
++  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
++    const u = c / (cols - 1), v = r / (rows - 1);
++    // Relative terrain slope avoids changing the pattern with Z exaggeration.
++    const dx = (read(c + 1, r) - read(c - 1, r)) / span * (cols - 1) / 2;
++    const dy = (read(c, r + 1) - read(c, r - 1)) / span * (rows - 1) / 2;
++    const slope = Math.min(1, Math.hypot(dx, dy) / 5);
++    const texture = noise(u * 5, v * 5) * 0.11 + noise(u * 13, v * 13) * 0.045;
++    const z = Math.max(0, min) + span * Math.max(0.08, level + texture + slope * 0.19 - 0.06);
++    boundary.push(z);
++    cellRegions.push(read(c, r) > z ? 1 : 0);
++  }
++  return {
++    colors: [
++      { index: 1, regionId: 0, hex: '#000000', label: 'Rock' },
++      { index: 2, regionId: 1, hex: '#ffffff', label: 'Snow' },
++    ],
++    cellRegions, gridCols: cols, gridRows: rows, source: 'rules',
++    generatedAt: Date.now(), satelliteUsed: false,
++    naturalSnow: { snowline: level, boundaryHeights: boundary, widthMm: crop.widthMm, heightMm: crop.heightMm },
++  };
++}
+diff --git a/shared/utils/terrain-color-volumes.ts b/shared/utils/terrain-color-volumes.ts
+new file mode 100644
+index 0000000..9030001
+--- /dev/null
++++ b/shared/utils/terrain-color-volumes.ts
+@@ -0,0 +1,88 @@
++import type { CrossSection, Manifold, ManifoldToplevel } from 'manifold-3d';
++import type { ColoredPart } from '../export/colored-3mf';
++import type { SprayPaintPlan } from '../types/spray-paint';
++import type { TerrainCropRegion, TerrainMeshPayload } from '../types/terrain';
++import { isHexColor } from '../types/model-colors';
++import { buildHeightfieldTerrainMesh, sampleHeightBilinearMm } from './heightfield-mesh';
++import { waterMeshPayload } from '../water/mesh-payload';
++
++/** Partition the existing terrain; never overlay intersecting colored shells. */
++export function buildTerrainColorVolumes(wasm: ManifoldToplevel, mesh: TerrainMeshPayload,
++  crop: TerrainCropRegion, plan: SprayPaintPlan): ColoredPart[] {
++  const { gridCols: cols, gridRows: rows } = plan;
++  const ids = new Set(plan.colors.map(c => c.regionId));
++  if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 2 || rows < 2 || cols * rows > 4_000_000 ||
++    plan.cellRegions.length !== cols * rows || !plan.colors.length || plan.colors.length > 8 || !ids.has(0) || ids.size !== plan.colors.length ||
++    plan.colors.some(c => !isHexColor(c.hex) || !Number.isInteger(c.regionId) || c.regionId < 0 || c.regionId > 7) ||
++    plan.cellRegions.some(id => !ids.has(id))) throw new Error('Terrain color regions are incomplete. Apply colors again before downloading.');
++  const snow = plan.naturalSnow;
++  if (snow && (snow.boundaryHeights.length !== cols * rows || !snow.boundaryHeights.every(Number.isFinite) ||
++    !Number.isFinite(snow.widthMm) || !Number.isFinite(snow.heightMm) ||
++    Math.abs(snow.widthMm - crop.widthMm) > 0.001 || Math.abs(snow.heightMm - crop.heightMm) > 0.001 ||
++    plan.colors.length !== 2 || !ids.has(1))) throw new Error('Snow terrain has changed. Apply Natural snow again before downloading.');
++
++  const allocations = new Set<Manifold | CrossSection>();
++  const own = <T extends Manifold | CrossSection>(value: T): T => { allocations.add(value); return value; };
++  const solid = (payload: TerrainMeshPayload) => {
++    const raw = new wasm.Mesh({ numProp: 3, tolerance: 0.00001,
++      vertProperties: new Float32Array(payload.positions), triVerts: new Uint32Array(payload.indices) });
++    raw.merge();
++    const result = own(new wasm.Manifold(raw));
++    if (result.status() !== 'NoError') throw new Error('Terrain could not be prepared for multicolor printing. Try a lower mesh quality.');
++    return result;
++  };
++  const output: ColoredPart[] = [];
++  const add = (value: Manifold, regionId: number) => {
++    if (value.status() !== 'NoError') throw new Error('Terrain color volumes could not be completed. Apply colors again or lower mesh quality.');
++    if (value.isEmpty()) return;
++    const color = plan.colors.find(c => c.regionId === regionId)!;
++    output.push({ name: snow ? (regionId === 0 ? 'Terrain — black rock' : 'Terrain — snow') : `Terrain color ${color.index}`,
++      color: color.hex, mesh: waterMeshPayload(value, mesh, value.boundingBox().min[2]) });
++  };
++  try {
++    const terrain = solid(mesh);
++    if (snow) {
++      // Extend the cutter beyond the model, including any lettering/plaque, so
++      // only the elevation boundary decides the material, never the crop walls.
++      const bounds = terrain.boundingBox();
++      const widthMm = Math.max(Math.abs(bounds.min[0]), Math.abs(bounds.max[0])) * 2 + 2;
++      const heightMm = Math.max(Math.abs(bounds.min[1]), Math.abs(bounds.max[1])) * 2 + 2;
++      const rectangle: TerrainCropRegion = { ...crop, shape: 'rectangle', widthMm, heightMm, cornerRadiusMm: 0 };
++      const field = Array.from({ length: cols * rows }, (_, i) => sampleHeightBilinearMm(
++        (i % cols) / (cols - 1) * widthMm - widthMm / 2,
++        Math.floor(i / cols) / (rows - 1) * heightMm - heightMm / 2,
++        snow.boundaryHeights, cols, rows, crop));
++      const belowSnow = solid(buildHeightfieldTerrainMesh(rectangle, field, cols, rows, Math.max(1, -bounds.min[2] + 1)));
++      add(own(terrain.intersect(belowSnow)), 0);
++      add(own(terrain.subtract(belowSnow)), 1);
++    } else {
++      let remaining = terrain;
++      const top = terrain.boundingBox().max[2] + 1;
++      for (const color of plan.colors) {
++        if (color.regionId === 0) continue;
++        // Merge each row's runs before unioning their outlines. Sample cells
++        // use nearest-neighbor boundaries, matching painting in the preview.
++        const contours: Array<Array<[number, number]>> = [];
++        const x = (c: number) => (Math.max(0, Math.min(cols - 1, c)) / (cols - 1) - 0.5) * crop.widthMm;
++        const y = (r: number) => (Math.max(0, Math.min(rows - 1, r)) / (rows - 1) - 0.5) * crop.heightMm;
++        for (let r = 0; r < rows; r++) for (let c = 0; c < cols;) {
++          if (plan.cellRegions[r * cols + c] !== color.regionId) { c++; continue; }
++          const start = c++;
++          while (c < cols && plan.cellRegions[r * cols + c] === color.regionId) c++;
++          const left = x(start - 0.5), right = x(c - 0.5), bottom = y(r - 0.5), upper = y(r + 0.5);
++          contours.push([[left, bottom], [right, bottom], [right, upper], [left, upper]]);
++        }
++        if (!contours.length || top <= 0) continue;
++        const section = own(new wasm.CrossSection(contours, 'NonZero'));
++        const cutter = own(section.extrude(top));
++        add(own(remaining.intersect(cutter)), color.regionId);
++        remaining = own(remaining.subtract(cutter));
++      }
++      add(remaining, 0);
++    }
++    if (!output.length) throw new Error('No printable terrain color volumes were generated.');
++    return output;
++  } finally {
++    for (const allocation of allocations) allocation.delete();
++  }
++}
+diff --git a/tests/browser/terrain-colors.spec.ts b/tests/browser/terrain-colors.spec.ts
+new file mode 100644
+index 0000000..8f7170e
+--- /dev/null
++++ b/tests/browser/terrain-colors.spec.ts
+@@ -0,0 +1,48 @@
++import { test, expect } from './authenticated';
++import { readFile } from 'node:fs/promises';
++import { unzipSync, strFromU8 } from 'fflate';
++
++const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMILU/6DwAEgQIuIhp1GQAAAABJRU5ErkJggg==', 'base64');
++test('natural snow preview controls download black and white printable terrain', async ({ page }) => {
++  const errors: string[] = [];
++  page.on('pageerror', error => errors.push(error.message));
++  await page.route('**/MapServer/tile/**', route => route.fulfill({ contentType: 'image/png', body: tile }));
++  await page.route('**/api/elevation', async route => {
++    const { cols, rows } = route.request().postDataJSON();
++    const values = Buffer.alloc(cols * rows * 4);
++    for (let i = 0; i < cols * rows; i++) {
++      const x = (i % cols) / (cols - 1) * 2 - 1, y = Math.floor(i / cols) / (rows - 1) * 2 - 1;
++      values.writeFloatLE(500 + 3000 * Math.exp(-3 * (x * x + y * y)), i * 4);
++    }
++    await route.fulfill({ contentType: 'application/octet-stream', body: values });
++  });
++  await page.goto('/'); await page.waitForLoadState('networkidle');
++  await page.getByPlaceholder('Paste your API key').fill('browser-test-key');
++  await page.getByRole('button', { name: 'Standard', exact: true }).click();
++  await page.getByRole('spinbutton', { name: 'Base thickness', exact: true }).fill('3');
++  await page.getByRole('button', { name: 'Preview & export STL', exact: true }).click();
++  const dialog = page.getByRole('dialog');
++  const download = dialog.getByRole('button', { name: 'Download model 3MF', exact: true });
++  await expect(download).toBeEnabled({ timeout: 60_000 });
++  await dialog.getByRole('button', { name: 'Natural snow', exact: true }).click();
++  const snowline = dialog.getByRole('slider', { name: 'Snowline height' });
++  await expect(snowline).toHaveValue('50');
++  await snowline.fill('60');
++  await expect(dialog.getByText('Snow starts at 60% height')).toBeVisible();
++  await dialog.getByRole('button', { name: 'Reset regions', exact: true }).click();
++  await expect(snowline).toHaveValue('60');
++  await page.screenshot({ path: 'test-results/natural-snow-preview.png', fullPage: true });
++  const event = page.waitForEvent('download');
++  await download.click();
++  const file = await event;
++  expect(file.suggestedFilename()).toMatch(/_Model\.3mf$/);
++  const files = unzipSync(await readFile((await file.path())!));
++  const xml = strFromU8(files['3D/3dmodel.model']!);
++  expect(xml).toContain('#000000FF'); expect(xml).toContain('#FFFFFFFF');
++  expect(xml).toContain('Terrain — black rock'); expect(xml).toContain('Terrain — snow');
++  const objects = [...xml.matchAll(/<object[^>]*name="Terrain — [^"]*"[^>]*>([\s\S]*?)<\/object>/g)];
++  expect(objects).toHaveLength(2);
++  for (const object of objects) expect(object[1]).toContain('<triangle ');
++  await expect(download).toBeEnabled();
++  expect(errors).toEqual([]);
++});
+diff --git a/tests/export/terrain-colors.test.mjs b/tests/export/terrain-colors.test.mjs
+new file mode 100644
+index 0000000..9d34244
+--- /dev/null
++++ b/tests/export/terrain-colors.test.mjs
+@@ -0,0 +1,81 @@
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import { build } from 'esbuild';
++import Module from 'manifold-3d';
++import { mkdtemp, writeFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { resolve, join } from 'node:path';
++import { pathToFileURL } from 'node:url';
++import { unzipSync, strFromU8 } from 'fflate';
++
++const compiled = await build({ stdin: { contents: `export * from './shared/utils/natural-snow';
++  export * from './shared/utils/terrain-color-volumes'; export * from './shared/utils/heightfield-mesh';
++  export * from './shared/utils/mesh-manifold'; export * from './shared/export/colored-3mf';`, resolveDir: resolve('.') },
++  bundle: true, write: false, platform: 'node', format: 'esm' });
++const dir = await mkdtemp(join(tmpdir(), 'trailprint-colors-'));
++after(() => rm(dir, { recursive: true, force: true }));
++await writeFile(join(dir, 'colors.mjs'), compiled.outputFiles[0].contents);
++const api = await import(pathToFileURL(join(dir, 'colors.mjs')).href);
++let wasm;
++before(async () => { wasm = await Module(); wasm.setup(); });
++const crop = { shape: 'rectangle', widthMm: 60, heightMm: 60, centerLat: 27.99, centerLon: 86.92,
++  bearingDeg: 0, minLat: 27.9, maxLat: 28.1, minLon: 86.8, maxLon: 87.0 };
++const cols = 33, rows = 33;
++const heights = Array.from({ length: cols * rows }, (_, i) => {
++  const x = (i % cols) / (cols - 1) * 2 - 1, y = Math.floor(i / cols) / (rows - 1) * 2 - 1;
++  return 1 + 22 * Math.exp(-3 * (x * x + y * y));
++});
++const preview = { heights, cols, rows, minSurfaceZ: Math.min(...heights), bottomZ: -3, baseThicknessMm: 3 };
++function solid(mesh) {
++  const raw = new wasm.Mesh({ numProp: 3, vertProperties: new Float32Array(mesh.positions), triVerts: new Uint32Array(mesh.indices) });
++  raw.merge(); return new wasm.Manifold(raw);
++}
++function verifyPartition(mesh, parts) {
++  assert.equal(parts.length, 2);
++  for (const part of parts) api.assertWatertightMesh(part.mesh, part.name);
++  const original = solid(mesh), a = solid(parts[0].mesh), b = solid(parts[1].mesh);
++  const joined = a.add(b), overlap = a.intersect(b), missing = original.subtract(joined), extra = joined.subtract(original);
++  try {
++    assert.ok(Math.abs(overlap.volume()) < 0.001, 'materials must not overlap');
++    assert.ok(Math.abs(missing.volume()) < 0.001, 'no missing terrain');
++    assert.ok(Math.abs(extra.volume()) < 0.001, 'no added terrain');
++    assert.ok(Math.abs(joined.volume() - original.volume()) < 0.01);
++  } finally { [original, a, b, joined, overlap, missing, extra].forEach(s => s.delete()); }
++}
++
++test('natural snow is deterministic, irregular and responds to snowline height', () => {
++  const low = api.createNaturalSnowPlan(preview, crop, 0.35), high = api.createNaturalSnowPlan(preview, crop, 0.75);
++  assert.deepEqual(low.cellRegions, api.createNaturalSnowPlan(preview, crop, 0.35).cellRegions);
++  assert.ok(low.cellRegions.reduce((a, b) => a + b) > high.cellRegions.reduce((a, b) => a + b));
++  assert.ok(new Set(low.naturalSnow.boundaryHeights.map(v => v.toFixed(2))).size > 100);
++  assert.deepEqual(low.colors.map(c => c.hex), ['#000000', '#ffffff']);
++});
++for (const shape of ['rectangle', 'circle', 'polygon']) test(`${shape} exports closed black and white volumes conserving terrain`, () => {
++  const footprint = { ...crop, shape, radiusMm: 30, polygonSides: 6 };
++  const mesh = api.buildHeightfieldTerrainMesh(footprint, heights, cols, rows, 3);
++  const plan = api.createNaturalSnowPlan(preview, footprint);
++  const parts = api.buildTerrainColorVolumes(wasm, mesh, footprint, plan);
++  verifyPartition(mesh, parts);
++  const rock = parts.find(p => p.color === '#000000'), snow = parts.find(p => p.color === '#ffffff');
++  assert.equal(Math.min(...rock.mesh.positions.filter((_, i) => i % 3 === 2)), -3);
++  assert.ok(Math.min(...snow.mesh.positions.filter((_, i) => i % 3 === 2)) > 0);
++  const files = unzipSync(api.encodeColored3mf([{ name: 'Everest', parts }], 'Everest'));
++  const xml = strFromU8(files['3D/3dmodel.model']);
++  assert.match(xml, /#000000FF/); assert.match(xml, /#FFFFFFFF/);
++  assert.match(xml, /Terrain — snow/);
++  assert.match(strFromU8(files['Metadata/model_settings.config']), /key="extruder" value="2"/);
++});
++test('manual and satellite regions become closed material volumes with a solid base', () => {
++  const mesh = api.buildHeightfieldTerrainMesh(crop, heights, cols, rows, 3);
++  const plan = api.createNaturalSnowPlan(preview, crop);
++  delete plan.naturalSnow;
++  plan.cellRegions = plan.cellRegions.map((_, i) => i % cols > cols / 2 ? 1 : 0);
++  verifyPartition(mesh, api.buildTerrainColorVolumes(wasm, mesh, crop, plan));
++});
++test('rejects stale snow and malformed palettes instead of exporting one color silently', () => {
++  const mesh = api.buildHeightfieldTerrainMesh(crop, heights, cols, rows, 3);
++  const plan = api.createNaturalSnowPlan(preview, crop);
++  assert.throws(() => api.buildTerrainColorVolumes(wasm, mesh, { ...crop, widthMm: 70 }, plan), /changed/);
++  plan.colors[1].hex = 'invalid';
++  assert.throws(() => api.buildTerrainColorVolumes(wasm, mesh, crop, plan), /incomplete/);
++});

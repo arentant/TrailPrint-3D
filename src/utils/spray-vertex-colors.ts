@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import type { SprayColorSlot } from "@shared/types/spray-paint";
+import { sampleHeightBilinearMm } from "@shared/utils/heightfield-mesh";
+import type { SprayPaintPlan, SprayColorSlot } from "@shared/types/spray-paint";
 import type { TerrainCropRegion } from "@shared/types/terrain";
 
 const SPRAY_COLOR_CACHE_KEY = "sprayColorCache";
@@ -286,6 +287,7 @@ export function applySprayVertexColors(
   rows: number,
   colors: SprayColorSlot[],
   bottomZ: number,
+  naturalSnow?: SprayPaintPlan["naturalSnow"],
 ): void {
   const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
   if (!pos) return;
@@ -295,20 +297,22 @@ export function applySprayVertexColors(
   const regionRgb = buildRegionRgb(colors);
   const fallback = hexToLinearRgb("#9E9E9E", new THREE.Color());
   const colorAttr = new Float32Array(pos.count * 3);
-  const baseColor = new THREE.Color(0.95, 0.93, 0.86);
+  const baseColor = hexToLinearRgb(colors.find(c => c.regionId === 0)?.hex ?? "#000000", new THREE.Color());
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
-    if (z <= bottomZ + 0.05) {
+    if (z <= Math.max(0, bottomZ + 0.05)) {
       colorAttr[i * 3] = baseColor.r;
       colorAttr[i * 3 + 1] = baseColor.g;
       colorAttr[i * 3 + 2] = baseColor.b;
       continue;
     }
     const idx = gridIndexFromMm(x, y, crop, cols, rows);
-    const regionId = cellRegions[idx] ?? 0;
+    const regionId = naturalSnow
+      ? (z > sampleHeightBilinearMm(x, y, naturalSnow.boundaryHeights, cols, rows, crop) ? 1 : 0)
+      : (cellRegions[idx] ?? 0);
     const base = regionId * 3;
     colorAttr[i * 3] = regionRgb[base] ?? fallback.r;
     colorAttr[i * 3 + 1] = regionRgb[base + 1] ?? fallback.g;

@@ -29,5 +29,6 @@ export function serializeSprayPlan(plan: SprayPaintPlan): SprayPaintPlan {
     ...p,
     colors: p.colors.map((c) => ({ ...c })),
     cellRegions: [...p.cellRegions],
+    naturalSnow: p.naturalSnow ? { ...p.naturalSnow, boundaryHeights: [...p.naturalSnow.boundaryHeights] } : undefined,
   };
 }

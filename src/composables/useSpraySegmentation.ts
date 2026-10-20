@@ -1,4 +1,5 @@
 import { ref, markRaw } from "vue";
+import { createNaturalSnowPlan } from "@shared/utils/natural-snow";
 import type {
   SprayGenerateMasksResponse,
   SprayMaskMeshPayload,
@@ -100,6 +101,18 @@ export function useSpraySegmentation() {
     paintMode.value = true;
     paintRegionId.value = regionId;
     return true;
+  }
+
+  function applyNaturalSnow(config: AppConfig, result: TerrainGenerateResponse, snowline = 0.5): void {
+    if (!result.heightPreview || !result.crop) return;
+    endPaintStroke();
+    setPaintMode(false);
+    config.sprayPaint.enabled = true;
+    config.sprayPaint.colorCount = 2;
+    plan.value = createNaturalSnowPlan(result.heightPreview, result.crop, snowline);
+    config.colors.terrain = '#000000';
+    clearMasksAfterEdit();
+    error.value = null;
   }
 
   async function runSegmentation(
@@ -213,6 +226,7 @@ export function useSpraySegmentation() {
   ): Set<number> {
     const changed = new Set<number>();
     if (!plan.value) return changed;
+    delete plan.value.naturalSnow;
     const { gridCols: cols, gridRows: rows, cellRegions } = plan.value;
     const r = paintBrushRadius.value;
     if (lastPaintMm) {
@@ -249,6 +263,7 @@ export function useSpraySegmentation() {
   function syncPlanColorCount(colorCount: number): void {
     const n = clampColorCount(colorCount);
     if (!plan.value) return;
+    delete plan.value.naturalSnow;
     const colors = plan.value.colors.slice(0, n);
     while (colors.length < n) {
       const regionId = colors.length;
@@ -312,6 +327,7 @@ export function useSpraySegmentation() {
     paintMode,
     paintRegionId,
     paintBrushRadius,
+    applyNaturalSnow,
     runSegmentation,
     runMaskGeneration,
     initManualPaintPlan,

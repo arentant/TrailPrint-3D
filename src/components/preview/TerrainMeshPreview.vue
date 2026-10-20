@@ -149,6 +149,7 @@ function applySprayColorsToTerrain(
     plan.gridRows,
     plan.colors,
     preview.bottomZ,
+    plan.naturalSnow,
   );
   const mat = mesh.material as THREE.MeshStandardMaterial;
   mat.vertexColors = true;

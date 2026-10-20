@@ -31,6 +31,8 @@ import { buildMoldLidMesh } from "../mold/mold-lid-mesh";
 import { assertTrailLineMesh, assertWatertightMesh } from "@shared/utils/mesh-manifold";
 import { encodeBinaryStl } from "@shared/utils/binary-stl";
 import type { TerrainMeshPayload } from "@shared/types/terrain";
+import { getManifold } from "../city/manifold-runtime";
+import { buildTerrainColorVolumes } from "@shared/utils/terrain-color-volumes";
 import { normalizeModelColors } from "@shared/types/model-colors";
 import { encodeColored3mf, normalizePartToBed, type PrintableGroup } from "@shared/export/colored-3mf";
 import { encodeTrayAms3mf } from "@shared/export/tray-ams-3mf";
@@ -225,8 +227,13 @@ async function generateMountainTrailFiles(
   }
 
   const colors = normalizeModelColors(config.colors);
+  const colorPlan = config.sprayPaint.enabled ? req.sprayPaintPlan : null;
+  if (colorPlan) onProgress({ phase: 'model', progress: 0.61, message: 'Preparing printable terrain colors…' });
+  const terrainParts = colorPlan
+    ? buildTerrainColorVolumes(await getManifold(), terrainWithGroove.mesh, terrainWithGroove.crop, colorPlan)
+    : [{ name: 'Terrain', color: colors.terrain, mesh: terrainWithGroove.mesh }];
   const groups: PrintableGroup[] = [{ name: 'Terrain, trail and water', parts: [
-    { name: 'Terrain', color: colors.terrain, mesh: terrainWithGroove.mesh },
+    ...terrainParts,
     ...(terrainWithGroove.trailMesh ? [{ name: 'Trail', color: colors.trail, mesh: terrainWithGroove.trailMesh }] : []),
     ...(terrainWithGroove.waterMeshes ?? []).map((mesh, i) => {
       const mapping = terrainWithGroove.waterPartMappings?.find(part => part.partIndex === i);
@@ -240,14 +247,14 @@ async function generateMountainTrailFiles(
   const waterManifest = { printMode: config.printMode ?? 'separate',
     sources: terrainWithGroove.waterAttribution ?? [], coverageErrors: terrainWithGroove.waterCoverageErrors ?? [],
     featureStatuses: terrainWithGroove.waterFeatureStatuses ?? [], features: terrainWithGroove.waterFeatureDetails ?? [], partMappings: terrainWithGroove.waterPartMappings ?? [] };
-  const model3mf = req.target === "model-3mf" || config.printMode === "fused" ? encodeColored3mf(groups, modelExportStem(config), waterManifest) : undefined;
+  const model3mf = req.target === "model-3mf" || config.printMode === "fused" || colorPlan ? encodeColored3mf(groups, modelExportStem(config), waterManifest) : undefined;
   if (req.target === 'model-3mf') {
     // A single-file target emits exactly its described artifact.
     await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
     return;
   }
-  if (config.printMode === 'fused') {
-    await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf!);
+  if (model3mf) {
+    await onFile(fileName(MODEL_3MF_FILE_NAME), model3mf);
   }
 
   if (trayFootprint && config.tray.nfc.enabled) {

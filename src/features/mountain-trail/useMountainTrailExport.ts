@@ -61,7 +61,7 @@ export function useMountainTrailExport() {
         viewportWidth: vw,
         viewportHeight: vh,
         target,
-        sprayPaintPlan: target === "all" && exportConfig.sprayPaint.enabled && sprayPlan.value
+        sprayPaintPlan: (target === "all" || target === "model-3mf") && exportConfig.sprayPaint.enabled && sprayPlan.value
           ? serializeSprayPlan(sprayPlan.value)
           : undefined,
       };

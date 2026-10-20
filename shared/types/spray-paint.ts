@@ -23,6 +23,8 @@ export interface SprayPaintPlan {
   /** 是否使用了卫星图颜色（false 表示仅地形规则降级） */
   satelliteUsed: boolean;
   warning?: string;
+  /** Stored boundary keeps preview and printable material volumes aligned. */
+  naturalSnow?: { snowline: number; boundaryHeights: number[]; widthMm: number; heightMm: number };
 }
 
 export interface SpraySegmentRequest {
