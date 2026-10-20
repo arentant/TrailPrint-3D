@@ -122,6 +122,8 @@ export function createDefaultModelLogo(): ModelLogoConfig {
 export interface ModelKeychainConfig {
   enabled: boolean;
   diameterMm: number;
+  /** Free placement in model coordinates; null keeps legacy edge placement. */
+  position?: Pick<ModelFeaturePosition, 'xMm' | 'yMm'> | null;
   edge: number;
   offsetMm: number;
   /** Distance from the model edge to the hole center. */
@@ -134,7 +136,7 @@ export function createDefaultModelText(): ModelTextConfig {
 }
 
 export function createDefaultModelKeychain(): ModelKeychainConfig {
-  return { enabled: false, diameterMm: 4, edge: 1, offsetMm: 0, insetMm: 5 };
+  return { enabled: false, diameterMm: 4, position: null, edge: 1, offsetMm: 0, insetMm: 5 };
 }
 
 /** Legacy presets leave model personalization switched off. */

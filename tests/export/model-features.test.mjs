@@ -103,6 +103,7 @@ for (const [shape, sides, corner] of [['circle', 6, 0], ['rectangle', 6, 0], ['r
 
 test('a direct model hole stays clear through crossing trail and water materials', () => {
   const { config } = request('rectangle'); config.terrain.keychain.enabled = true;
+  config.terrain.keychain.position = { xMm: 13, yMm: -17 };
   const { crop, mesh } = source(config);
   const hole = api.computeModelKeychainHole(config, crop);
   // Three stacked volumes exercise each output without depending on remote map data.
@@ -132,9 +133,10 @@ test('every model edge can host a hole, including rounded corners and circular a
 test('a separately downloaded trail keeps the same keychain bore as the complete model', async () => {
   const req = request('rectangle'), config = req.config;
   config.terrain.keychain.enabled = true;
+  config.terrain.keychain.position = { xMm: 17, yMm: 9 };
   const crop = api.computeTerrainCropRegion(config.mapCrop, req.viewportWidth, req.viewportHeight);
   const hole = api.computeModelKeychainHole(config, crop);
-  const points = [[hole.center.x, -12], [hole.center.x, 12]].map(([x, y]) =>
+  const points = [[hole.center.x, hole.center.y - 12], [hole.center.x, hole.center.y + 12]].map(([x, y]) =>
     api.modelMmToLatLon(x, y, config.mapCrop, crop, req.viewportWidth, req.viewportHeight));
   Object.assign(config.gpx, { imported: true, points, rawPoints: points, pointCount: points.length });
   const complete = await api.generateTerrainMain({ ...req, stlExport: true });
@@ -180,10 +182,12 @@ test('browser and desktop generation and terrain STL / model 3MF include persona
   const req = request('rectangle');
   Object.assign(req.config.terrain.text, { enabled: true, title: 'ԱՐԱԳԱԾ', subtitle: '2026', placement: 'both' });
   req.config.terrain.keychain.enabled = true;
+  req.config.terrain.keychain.position = { xMm: -23, yMm: 17 };
   const preview = await api.generateTerrainMain(req);
   const exported = await api.generateTerrainMain({ ...req, stlExport: true });
   assert.equal(preview.modelFeaturesApplied, true); check(preview.mesh);
   assert.deepEqual(preview.mesh, exported.mesh);
+  assert.equal(hits(preview.mesh, -23, 17), 0);
   const files = {};
   await api.mountainTrailExportFlow.generateFiles(req, () => {}, (name, data) => { files[name] = data; });
   const stl = Object.entries(files).find(([name]) => name.endsWith('_Terrain_Main.stl'))[1];
@@ -192,6 +196,39 @@ test('browser and desktop generation and terrain STL / model 3MF include persona
   await api.mountainTrailExportFlow.generateFiles({ ...req, target: 'model-3mf' }, () => {}, (name, data) => { colored[name] = data; });
   const xml = strFromU8(unzipSync(Object.values(colored)[0])['3D/3dmodel.model']);
   assert.equal((xml.match(/<triangle /g) ?? []).length, exported.mesh.indices.length / 3);
+});
+
+test('free hole coordinates work across model shapes and ignore legacy edge settings', () => {
+  for (const [shape, sides, corner] of [['circle', 6, 0], ['rectangle', 6, 6], ['polygon', 3, 0], ['polygon', 8, 3]]) {
+    const { config } = request(shape, sides, corner);
+    Object.assign(config.terrain.keychain, { enabled: true, position: { xMm: 12.3, yMm: -7.8 }, edge: 99, offsetMm: Infinity, insetMm: -1 });
+    const valid = api.validateModelGeneration(config); assert.equal(valid.valid, true, valid.message);
+    const { crop, mesh } = source(config), hole = api.computeModelKeychainHole(config, crop);
+    assert.deepEqual(hole.center, { x: 12.3, y: -7.8 });
+    const result = api.applyModelFeatures(wasm, config, crop, mesh, null, []).mesh;
+    check(result); assert.equal(hits(result, 12.3, -7.8), 0);
+    assert.ok(hits(result, 0, 0) >= 2, 'the hole cuts only the requested location');
+    assert.deepEqual(api.normalizeTerrainFeatures(config.terrain).keychain.position, config.terrain.keychain.position);
+  }
+});
+
+test('free hole placement validates coordinates, edge clearance and artwork while retaining an editable outline', () => {
+  const { config } = request('rectangle');
+  Object.assign(config.terrain.keychain, { enabled: true, position: { xMm: 100, yMm: 0 } });
+  assert.match(api.validateModelGeneration(config).message, /2 mm of model material/);
+  assert.equal(api.computeModelKeychainHole(config, undefined, false).center.x, 100);
+  for (const value of [Infinity, NaN, 501]) {
+    config.terrain.keychain.position.xMm = value;
+    assert.match(api.validateModelGeneration(config).message, /coordinates/);
+  }
+  config.terrain.keychain.position = { xMm: 0, yMm: 0 };
+  Object.assign(config.terrain.logo, { enabled: true, asset: logoAsset(), widthMm: 12 });
+  assert.match(api.validateModelGeneration(config).message, /overlaps text or a logo/);
+  config.terrain.keychain.position = { xMm: 18, yMm: 12 };
+  const valid = api.validateModelGeneration(config); assert.equal(valid.valid, true, valid.message);
+  delete config.terrain.keychain.position;
+  assert.equal(api.normalizeTerrainFeatures(config.terrain).keychain.position, null);
+  assert.ok(api.computeModelKeychainHole(config).center.x > 50, 'legacy edge positions are preserved');
 });
 
 function logoAsset() {

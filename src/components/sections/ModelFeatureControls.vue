@@ -2,7 +2,7 @@
 import { computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useConfigStore } from '@/stores/config';
-import { modelEdgeCount, validateModelFeatures } from '@shared/utils/model-features';
+import { modelEdgeCount, modelKeychainCenter, validateModelFeatures } from '@shared/utils/model-features';
 import NumberField from '@/components/ui/NumberField.vue';
 import IosToggle from '@/components/ui/IosToggle.vue';
 import SegmentedControl from '@/components/ui/SegmentedControl.vue';
@@ -12,6 +12,17 @@ import ModelPlacementEditor from './ModelPlacementEditor.vue';
 const { config } = storeToRefs(useConfigStore());
 const text = computed(() => config.value.terrain.text);
 const keychain = computed(() => config.value.terrain.keychain);
+const holePlacement = computed({
+  get: () => keychain.value.position != null ? 'free' : 'edge',
+  set: value => {
+    if (value === 'edge') keychain.value.position = null;
+    else {
+      let center = { x: 0, y: 0 };
+      try { center = modelKeychainCenter(config.value); } catch { /* Recover invalid edge settings at the center. */ }
+      keychain.value.position = { xMm: center.x, yMm: center.y };
+    }
+  },
+});
 const edges = computed(() => Array.from({ length: modelEdgeCount(config.value) }, (_, edge) => ({ edge,
   name: config.value.mapCrop.shape === 'polygon' ? `Edge ${edge + 1}${edge === 0 ? ' · front' : ''}` : ['Front', 'Right', 'Back', 'Left'][edge] })));
 watch(() => edges.value.length, count => { if (keychain.value.edge >= count) keychain.value.edge = 0; });
@@ -57,20 +68,21 @@ function useRoute(includeDetails: boolean) {
       <p v-if="text.placement !== 'front' && text.style === 'raised'">Raised underside lettering lifts the model off the bed. Choose engraved for a flat bottom.</p>
     </template>
     <ModelLogoControls />
-    <ModelPlacementEditor />
     <div class="model-features__heading model-features__divider">
       <div><span>Keychain hole on model</span><p>A round hole directly through the terrain, ready for a key ring.</p></div>
       <IosToggle v-model="keychain.enabled" aria-label="Keychain hole on model" />
     </div>
     <template v-if="keychain.enabled">
-      <div class="model-features__row">
-        <NumberField v-model="keychain.diameterMm" label="Model hole diameter" suffix="mm" :min="2" :max="10" :step="0.5" />
+      <NumberField v-model="keychain.diameterMm" label="Model hole diameter" suffix="mm" :min="2" :max="10" :step="0.5" />
+      <label>Hole positioning<select v-model="holePlacement" aria-label="Model hole positioning"><option value="free">Free placement</option><option value="edge">From an edge</option></select></label>
+      <template v-if="holePlacement === 'edge'">
         <NumberField v-model="keychain.insetMm" label="Model hole inset" suffix="mm" :min="0" :step="0.5" />
-      </div>
-      <label>Model edge<select v-model="keychain.edge" aria-label="Model hole edge"><option v-for="edge in edges" :key="edge.edge" :value="edge.edge">{{ edge.name }}</option></select></label>
-      <NumberField v-model="keychain.offsetMm" label="Model hole offset" suffix="mm" :step="0.5" />
-      <p>Inset measures from the edge to the hole center. Offset moves it along the edge; zero centers it. Keep at least 2 mm of material around the opening.</p>
+        <label>Model edge<select v-model="keychain.edge" aria-label="Model hole edge"><option v-for="edge in edges" :key="edge.edge" :value="edge.edge">{{ edge.name }}</option></select></label>
+        <NumberField v-model="keychain.offsetMm" label="Model hole offset" suffix="mm" :step="0.5" />
+      </template>
+      <p>Select Hole in the layout below to drag it anywhere or enter exact coordinates. Keep at least 2 mm of material around the opening.</p>
     </template>
+    <ModelPlacementEditor />
     <p v-if="validation" class="model-features__error" role="alert">{{ validation }}</p>
     <p v-else-if="text.enabled || config.terrain.logo.enabled || keychain.enabled">Included in the 3D preview, terrain STL and model 3MF. Saved with your presets.</p>
   </div>

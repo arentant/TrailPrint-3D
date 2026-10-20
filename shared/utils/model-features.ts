@@ -167,24 +167,35 @@ export function buildModelTextLayout(config: AppConfig, crop = computeTerrainCro
   return result;
 }
 
-export function computeModelKeychainHole(config: AppConfig, crop = computeTerrainCropRegion(config.mapCrop, 800, 600)): TrayKeychainHole | null {
+export function modelKeychainCenter(config: AppConfig, crop = computeTerrainCropRegion(config.mapCrop, 800, 600)): Vec2 {
   const hole = config.terrain.keychain;
-  if (!hole?.enabled) return null;
-  if (!Number.isFinite(hole.diameterMm) || hole.diameterMm < 2 || hole.diameterMm > 10) throw new Error('Model keychain hole diameter must be between 2 and 10 mm.');
+  if (hole.position != null) {
+    const { xMm, yMm } = hole.position;
+    if (![xMm, yMm].every(Number.isFinite) || Math.abs(xMm) > 500 || Math.abs(yMm) > 500) throw new Error('Use model hole coordinates between −500 and 500 mm.');
+    return { x: xMm, y: yMm };
+  }
   if (!Number.isInteger(hole.edge) || hole.edge < 0 || hole.edge >= modelEdgeCount(config)) throw new Error('Choose an available model edge for the keychain hole.');
   if (!Number.isFinite(hole.insetMm) || hole.insetMm < 0 || !Number.isFinite(hole.offsetMm)) throw new Error('Use a positive model hole inset and a finite edge offset.');
   const contour = modelFootprint(crop), angle = -Math.PI / 2 + hole.edge * Math.PI * 2 / modelEdgeCount(config);
   const nx = Math.cos(angle), ny = Math.sin(angle);
   const radius = Math.max(...contour.map(p => p.x * nx + p.y * ny)) - hole.insetMm;
+  if (radius <= 0) throw new Error('Keep at least 2 mm of model material around the keychain hole. Reduce its inset or use free placement.');
   const a = angle + hole.offsetMm / Math.max(radius, 1e-6);
   if (config.mapCrop.shape === 'circle' && Math.abs(hole.offsetMm) > radius * Math.PI / 4) throw new Error('Model keychain hole offset is outside the selected quarter. Reduce its offset.');
-  const center = config.mapCrop.shape === 'circle'
+  return config.mapCrop.shape === 'circle'
     ? { x: radius * Math.cos(a), y: radius * Math.sin(a) }
     : { x: nx * radius - ny * hole.offsetMm, y: ny * radius + nx * hole.offsetMm };
+}
+
+export function computeModelKeychainHole(config: AppConfig, crop = computeTerrainCropRegion(config.mapCrop, 800, 600), checkPlacement = true): TrayKeychainHole | null {
+  const hole = config.terrain.keychain;
+  if (!hole?.enabled) return null;
+  if (!Number.isFinite(hole.diameterMm) || hole.diameterMm < 2 || hole.diameterMm > 10) throw new Error('Model keychain hole diameter must be between 2 and 10 mm.');
+  const center = modelKeychainCenter(config, crop), contour = modelFootprint(crop);
   const radiusMm = hole.diameterMm / 2;
   const ring = magnetCircleVertsMm(center.x, center.y, radiusMm);
   const cutRadiusMm = Math.hypot(ring[0]!.x - center.x, ring[0]!.y - center.y);
-  if (radius <= 0 || !pointInPolygon(center.x, center.y, contour) || boundaryDistance(center, contour) - cutRadiusMm < 2 - 1e-8) throw new Error('Keep at least 2 mm of model material around the keychain hole. Increase its inset, reduce its diameter or move it away from a corner.');
+  if (checkPlacement && (!pointInPolygon(center.x, center.y, contour) || boundaryDistance(center, contour) - cutRadiusMm < 2 - 1e-8)) throw new Error('Keep at least 2 mm of model material around the keychain hole. Move it inward or reduce its diameter.');
   return { center, radiusMm, cutRadiusMm, contour: ring };
 }
 
@@ -192,7 +203,7 @@ export function validateModelFeatures(config: AppConfig): void {
   if (config.moldKit?.enabled && hasModelFeatures(config)) throw new Error('Turn off the mold kit to use model lettering or a direct keychain hole.');
   const layout = buildModelTextLayout(config), hole = computeModelKeychainHole(config);
   if (hole) assertKeychainClearance(hole, [...layout.front, ...layout.underside, ...layout.logoFront, ...layout.logoUnderside].map(shape => shape.contour), 0.6,
-    'The model keychain hole overlaps text or a logo. Change its edge, inset or offset.');
+    'The model keychain hole overlaps text or a logo. Move the hole or the artwork.');
 }
 
 export function hasModelFeatures(config: AppConfig): boolean {
