@@ -1,9 +1,8 @@
 import type { CityGenerateRequest, CityPictureConfig } from '../types/city';
 import type { TerrainCropRegion } from '../types/terrain';
 import { cityFootprint, cityProjector } from './geometry';
-import { CITY_MAP_CREDITS, type CityMapTile } from './map-tiles';
-import { tileXToLon, tileYToLat } from '../utils/satellite-tiles';
-import { renderCityPosterOverlay } from './poster-overlay';
+import { CITY_MAP_CREDITS, validateCityPictureImage, type CityPictureMap } from './picture-map';
+import { renderCityPosterOverlay, renderCityMapAttribution } from './poster-overlay';
 
 const number = (value: number) => {
   if (!Number.isFinite(value)) throw new Error('The map contains invalid coordinates.');
@@ -44,7 +43,7 @@ function titleLines(title: string) {
 }
 
 function posterLettering(picture: CityPictureConfig, crop: TerrainCropRegion): string {
-  const { margin, header, height } = cityPictureLayout(crop, picture);
+  const { margin, header } = cityPictureLayout(crop, picture);
   const w = crop.widthMm, unit = w / 120;
   const dark = picture.theme === 'midnight';
   const ink = dark ? '#f6f2e9' : '#202c2b', muted = dark ? '#a8b8b4' : '#657671', rule = dark ? '#3c504b' : '#d3d9d1';
@@ -71,12 +70,11 @@ function posterLettering(picture: CityPictureConfig, crop: TerrainCropRegion): s
     const value = stat.value + stat.suffix;
     content += text(x, y + 6.5 * unit, value, Math.min((stat.label === 'DATE' ? 3.3 : 4.4) * unit, (cell - 2 * unit) / Math.max(Array.from(value).length * 0.64, 1)), 'font-weight="650"');
   });
-  content += text(margin, height - 3 * unit, 'Map © Esri · OpenStreetMap contributors', 1.75 * unit, `fill="${muted}"`);
   return `<g id="poster-details" data-layout="editorial" fill="${ink}" font-family="Avenir Next, Avenir, Montserrat, sans-serif">${content}</g>`;
 }
 
-/** Self-contained vector picture. One viewBox unit is one printed millimeter. */
-export function renderPrintableCityMap(request: CityGenerateRequest, crop: TerrainCropRegion, tiles: CityMapTile[]): string {
+/** Self-contained picture with a print-resolution basemap and vector route/lettering. */
+export function renderPrintableCityMap(request: CityGenerateRequest, crop: TerrainCropRegion, map?: CityPictureMap): string {
   const project = cityProjector(request, crop);
   const path = (line: number[][], close = false) => line.map(([lon, lat], i) => {
     if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lon) > 180 || Math.abs(lat) > 90) throw new Error('The map contains invalid coordinates.');
@@ -87,16 +85,17 @@ export function renderPrintableCityMap(request: CityGenerateRequest, crop: Terra
   const footprint = outline
     ? `<path d="${outline.map(([x, y], i) => `${i ? 'L' : 'M'}${number(x)} ${number(y)}`).join(' ')} Z"/>`
     : `<circle r="${number(crop.radiusMm ?? crop.widthMm / 2)}"/>`;
-  const images = tiles.map((tile) => {
-    if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(tile.dataUrl)) throw new Error('Invalid street map tile image.');
-    const west = tileXToLon(tile.x, tile.zoom), north = tileYToLat(tile.y, tile.zoom);
-    const [x, y] = project(west, north);
-    const [rightX, rightY] = project(tileXToLon(tile.x + 1, tile.zoom), north);
-    const [bottomX, bottomY] = project(west, tileYToLat(tile.y + 1, tile.zoom));
-    // Tile pixels and GPX coordinates use the same Mercator-to-model transform.
-    const matrix = [(rightX - x) / 256, (rightY - y) / 256, (bottomX - x) / 256, (bottomY - y) / 256, x, y];
-    return `<image width="256" height="256" transform="matrix(${matrix.join(' ')})" href="${tile.dataUrl}"/>`;
-  }).join('\n');
+  let images = '';
+  if (map) {
+    validateCityPictureImage(map);
+    const { minLon, maxLon, minLat, maxLat } = map.bounds;
+    const [x, y] = project(minLon, maxLat);
+    const [rightX, rightY] = project(maxLon, maxLat);
+    const [bottomX, bottomY] = project(minLon, minLat);
+    const matrix = [(rightX - x) / map.pixelWidth, (rightY - y) / map.pixelWidth,
+      (bottomX - x) / map.pixelHeight, (bottomY - y) / map.pixelHeight, x, y];
+    images = `<image width="${map.pixelWidth}" height="${map.pixelHeight}" transform="matrix(${matrix.join(' ')})" href="${map.dataUrl}"/>`;
+  }
   const gpx = request.config.gpx;
   const segments = gpx.imported ? (gpx.segments ?? [gpx.rawPoints?.length ? gpx.rawPoints : gpx.points]).filter((s) => s.length >= 2) : [];
   const routes = segments.map((s) => `<path d="${path(s.map((p) => [p.lon, p.lat]))}"/>`).join('\n');
@@ -109,7 +108,7 @@ export function renderPrintableCityMap(request: CityGenerateRequest, crop: Terra
 <svg xmlns="http://www.w3.org/2000/svg" width="${number(width)}mm" height="${number(height)}mm" viewBox="0 0 ${number(width)} ${number(height)}" role="img" aria-label="City running map">
 <metadata>${CITY_MAP_CREDITS}</metadata>
 <rect width="100%" height="100%" fill="${picture?.enabled ? picture.theme === 'midnight' ? '#192b28' : '#f6f3eb' : 'white'}"/>
-${overlay ? `<defs><clipPath id="poster-overlay-footprint" clipPathUnits="userSpaceOnUse" transform="translate(${number(cx)} ${number(cy)}) scale(1 -1)">${footprint}</clipPath></defs>` : ''}
+<defs><clipPath id="poster-overlay-footprint" clipPathUnits="userSpaceOnUse" transform="translate(${number(cx)} ${number(cy)}) scale(1 -1)">${footprint}</clipPath></defs>
 <g transform="translate(${number(cx)} ${number(cy)}) scale(1 -1)">
   <defs><clipPath id="city-footprint" clipPathUnits="userSpaceOnUse">${footprint}</clipPath></defs>
   <g clip-path="url(#city-footprint)">
@@ -119,5 +118,6 @@ ${overlay ? `<defs><clipPath id="poster-overlay-footprint" clipPathUnits="userSp
   </g>
 </g>
 ${picture?.enabled ? overlay ? renderCityPosterOverlay(picture, crop, outline, pictureStats(picture), titleLines(clean(picture.title))) : posterLettering(picture, crop) : ''}
+${renderCityMapAttribution(crop, outline, margin, header)}
 </svg>\n`;
 }

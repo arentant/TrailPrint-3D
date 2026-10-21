@@ -198,7 +198,8 @@ assembly coordinates. Instructions include OpenStreetMap attribution and ODbL
 information. Separate route islands may need supports when printed individually.
 
 City also accepts `target: "trail"` for only the matching route STL, and
-`target: "map"` for `<prefix>_City_Map.svg`. Both can be downloaded directly from
+`target: "map"` for `<prefix>_City_Map.zip`, containing both `<prefix>_City_Map.svg`
+and `<prefix>_City_Map_4K.png`. Both targets can be downloaded directly from
 City without a full-city preview, even after that preview fails. Trail-only
 generation uses the GPX and the selected surface; it never downloads OSM buildings
 or roads, fuses a city, or cuts a groove. Flat requires no network. Real terrain
@@ -206,29 +207,47 @@ fetches only elevation, with the existing grid cache. A matching finalized previ
 can supply the identical route immediately.
 
 The paper map uses the same rotated projection, footprint clipping, physical
-dimensions and route width as the STLs. Its background is rendered Esri World
-Topographic imagery, with gray streets, green parks, blue water and an orange
-vector GPX route. 3D layer switches and material
-colors do not change the paper basemap. The SVG embeds the tile images, keeps
-separate GPX segments. The picture fills the selected physical dimensions with
-no title, distance, print instructions, border, visible source credits or extra
-margin. Provider credits remain in SVG metadata.
-Open it in a browser and print at **100% / actual size**, with fit-to-page disabled
-and paper large enough for the image. Choose Flat for a route insert to place on
-the paper map. The app shows the print instructions after download. The route
-remains sharp at any print resolution.
+sizes and vector GPX route as the STLs. Its background comes from OpenFreeMap
+(OpenStreetMap / OpenMapTiles), rendered locally with MapLibre's Positron style.
+No API key is required. Street names and road shields are hidden. 3D layer switches and material colors do not change the
+paper basemap. SVGs embed a PNG background and keep the GPX and poster lettering
+as vectors; they are self-contained and retain separate GPX segments. Every
+layout, including Map only, displays OpenMapTiles/OpenStreetMap attribution and
+the OpenStreetMap copyright URL without changing the map's physical dimensions.
 
-Paper exports hydrate the GPX and validate framing, but never download OSM feature
-geometry, initialize solid geometry, or request elevation, even in Real terrain
-mode without an API key. Print-size-based zoom selection targets 600 DPI using
-actual pixels inside the geographic bounds, rather than the surrounding tile
-padding. Each picture is capped at 512 tiles, 8,192 pixels per tile-grid axis and
-32 MB of downloaded images, with four concurrent requests and a cache of the
-current selection. Oversized print dimensions use the highest detail within
-these bounds. Large
-city runs do not hit the full-city geometry download limits. Tile failures report
-an error and remain retryable. Only full ZIP downloads require a valid preview.
-Browser downloads and desktop save/cancel behavior are shared across all targets.
+Every map download also includes the complete poster as a PNG, with 4,096 pixels
+on its longest side and the original aspect ratio. The renderer rasterizes the
+same SVG, including the map, route, text, theme and attribution. Both files share
+one ZIP download/save dialog, so browser multiple-download permissions are not
+needed. PNG dimensions and its header are checked before packaging; a failed PNG
+render fails the export instead of silently omitting the companion image.
+
+Open the SVG in a browser and print at **100% / actual size**, with fit-to-page
+disabled and paper large enough for the image. Choose Flat for a route insert to
+place on the paper map. The app shows print instructions after download.
+
+Both browser and Electron render the background in the UI renderer before
+sending a serializable image to the export worker/main process. That boundary
+validates the framing, print dimensions and PNG header; missing, stale or
+preview-resolution images cannot be exported. Paper exports still hydrate GPX
+and validate framing, but never download OSM feature geometry for 3D, initialize
+solid geometry, or request elevation, even in Real terrain mode without a key.
+
+Preview uses 120 DPI and export targets at least 600 DPI, increasing it for small
+prints to supply enough source detail for the 4K PNG. Cartographic zoom and geographic
+bounds stay fixed between them: higher DPI draws the same vector features and
+labels with more pixels. Small geographic selections do not depend on raster
+tile availability or silently fall back to low-detail images. Output is capped
+at 8,192 pixels per axis and 32 MB of PNG data; very large print sizes therefore
+have a lower effective DPI. A device that cannot allocate the planned canvas
+reports an error instead of silently reducing resolution. Rendering is serialized,
+times out after 60 seconds, and releases its WebGL context after each job. A
+bounded cache retains two completed images, allowing poster text edits without
+rerendering. Closing or replacing a preview cancels its render. Provider failures
+are retryable. OpenFreeMap's public service has no SLA.
+
+Only 3D city ZIP downloads require a valid 3D preview. Browser downloads and desktop
+save/cancel behavior are shared across all targets.
 
 Mountain tray magnet pockets can be round, rectangular or hexagonal, independently
 of the map footprint. Set diameter for round magnets, length and width for rectangles

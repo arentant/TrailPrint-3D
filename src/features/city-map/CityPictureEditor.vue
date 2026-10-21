@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import type { CityGenerateRequest, CityPictureConfig } from '@shared/types/city';
-import type { CityMapTile } from '@shared/city/map-tiles';
-import { loadCityPictureTiles } from '@shared/city/map-tiles';
+import type { CityPictureMap } from '@shared/city/picture-map';
+import { loadCityPictureMap } from '@/utils/city-picture-map';
 import { renderPrintableCityMap, cityPictureLayout } from '@shared/city/printable-map';
 import { citySelectionCrop } from '@shared/city/selection-crop';
 import { cityPictureDetails } from '@shared/city/picture-details';
-import { heightfieldGeoBounds } from '@shared/utils/map-mm-projection';
 
 const props = defineProps<{ request: CityGenerateRequest; exporting: boolean; exportMessage?: string | null; exportProgress: number }>();
 const picture = defineModel<CityPictureConfig>({ required: true });
 const emit = defineEmits<{ close: []; download: [] }>();
 const dialog = ref<HTMLElement | null>(null);
-const tiles = shallowRef<CityMapTile[] | null>(null);
+const background = shallowRef<CityPictureMap | null>(null);
 const loading = ref(true), error = ref(''), loaded = ref(0), total = ref(0);
 const previewUrl = ref('');
 const crop = computed(() => citySelectionCrop(props.request));
@@ -34,27 +33,29 @@ const fields = [
 ] as const;
 const missingTime = computed(() => !props.request.config.gpx.elapsedSeconds);
 let disposed = false, revision = 0;
+let previewController: AbortController | undefined;
 let previousFocus: HTMLElement | null = null;
 
 async function loadPreview() {
   const token = ++revision;
-  loading.value = true; error.value = ''; tiles.value = null; loaded.value = 0; total.value = 0;
+  previewController?.abort();
+  previewController = new AbortController();
+  loading.value = true; error.value = ''; background.value = null; loaded.value = 0; total.value = 0;
   try {
-    const bounds = heightfieldGeoBounds(crop.value, 2, 2, props.request.config.mapCrop, props.request.viewportWidth, props.request.viewportHeight, 0);
-    // A lighter map for the editor; export uses the same renderer with 600 DPI tiles.
-    const images = await loadCityPictureTiles(bounds, crop.value.widthMm, crop.value.heightMm, (complete, count) => {
+    // Same vector style and geographic framing; only pixel density changes for export.
+    const image = await loadCityPictureMap(props.request, (complete, count) => {
       if (!disposed && token === revision) { loaded.value = complete; total.value = count; }
-    }, 120);
-    if (!disposed && token === revision) tiles.value = images;
+    }, 120, previewController.signal);
+    if (!disposed && token === revision) background.value = image;
   } catch (e) {
     if (!disposed && token === revision) error.value = e instanceof Error ? e.message : 'Could not load the map. Try again.';
   } finally { if (!disposed && token === revision) loading.value = false; }
 }
 
-watch([tiles, picture], () => {
-  if (!tiles.value) return;
+watch([background, picture], () => {
+  if (!background.value) return;
   try {
-    const source = renderPrintableCityMap({ ...props.request, config: { ...props.request.config, picture: picture.value } }, crop.value, tiles.value);
+    const source = renderPrintableCityMap({ ...props.request, config: { ...props.request.config, picture: picture.value } }, crop.value, background.value);
     const url = URL.createObjectURL(new Blob([source], { type: 'image/svg+xml' }));
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
     previewUrl.value = url;
@@ -76,7 +77,7 @@ function trapFocus(event: KeyboardEvent) {
 }
 onMounted(async () => { previousFocus = document.activeElement as HTMLElement; await nextTick(); dialog.value?.focus(); });
 onUnmounted(() => {
-  disposed = true; revision++;
+  disposed = true; revision++; previewController?.abort();
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
   if (previousFocus?.isConnected) previousFocus.focus();
 });
@@ -140,13 +141,13 @@ onUnmounted(() => {
               <p class="data-note">{{ !request.config.gpx.imported ? 'Add your own title and details.' : missingTime ? 'Time and pace aren’t available in this GPX. Add any missing details if you know them.' : 'Date, elapsed time and average pace come from your GPX. Elapsed time includes stops.' }} Clear any field to leave it off the poster.</p>
               <button v-if="request.config.gpx.imported" class="reset-button" @click="resetDetails">↺ Use GPX values</button>
             </template>
-            <div class="print-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8V3h10v5M7 17H4V8h16v9h-3M7 14h10v7H7zM16 11h1"/></svg><div><strong>Made to print</strong><p>The map stays {{ crop.widthMm.toFixed(1) }} × {{ crop.heightMm.toFixed(1) }} mm. Print at 100% / actual size to match your trail STL.</p></div></div>
+            <div class="print-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8V3h10v5M7 17H4V8h16v9h-3M7 14h10v7H7zM16 11h1"/></svg><div><strong>Made to print</strong><p>The map stays {{ crop.widthMm.toFixed(1) }} × {{ crop.heightMm.toFixed(1) }} mm. Print the SVG at 100% / actual size to match your trail STL.</p></div></div>
           </fieldset>
         </aside>
       </div>
       <footer class="picture-footer">
-        <div><p role="status">{{ exportMessage || 'SVG picture · Print-ready map · Editable details' }}</p><progress v-if="exporting" :value="exportProgress" max="1" /></div>
-        <button class="download-button" :disabled="loading || !!error || !previewUrl || exporting" @click="emit('download')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>{{ exporting ? 'Exporting…' : 'Download SVG' }}</button>
+        <div><p role="status">{{ exportMessage || 'SVG + 4K PNG in one ZIP · PNG longest side: 4096 px' }}</p><progress v-if="exporting" :value="exportProgress" max="1" /></div>
+        <button class="download-button" :disabled="loading || !!error || !previewUrl || exporting" @click="emit('download')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>{{ exporting ? 'Exporting…' : 'Download SVG + PNG' }}</button>
       </footer>
     </section>
   </div>

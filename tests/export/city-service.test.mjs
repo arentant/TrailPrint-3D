@@ -8,28 +8,38 @@ const data = JSON.parse(await readFile('fixtures/city-map.osm.json','utf8'));
 const xml = await readFile('fixtures/city-run.gpx','utf8');
 const compiled = await build({
   stdin: { contents: `export * from './electron/main/city/city-model-service'; export * from './electron/main/export/city-map-flow';
-    export * from './shared/types/city'; export * from './shared/utils/binary-stl'; export * from './shared/utils/gpx-parser';
+    export * from './shared/types/city'; export * from './shared/city/picture-map'; export * from './shared/city/picture-png'; export * from './shared/utils/binary-stl'; export * from './shared/utils/gpx-parser';
     export { cityProject, cityFootprint } from './shared/city/geometry'; export * from './shared/export/export-artifact';`, resolveDir: resolve('.') },
   bundle: true, write: false, platform:'node', format:'esm',
   plugins:[{ name:'runtime-fixtures', setup(build) {
     build.onResolve({ filter:/^\.\/manifold-runtime$/ }, () => ({ path:'manifold', namespace:'fixture' }));
     build.onResolve({ filter:/^\.\.\/terrain\/dem-provider$/ }, () => ({ path:'dem', namespace:'fixture' }));
     build.onResolve({ filter:/^\.\/city-map-provider$/ }, () => ({ path:'map', namespace:'fixture' }));
-    build.onResolve({ filter:/^@shared\/city\/map-tiles$/ }, () => ({ path:'tiles', namespace:'fixture' }));
-    build.onLoad({ filter:/.*/, namespace:'fixture' }, ({path}) => ({ contents:path === 'manifold' ? 'export const getManifold = async () => globalThis.__cityWasm;' : path === 'dem' ? 'export const sampleDemGrid = (...args) => globalThis.__cityDem(...args);' : path === 'tiles' ? 'export const loadCityPictureTiles = (...args) => globalThis.__cityTiles(...args); export const clearCityPictureTileCache = () => {};' : 'export const loadCityMapData = (...args) => globalThis.__cityMap(...args);' }));
+    build.onLoad({ filter:/.*/, namespace:'fixture' }, ({path}) => ({ contents:path === 'manifold' ? 'export const getManifold = async () => globalThis.__cityWasm;' : path === 'dem' ? 'export const sampleDemGrid = (...args) => globalThis.__cityDem(...args);' : 'export const loadCityMapData = (...args) => globalThis.__cityMap(...args);' }));
   } }],
 });
 const api = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].contents).toString('base64')}`);
 before(async () => {
   globalThis.__cityWasm = await Module(); globalThis.__cityWasm.setup();
-  globalThis.__cityTiles = async () => [{ x: 20435, y: 12388, zoom: 15, dataUrl: 'data:image/png;base64,aGVsbG8=' }];
 });
 function request() {
   const config=api.createDefaultCityConfig();
   const parsed=api.parseGpxXml(xml);
   config.gpx={ ...config.gpx,...parsed,rawPoints:parsed.points,imported:true,importId:'test',fileName:'city-run.gpx' };
   Object.assign(config.mapCrop,{mapCenterLat:40.18,mapCenterLon:44.51,mapZoom:15});
-  return { config,viewportWidth:800,viewportHeight:600 };
+  const req = { config,viewportWidth:800,viewportHeight:600 };
+  preparePicture(req);
+  return req;
+}
+
+function preparePicture(req) {
+  const plan = api.cityPictureMapPlan(req);
+  const png = Buffer.alloc(33); png.writeUInt32BE(0x89504e47, 0); png.writeUInt32BE(0x0d0a1a0a, 4);
+  png.writeUInt32BE(13, 8); png.write('IHDR', 12); png.writeUInt32BE(plan.pixelWidth, 16); png.writeUInt32BE(plan.pixelHeight, 20);
+  req.pictureMap = { ...plan, dataUrl: 'data:image/png;base64,' + png.toString('base64') };
+  const poster = api.cityPicturePngPlan(req);
+  png.writeUInt32BE(poster.pixelWidth, 16); png.writeUInt32BE(poster.pixelHeight, 20);
+  req.picturePng = { ...poster, dataUrl: 'data:image/png;base64,' + png.toString('base64') };
 }
 
 for (const surface of ['flat', 'real']) test(`${surface} city preview and export work without GPX, retaining buildings and roads`, async () => {
@@ -112,17 +122,19 @@ test('paper map skips elevation and solids, omits track titles and uses STL proj
     req.config.city.surface = 'real'; req.config.terrain.openTopographyApiKey = '';
     req.config.gpx.trackName = '<script>alert("track")</script> & run';
     const artifact = api.cityMapExportFlow.describeArtifact(req);
-    assert.equal(artifact.fileName, api.modelExportFileName(req.config, 'City_Map.svg'));
-    assert.equal(artifact.mimeType, 'image/svg+xml'); assert.equal(artifact.kind, 'file');
+    assert.equal(artifact.fileName, api.modelExportFileName(req.config, 'City_Map.zip'));
+    assert.equal(artifact.mimeType, 'application/zip'); assert.equal(artifact.kind, 'zip');
     for (const shape of ['circle', 'rectangle', 'polygon']) {
       req.config.mapCrop.shape = shape;
       req.config.mapCrop.polygonSides = 5;
       req.config.mapCrop.mapBearingDeg = 31;
+      preparePicture(req);
       const artifact = api.cityMapExportFlow.describeArtifact(req);
       const files = {};
       await api.cityMapExportFlow.generateFiles(req, () => {}, (name, bytes) => files[name] = bytes);
-      assert.deepEqual(Object.keys(files), [artifact.fileName]);
-      const svg = new TextDecoder().decode(files[artifact.fileName]);
+      assert.deepEqual(Object.keys(files), ['City_Map.svg', 'City_Map_4K.png'].map(name => api.modelExportFileName(req.config, name)));
+      assert.deepEqual(files[api.modelExportFileName(req.config, 'City_Map_4K.png')], api.cityPicturePngBytes(req.picturePng, req));
+      const svg = new TextDecoder().decode(files[api.modelExportFileName(req.config, 'City_Map.svg')]);
       assert.match(svg, /width="[\d.]+mm" height="[\d.]+mm"/);
       assert.match(svg, /clip-path="url\(#city-footprint\)"/);
       assert.doesNotMatch(svg, /alert\(|&lt;script|<title|<desc|mm map|actual size/);
@@ -180,6 +192,7 @@ test('marathon trail and paper map export while the city geometry provider is un
   globalThis.__cityMap = async () => { maps++; throw new Error('The map download is too large'); };
   globalThis.__cityDem = async () => { assert.fail('Flat needs no elevation'); };
   const files = {};
+  preparePicture(req);
   for (const target of ['trail', 'map']) await api.cityMapExportFlow.generateFiles({ ...req, flow: 'city-map', target }, () => {}, (name, bytes) => files[name] = bytes);
   assert.equal(maps, 0);
   assert.ok(files[api.modelExportFileName(req.config, 'Trail_Line.stl')].length > 84);

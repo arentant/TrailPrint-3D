@@ -104,9 +104,22 @@ export function renderCityPosterOverlay(picture: CityPictureConfig, crop: Terrai
     const value = stat.value + stat.suffix;
     content += text(center, statsY + 17 * statsU, value, Math.min((stat.key === 'date' ? 3 : 3.8) * statsU, (cell - 3 * statsU) / Math.max(Array.from(value).length * .64, 1)), 'text-anchor="middle" font-weight="650"');
   });
-  const creditY = crop.shape === 'rectangle' ? h - 2 * u : mapTop + mapHeight * .96;
-  const credit = 'Map © Esri · OpenStreetMap contributors';
-  const creditSpan = insetSpan(crop, outline, creditY - 1.5 * u, 1.5 * u, 2 * u);
-  content += text(w / 2, creditY, credit, Math.min(1.15 * u, creditSpan.width / (credit.length * .6)), 'text-anchor="middle" fill="' + muted + '"');
   return '<g id="poster-details" data-layout="' + picture.layout + '" clip-path="url(#poster-overlay-footprint)" fill="' + ink + '" font-family="Avenir Next, Avenir, Montserrat, sans-serif">' + content + '</g>';
+}
+
+/** Visible attribution is part of every printed map, including map-only exports. */
+export function renderCityMapAttribution(crop: TerrainCropRegion, outline: ReadonlyArray<ReadonlyArray<number>> | null, margin = 0, header = 0) {
+  const w = crop.widthMm, h = crop.heightMm;
+  const top = outline ? Math.min(...outline.map(([, y]) => h / 2 - y)) : 0;
+  const bottom = outline ? Math.max(...outline.map(([, y]) => h / 2 - y)) : h;
+  const u = Math.min(w / 120, (bottom - top) / 100);
+  const y = crop.shape === 'rectangle' ? h - 5 * u : top + (bottom - top) * (crop.polygonSides === 3 ? .82 : .94);
+  const span = insetSpan(crop, outline, y, 3.5 * u, 2 * u);
+  const credit = '© OpenMapTiles · © OpenStreetMap contributors';
+  const size = Math.min(1.15 * u, span.width / (credit.length * .6));
+  const x = span.x + span.width / 2;
+  return `<g id="map-attribution" transform="translate(${n(margin)} ${n(margin + header)})" font-family="Arial, sans-serif" font-size="${n(size)}" text-anchor="middle" fill="#37433d" stroke="#fff" stroke-width="${n(size * .3)}" paint-order="stroke">
+    <text x="${n(x)}" y="${n(y + size)}">${credit}</text>
+    <text x="${n(x)}" y="${n(y + size * 2.25)}">openstreetmap.org/copyright</text>
+  </g>`;
 }

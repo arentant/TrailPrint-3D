@@ -2,6 +2,18 @@ import { createDefaultConfig, type GpxBounds, type GpxState, type MapModelConfig
 import type { TerrainCropRegion, TerrainMeshPayload } from './terrain.js';
 import { createDefaultModelColors } from './model-colors.js';
 
+export interface CityPictureImage {
+  pixelWidth: number;
+  pixelHeight: number;
+  dataUrl: string;
+}
+
+/** A north-up Mercator background prepared at the requested print resolution. */
+export interface CityPictureMap extends CityPictureImage {
+  bounds: GpxBounds;
+  key: string;
+}
+
 export interface CityPictureConfig {
   enabled: boolean;
   layout: 'cards' | 'minimal' | 'editorial';
