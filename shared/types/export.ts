@@ -1,6 +1,6 @@
 import type { MapModelConfig, MountainTrailConfig } from "./config.js";
 import type { SprayPaintPlan } from "./spray-paint.js";
-import type { CityMapConfig } from "./city.js";
+import type { CityMapConfig, CityPictureMap, CityPictureImage } from "./city.js";
 import type { WaterCatalog } from './water.js';
 
 export const STL_FILE_NAMES = {
@@ -56,8 +56,12 @@ export interface ExportRequestMap {
 
 export interface CityMapExportRequest extends MapModelExportRequest<CityMapConfig> {
   flow: "city-map";
-  /** Defaults to the complete ZIP; map exports a print-sized vector image. */
+  /** Defaults to the 3D ZIP; map exports a ZIP containing a print-sized SVG and a 4K PNG. */
   target?: ExportTarget | "map";
+  /** Prepared in the browser/Electron renderer; required for map exports. */
+  pictureMap?: CityPictureMap;
+  /** Complete poster rasterized in the renderer, including route, text and attribution. */
+  picturePng?: CityPictureImage;
 }
 
 export type ModelFlowId = keyof ExportRequestMap;

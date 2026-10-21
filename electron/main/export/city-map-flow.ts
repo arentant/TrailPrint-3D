@@ -3,18 +3,21 @@ import { STL_FILE_NAMES } from '@shared/types/export';
 import { modelExportFileName, modelExportStem } from '@shared/export/export-artifact';
 import { encodeBinaryStl } from '@shared/utils/binary-stl';
 import { generateCityModel, generateCityTrailModel, generateCityMapPicture } from '../city/city-model-service';
+import { cityPicturePngBytes } from '@shared/city/picture-png';
 
 export const cityMapExportFlow: ModelExportFlow<CityMapExportRequest> = {
   describeArtifact(request) {
     if (request.target && !['all', 'trail', 'map'].includes(request.target)) throw new Error('Unsupported city export target.');
     if (request.target === 'trail') return { kind: 'file', fileName: modelExportFileName(request.config, STL_FILE_NAMES.trailLine), extension: 'stl', mimeType: 'model/stl', saveDialogTitle: 'Save city running trail STL' };
-    if (request.target === 'map') return { kind: 'file', fileName: modelExportFileName(request.config, 'City_Map.svg'), extension: 'svg', mimeType: 'image/svg+xml', saveDialogTitle: 'Save printable city map picture' };
+    if (request.target === 'map') return { kind: 'zip', fileName: modelExportFileName(request.config, 'City_Map.zip'), extension: 'zip', mimeType: 'application/zip', saveDialogTitle: 'Save city map SVG and 4K PNG' };
     return { kind: 'zip', fileName: `${modelExportStem(request.config)}.zip`, extension: 'zip', mimeType: 'application/zip', saveDialogTitle: 'Save city and running route STL archive' };
   },
   async generateFiles(request, progress, file) {
     if (request.target === 'map') {
+      const png = cityPicturePngBytes(request.picturePng, request);
       const picture = await generateCityMapPicture(request, (p) => progress({ phase: 'map', progress: p.progress, message: p.message }));
       await file(modelExportFileName(request.config, 'City_Map.svg'), picture);
+      await file(modelExportFileName(request.config, 'City_Map_4K.png'), png);
       return;
     }
     if (request.target === 'trail') {

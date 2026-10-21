@@ -1,13 +1,55 @@
 import { test, expect } from './authenticated';
+import type { Download, Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { compactCityMap } from '../city-fixture.mjs';
-import { MAX_PICTURE_TILES } from '../../shared/city/map-tiles';
+import { fulfillCityPicture } from './city-picture-fixture';
 const data = JSON.stringify(compactCityMap(JSON.parse(await readFile('fixtures/city-map.osm.json','utf8'))));
-const tilePng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMILU/6DwAEgQIuIhp1GQAAAABJRU5ErkJggg==', 'base64');
+async function readMapSvg(download: Download): Promise<string> {
+  const files = unzipSync(await readFile((await download.path())!));
+  const names = Object.keys(files).sort();
+  expect(names).toHaveLength(2);
+  expect(names[0]).toMatch(/_City_Map\.svg$/);
+  expect(names[1]).toMatch(/_City_Map_4K\.png$/);
+  const png = Buffer.from(files[names[1]]);
+  expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+  expect(Math.max(width, height)).toBe(4096);
+  const svg = new TextDecoder().decode(files[names[0]]);
+  const [, widthMm, heightMm] = /width="([\d.]+)mm" height="([\d.]+)mm"/.exec(svg)!;
+  expect(Math.abs(width / height - Number(widthMm) / Number(heightMm))).toBeLessThan(.001);
+  return svg;
+}
+
+async function expectPngMatchesSvg(download: Download, page: Page) {
+  const files = unzipSync(await readFile((await download.path())!));
+  const svg = new TextDecoder().decode(files[Object.keys(files).find(name => name.endsWith('.svg'))!]);
+  const png = 'data:image/png;base64,' + Buffer.from(files[Object.keys(files).find(name => name.endsWith('.png'))!]).toString('base64');
+  const pixels = await page.evaluate(async ({ svg, png }) => {
+    const [, , width, height] = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement.getAttribute('viewBox')!.split(' ').map(Number);
+    const raster = async (source: string) => {
+      const image = new Image(); image.src = source; await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = Math.round(512 * height / width);
+      const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const expected = await raster('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+    const actual = await raster(png);
+    let difference = 0, routePixels = 0;
+    for (let i = 0; i < actual.length; i += 4) {
+      difference += Math.abs(actual[i] - expected[i]) + Math.abs(actual[i + 1] - expected[i + 1]) + Math.abs(actual[i + 2] - expected[i + 2]);
+      if (actual[i] > 220 && actual[i + 1] < 120 && actual[i + 2] < 50) routePixels++;
+    }
+    return { meanDifference: difference / (actual.length / 4 * 3), routePixels };
+  }, { svg, png });
+  expect(pixels.meanDifference).toBeLessThan(5);
+  expect(pixels.routePixels).toBeGreaterThan(50);
+}
+
 test.beforeEach(async ({ page }) => {
-  await page.route('**/World_Topo_Map/MapServer/tile/**', route => route.fulfill({ contentType: 'image/png', body: tilePng }));
+  await page.route('**/tiles.openfreemap.org/**', route => fulfillCityPicture(route));
 });
 
 test('City import, finalized preview, ZIP, repeat download and independent workspace state', async ({ page }) => {
@@ -33,11 +75,11 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   const previewDialog = page.getByRole('dialog', { name: 'Your city run, in 3D' });
   await previewDialog.locator('[data-setting-guide="routeClearance"] button').click();
   await expect(page.getByRole('tooltip')).toContainText('Groove width = route width + 2 × clearance.');
-  await page.screenshot({ path: 'test-results/settings-guide-city-preview.png' });
+  await page.screenshot({ path: '.context/settings-guide-city-preview.png' });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
   await expect(previewDialog).toBeVisible();
-  await page.screenshot({path:'test-results/city-preview.png',fullPage:true});
+  await page.screenshot({path:'.context/city-preview.png',fullPage:true});
   const event=page.waitForEvent('download'); await downloadButton.click(); const download=await event;
   expect(download.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off.zip');
   const files=unzipSync(await readFile((await download.path())!));
@@ -57,10 +99,10 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   const pictureDialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
   await pictureDialog.getByRole('button', { name: 'Map only', exact: true }).click();
   const mapEvent = page.waitForEvent('download');
-  await pictureDialog.getByRole('button', { name: 'Download SVG', exact: true }).click();
+  await pictureDialog.getByRole('button', { name: 'Download SVG + PNG', exact: true }).click();
   const mapDownload = await mapEvent;
-  expect(mapDownload.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off_City_Map.svg');
-  const svg = await readFile((await mapDownload.path())!, 'utf8');
+  expect(mapDownload.suggestedFilename()).toBe('city-run_circle_R70mm_mesh-high_magnets-off_City_Map.zip');
+  const svg = await readMapSvg(mapDownload);
   expect(svg).toContain('width="140mm" height="140mm"');
   expect(svg).not.toContain('City fixture run');
   expect(svg).toContain('OpenStreetMap contributors');
@@ -104,9 +146,10 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   await expect(pictureDialog.getByLabel('Title', { exact: true })).toHaveValue('City fixture run');
   await expect(pictureDialog.getByLabel('Elapsed time', { exact: true })).toHaveValue('');
   await pictureDialog.getByRole('button', { name: 'Map only', exact: true }).click();
-  const event = page.waitForEvent('download'); await pictureDialog.getByRole('button', { name: 'Download SVG' }).click(); const download = await event;
-  expect(download.suggestedFilename()).toBe('city-run_rectangle_120x90mm_mesh-high_magnets-off_City_Map.svg');
-  const svg = await readFile((await download.path())!, 'utf8');
+  const event = page.waitForEvent('download'); await pictureDialog.getByRole('button', { name: 'Download SVG + PNG' }).click(); const download = await event;
+  expect(download.suggestedFilename()).toBe('city-run_rectangle_120x90mm_mesh-high_magnets-off_City_Map.zip');
+  const svg = await readMapSvg(download);
+  await expectPngMatchesSvg(download, page);
   const parsed = await page.evaluate(source => {
     const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
     return {
@@ -116,12 +159,16 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
       routeColor: doc.querySelector('#running-route')?.getAttribute('stroke'),
       text: Array.from(doc.querySelectorAll('text')).map(node => node.textContent),
       tiles: doc.querySelectorAll('#street-map image').length,
+      imageWidth: Number(doc.querySelector('#street-map image')?.getAttribute('width')),
+      imageHeight: Number(doc.querySelector('#street-map image')?.getAttribute('height')),
     };
   }, svg);
   expect(parsed.errors).toBe(0); expect(parsed.width).toBe('120mm'); expect(parsed.height).toBe('90mm');
   expect(parsed.routeColor).toBe('#fc4c02');
-  expect(parsed.text).toEqual([]);
-  expect(parsed.route).toMatch(/^M/); expect(parsed.tiles).toBeGreaterThan(0); expect(parsed.tiles).toBeLessThanOrEqual(MAX_PICTURE_TILES);
+  expect(parsed.imageWidth).toBeGreaterThanOrEqual(Math.ceil(120 / 25.4 * 600));
+  expect(parsed.imageHeight).toBeGreaterThanOrEqual(Math.ceil(90 / 25.4 * 600));
+  expect(parsed.text).toEqual(['© OpenMapTiles · © OpenStreetMap contributors', 'openstreetmap.org/copyright']);
+  expect(parsed.route).toMatch(/^M/); expect(parsed.tiles).toBeGreaterThan(0); expect(parsed.tiles).toBe(1);
   expect(elevations).toBe(0); expect(maps).toBe(0);
   await pictureDialog.getByRole('button', { name: 'Close picture preview' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -129,7 +176,7 @@ test('paper map exports before a 3D preview, needs no elevation key, and renders
   const image = await context.newPage();
   await image.goto(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
   await expect(image.locator('svg')).toBeVisible();
-  await image.screenshot({ path: 'test-results/city-paper-map.png' });
+  await image.screenshot({ path: '.context/city-paper-map.png' });
   await image.close();
   const repeat = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download again', exact: true }).click();
   expect((await repeat).suggestedFilename()).toBe(download.suggestedFilename());
@@ -160,8 +207,8 @@ test('marathon trail and map downloads bypass city geometry and work after an ov
   expect((await retryTrail).suggestedFilename()).toBe(trail.suggestedFilename());
   await dialog.getByRole('button', { name: 'Preview map picture' }).click();
   const mapEvent = page.waitForEvent('download');
-  await page.getByRole('dialog').getByRole('button', { name: 'Download SVG' }).click(); const picture = await mapEvent;
-  const svg = await readFile((await picture.path())!, 'utf8');
+  await page.getByRole('dialog').getByRole('button', { name: 'Download SVG + PNG' }).click(); const picture = await mapEvent;
+  const svg = await readMapSvg(picture);
   expect(svg).toContain('id="street-map"><image'); expect(svg).toContain('id="running-route"');
   expect(maps).toBe(1); expect(elevations).toBe(0);
 });
@@ -248,7 +295,7 @@ test('Real terrain trail edits in the preview reuse data and export the updated 
   await expect(downloadButton).toBeEnabled({timeout:60000});
   expect(await page.evaluate(()=>(window as any).__cityPreviewRequests)).toBe(2);
   expect(await canvas!.evaluate(node=>node.isConnected)).toBe(true);
-  await page.screenshot({path:'test-results/city-trail-editor.png',fullPage:true});
+  await page.screenshot({path:'.context/city-trail-editor.png',fullPage:true});
   const event=page.waitForEvent('download');await downloadButton.click();const download=await event;
   const files=unzipSync(await readFile((await download.path())!));
   const instructions=new TextDecoder().decode(files['city-run_circle_R60mm_mesh-high_magnets-off_Assembly_Instructions.txt']);
@@ -274,8 +321,8 @@ test('picture editor imports GPX stats, previews edits immediately and exports t
   let geometry = 0, tileLoads = 0;
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/city', route => { geometry++; return route.fulfill({ status: 500 }); });
-  await page.route('**/World_Topo_Map/MapServer/tile/**', route => {
-    tileLoads++; return route.fulfill({ contentType: 'image/png', body: tilePng });
+  await page.route('**/tiles.openfreemap.org/**', route => {
+    tileLoads++; return fulfillCityPicture(route);
   });
   await page.goto('/'); await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'City', exact: true }).click();
@@ -317,10 +364,12 @@ test('picture editor imports GPX stats, previews edits immediately and exports t
   }, await readProof());
   expect(proof.text).toContain('BERLIN MARATHON');
   expect(proof.text).toContain('42.20 km'); expect(proof.text).toContain('5:31 /km');
-  await page.screenshot({ path: 'test-results/city-picture-editor.png', fullPage: true });
+  await page.screenshot({ path: '.context/city-picture-editor.png', fullPage: true });
   const event = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: 'Download SVG' }).click();
-  const source = await readFile((await (await event).path())!, 'utf8');
+  await dialog.getByRole('button', { name: 'Download SVG + PNG' }).click();
+  const download = await event;
+  const source = await readMapSvg(download);
+  await expectPngMatchesSvg(download, page);
   const exported = await page.evaluate(svg => {
     const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
     return {
@@ -340,7 +389,7 @@ test('picture editor imports GPX stats, previews edits immediately and exports t
   await expect(dialog.locator('.picture-footer')).not.toContainText('City map ready');
   await dialog.getByRole('button', { name: 'Close picture preview' }).focus();
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Download SVG + PNG' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Close picture preview' })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -357,23 +406,23 @@ test('picture editor imports GPX stats, previews edits immediately and exports t
 
 test('picture preview recovers from tile failures and stays usable on a narrow screen', async ({ page }) => {
   let fail = true;
-  await page.route('**/World_Topo_Map/MapServer/tile/**', route => fail
+  await page.route('**/tiles.openfreemap.org/**', route => fail
     ? route.fulfill({ status: 503 })
-    : route.fulfill({ contentType: 'image/png', body: tilePng }));
+    : fulfillCityPicture(route));
   await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
   await page.getByRole('button', { name: 'Preview & export map picture' }).click();
   const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
   await expect(dialog.getByRole('alert')).toContainText('503');
-  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Download SVG + PNG' })).toBeDisabled();
   fail = false; await dialog.getByRole('button', { name: 'Retry map preview' }).click();
   await expect(dialog.getByAltText('City map picture preview')).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: 'Download SVG + PNG' })).toBeEnabled();
   await page.setViewportSize({ width: 390, height: 844 });
   await dialog.getByLabel('Title', { exact: true }).fill('A small city adventure');
-  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Download SVG + PNG' })).toBeVisible();
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/city-picture-mobile.png', fullPage: true });
+  await page.screenshot({ path: '.context/city-picture-mobile.png', fullPage: true });
   await dialog.getByRole('button', { name: 'Close picture preview' }).click();
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
@@ -382,45 +431,67 @@ test('picture preview recovers from tile failures and stays usable on a narrow s
 });
 
 
-test('picture preview falls back when a missing tile is hidden by browser request errors', async ({ page }) => {
-  let supportedZoom: number | undefined;
-  const successfulZooms = new Set<number>();
-  await page.route('**/World_Topo_Map/MapServer/tile/**', route => {
-    const zoom = Number(/\/tile\/(\d+)\//.exec(route.request().url())![1]);
-    supportedZoom ??= zoom - 2;
-    if (zoom > supportedZoom) return route.abort('failed');
-    successfulZooms.add(zoom);
-    return route.fulfill({ contentType: 'image/png', body: tilePng });
-  });
+test('failed vector tiles report an error and recover without a blurry fallback', async ({ page }) => {
+  let fail = true;
+  await page.route('**/tiles.openfreemap.org/**', route => fail && route.request().url().endsWith('.pbf')
+    ? route.abort('failed') : fulfillCityPicture(route));
   await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
   await page.getByRole('button', { name: 'Preview & export map picture' }).click();
   const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
+  await expect(dialog.getByRole('alert')).toContainText('OpenFreeMap');
+  await expect(dialog.getByRole('button', { name: 'Download SVG + PNG' })).toBeDisabled();
+  fail = false;
+  await dialog.getByRole('button', { name: 'Retry map preview' }).click();
   await expect(dialog.getByAltText('City map picture preview')).toBeVisible();
-  expect([...successfulZooms]).toEqual([supportedZoom]);
   const event = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: 'Download SVG' }).click();
-  expect((await event).suggestedFilename()).toContain('City_Map.svg');
+  await dialog.getByRole('button', { name: 'Download SVG + PNG' }).click();
+  expect((await event).suggestedFilename()).toContain('City_Map.zip');
 });
 
-
 test('unavailable street map coverage shows an error while poster details stay editable', async ({ page }) => {
-  await page.route('**/World_Topo_Map/MapServer/tile/**', route => route.fulfill({ status: 404 }));
+  await page.route('**/tiles.openfreemap.org/**', route => route.fulfill({ status: 404 }));
   await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
   await page.getByRole('button', { name: 'Preview & export map picture' }).click();
   const dialog = page.getByRole('dialog', { name: 'Your run. On paper.' });
-  await expect(dialog.getByRole('alert')).toContainText('Detailed street maps are unavailable');
-  await expect(dialog.getByRole('button', { name: 'Download SVG' })).toBeDisabled();
+  await expect(dialog.getByRole('alert')).toContainText('OpenFreeMap');
+  await expect(dialog.getByRole('button', { name: 'Download SVG + PNG' })).toBeDisabled();
   await dialog.getByLabel('Title', { exact: true }).fill('My run');
   await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('My run');
+});
+
+test('closing an unfinished map releases the renderer so the next preview can load', async ({ page }) => {
+  let pending = 0, hold = true;
+  let release!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/tiles.openfreemap.org/**', async route => {
+    if (hold && route.request().url().endsWith('.pbf')) {
+      pending++;
+      await blocked;
+    }
+    await fulfillCityPicture(route).catch(() => {}); // The first request may have been aborted.
+  });
+  await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
+  const open = page.getByRole('button', { name: 'Preview & export map picture' });
+  await open.click();
+  await expect.poll(() => pending).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Close picture preview' }).click();
+  await expect(page.locator('.maplibregl-canvas')).toHaveCount(0);
+  hold = false;
+  try {
+    await open.click();
+    await expect(page.getByAltText('City map picture preview')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.maplibregl-canvas')).toHaveCount(0);
+  } finally { release(); }
 });
 
 
 test('poster layouts switch without reloading the map, keep edits and export cards directly on the map', async ({ page }) => {
   let tileLoads = 0;
-  await page.route('**/World_Topo_Map/MapServer/tile/**', route => {
-    tileLoads++; return route.fulfill({ contentType: 'image/png', body: tilePng });
+  await page.route('**/tiles.openfreemap.org/**', route => {
+    tileLoads++; return fulfillCityPicture(route);
   });
   await page.goto('/'); await page.getByRole('button', { name: 'City', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
@@ -476,8 +547,10 @@ test('poster layouts switch without reloading the map, keep edits and export car
   }
   await dialog.getByRole('button', { name: 'Map cards', exact: true }).click();
   const event = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: 'Download SVG' }).click();
-  const exported = await readFile((await (await event).path())!, 'utf8');
+  await dialog.getByRole('button', { name: 'Download SVG + PNG' }).click();
+  const download = await event;
+  const exported = await readMapSvg(download);
+  await expectPngMatchesSvg(download, page);
   expect(exported).toContain('data-layout="cards"');
   expect(exported).toContain('data-overlay-card="distance"');
   expect(exported).toContain('width="120mm" height="80mm"');

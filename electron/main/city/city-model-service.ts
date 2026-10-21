@@ -11,7 +11,7 @@ import { hydrateGpxConfig } from '../gpx/hydrate-gpx-config';
 import { getManifold } from './manifold-runtime';
 import { loadCityMapData } from './city-map-provider';
 import { renderPrintableCityMap } from '@shared/city/printable-map';
-import { loadCityPictureTiles, clearCityPictureTileCache } from '@shared/city/map-tiles';
+import { validateCityPictureMap, type CityPictureMap } from '@shared/city/picture-map';
 import type { TerrainCropRegion, TerrainMeshPayload } from '@shared/types/terrain';
 
 function validateCityFraming(request: CityGenerateRequest, requireRoute = false): void {
@@ -56,7 +56,6 @@ let cachedTrail: { key: string; mesh: TerrainMeshPayload } | undefined;
 let queue = Promise.resolve();
 export function clearCityModelCache(): void {
   cached = undefined; cachedMap = undefined; cachedDem = undefined; cachedHeights = undefined; cachedTrail = undefined;
-  clearCityPictureTileCache();
   geometry?.builder.dispose(); geometry = undefined;
 }
 
@@ -131,7 +130,7 @@ export function generateCityTrailModel(request: CityGenerateRequest, onProgress?
   return job;
 }
 
-export function generateCityMapPicture(request: CityGenerateRequest, onProgress?: (p: CityGenerateProgress) => void): Promise<Uint8Array> {
+export function generateCityMapPicture(request: CityGenerateRequest & { pictureMap?: CityPictureMap }, onProgress?: (p: CityGenerateProgress) => void): Promise<Uint8Array> {
   const job = queue.then(async () => {
     const config = await hydrateGpxConfig(request.config);
     const hydrated = { config, viewportWidth: request.viewportWidth, viewportHeight: request.viewportHeight };
@@ -139,11 +138,9 @@ export function generateCityMapPicture(request: CityGenerateRequest, onProgress?
     const crop = citySelectionCrop(hydrated);
     const bounds = heightfieldGeoBounds(crop, 2, 2, config.mapCrop, hydrated.viewportWidth, hydrated.viewportHeight, 0);
     validateCityMapRequest({ bounds, buildings: false, roads: false });
-    const tiles = await loadCityPictureTiles(bounds, crop.widthMm, crop.heightMm, (complete, total) => {
-      onProgress?.({ phase: 'map', progress: 0.05 + complete / total * 0.7, message: `Loading street map picture… ${complete}/${total}` });
-    });
+    validateCityPictureMap(request.pictureMap, hydrated);
     onProgress?.({ phase: 'map', progress: 0.8, message: 'Drawing printable city map…' });
-    return new TextEncoder().encode(renderPrintableCityMap(hydrated, crop, tiles));
+    return new TextEncoder().encode(renderPrintableCityMap(hydrated, crop, request.pictureMap));
   });
   queue = job.then(() => {}, () => {});
   return job;

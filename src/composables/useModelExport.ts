@@ -5,7 +5,7 @@ import type { ExportGenerateRequest, ExportGenerateResponse } from "@shared/type
 
 export interface ModelExportController<Options, Request extends ExportGenerateRequest> {
   /** Validate inputs and prepare a serializable request for this model flow. */
-  prepareRequest(options: Options): Request;
+  prepareRequest(options: Options): Request | Promise<Request>;
   describeSuccess(response: ExportGenerateResponse, request: Request): string;
 }
 
@@ -21,8 +21,8 @@ export function useModelExport<Options, Request extends ExportGenerateRequest>(c
     ui.exportError = null;
     try {
       ui.runPrepareExport();
-      const request = controller.prepareRequest(options);
       statusMessage.value = "Preparing export…";
+      const request = await controller.prepareRequest(options);
       const response = await ipcGenerateExport(request);
       if (response.cancelled) {
         statusMessage.value = "Export canceled. Choose Download again and select a save location.";

@@ -14,6 +14,8 @@ import CityMeshPreview from './CityMeshPreview.vue';
 import CityTrailControls from './CityTrailControls.vue';
 import CityPictureEditor from './CityPictureEditor.vue';
 import ModelColorControls from '@/components/ui/ModelColorControls.vue';
+import { loadCityPictureMap } from '@/utils/city-picture-map';
+import { renderCityPicturePng } from '@/utils/city-picture-png';
 import { cropSelectionFrame } from '@shared/utils/crop-selection';
 const api = window.trailPrint;
 const store = useCityStore(), ui = useUiStore();
@@ -79,14 +81,25 @@ async function preview() {
   }
 }
 const exporter = useModelExport<NonNullable<CityMapExportRequest['target']>, CityMapExportRequest>({
-  prepareRequest: (target) => ({
-    ...(target === 'map' && pictureRequest.value
-      ? { ...pictureRequest.value, config: { ...pictureRequest.value.config, picture: JSON.parse(JSON.stringify(config.value.picture)) } }
-      : snapshot()),
-    flow: 'city-map', target,
-  }),
+  prepareRequest: async (target) => {
+    const request: CityMapExportRequest = {
+      ...(target === 'map' && pictureRequest.value
+        ? { ...pictureRequest.value, config: { ...pictureRequest.value.config, picture: JSON.parse(JSON.stringify(config.value.picture)) } }
+        : snapshot()),
+      flow: 'city-map', target,
+    };
+    if (target === 'map') {
+      request.pictureMap = await loadCityPictureMap(request, (complete, total) => {
+        ui.statusMessage = 'Rendering print-resolution street map…';
+        ui.exportProgress = complete / total * .6;
+      });
+      ui.statusMessage = 'Creating 4K PNG…'; ui.exportProgress = .65;
+      request.picturePng = await renderCityPicturePng(request, request.pictureMap);
+    }
+    return request;
+  },
   describeSuccess: (response, request) => request.target === 'map'
-    ? `City map ready: ${response.savedPath}. Open the SVG in a browser and print at 100% / actual size.`
+    ? `City map ready: ${response.savedPath}. Unzip for the SVG and 4K PNG. Print the SVG at 100% / actual size.`
     : `${request.target === 'trail' ? 'Running trail STL' : 'City ZIP'} ready: ${response.savedPath}`,
 });
 async function download(target: NonNullable<CityMapExportRequest['target']> = 'all') {
