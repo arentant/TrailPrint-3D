@@ -3,7 +3,7 @@ import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCityStore } from '@/stores/city';
 import { useUiStore } from '@/stores/ui';
-import { ipcParseGpx, formatIpcError } from '@/ipc/client';
+import { formatIpcError } from '@/ipc/client';
 import { useModelExport } from '@/composables/useModelExport';
 import type { CityGenerateResponse, CityGenerateRequest } from '@shared/types/city';
 import type { CityMapExportRequest } from '@shared/types/export';
@@ -17,6 +17,8 @@ import ModelColorControls from '@/components/ui/ModelColorControls.vue';
 import { loadCityPictureMap } from '@/utils/city-picture-map';
 import { renderCityPicturePng } from '@/utils/city-picture-png';
 import { cropSelectionFrame } from '@shared/utils/crop-selection';
+import { parseGpxFiles } from '@/utils/gpx-import';
+import GpxFileList from '@/components/gpx/GpxFileList.vue';
 const api = window.trailPrint;
 const store = useCityStore(), ui = useUiStore();
 const { config } = storeToRefs(store);
@@ -111,26 +113,25 @@ function previewPicture() {
   ui.statusMessage = null;
   pictureRequest.value = snapshot();
 }
-async function importFile(file?: File) {
-  if (!file || importing.value || ui.generating || previewBusy.value) return;
-  if (!file.name.toLowerCase().endsWith('.gpx') || file.size > 10 * 1024 * 1024) { ui.statusMessage = 'Select a .gpx file smaller than 10 MB'; return; }
+async function importFiles(files: File[]) {
+  if (!files.length || importing.value || ui.generating || previewBusy.value) return;
   importing.value = true; ui.statusMessage = 'Reading GPX…';
   try {
-    const path = (file as File & { path?: string }).path;
-    const { result: track } = await ipcParseGpx({ importId: crypto.randomUUID(), fileName: file.name, ...(path ? { filePath: path } : { content: await file.text() }) });
+    const tracks = await parseGpxFiles(files);
     if (disposed) return;
-    store.applyImport(track, file.name, path);
+    store.addImports(tracks);
     await nextTick(); map.value?.fitTrackInView();
-    ui.statusMessage = `Imported “${track.trackName ?? file.name}”: ${track.pointCount} points, ${track.distanceKm.toFixed(2)} km`;
+    ui.statusMessage = `Imported ${tracks.length} GPX ${tracks.length === 1 ? 'file' : 'files'} · ${config.value.gpx.distanceKm.toFixed(2)} km total`;
   } catch (e) { if (!disposed) ui.statusMessage = formatIpcError(e); }
   finally { importing.value = false; if (fileInput.value) fileInput.value.value = ''; }
 }
+
 function viewportChanged(value: { w: number; h: number }) { viewport.value = value; ui.previewViewport = value; }
 async function revealDownload() {
   try { if (ui.lastExportPath) await api.revealExport(ui.lastExportPath); }
   catch (e) { ui.statusMessage = formatIpcError(e); }
 }
-function onDrop(event: DragEvent) { void importFile(event.dataTransfer?.files[0]); }
+function onDrop(event: DragEvent) { void importFiles(Array.from(event.dataTransfer?.files ?? [])); }
 function closePreview() { previewOpen.value = false; if (regenerateTimer) clearTimeout(regenerateTimer); }
 watch(previewOpen, async (open) => {
   if (open) { previousFocus = document.activeElement as HTMLElement | null; await nextTick(); previewDialog.value?.focus(); }
@@ -152,10 +153,9 @@ onUnmounted(() => { disposed = true; revision++; if (regenerateTimer) clearTimeo
       <header>
         <div class="brand"><TrailPrintLogo :size="32" /><h1>TrailPrint <span>City</span></h1></div>
         <p>Frame a city on the map and turn it into a printable keepsake. Add a GPX route if you want one.</p>
-        <button class="secondary" :disabled="importing || ui.generating || previewBusy" @click="fileInput?.click()">{{ importing ? 'Reading…' : 'Import GPX' }}</button>
-        <input ref="fileInput" class="sr-only" type="file" accept=".gpx,application/gpx+xml" @change="importFile(($event.target as HTMLInputElement).files?.[0])" />
-        <p v-if="config.gpx.imported" class="track-summary">{{ config.gpx.trackName }} · {{ config.gpx.distanceKm.toFixed(2) }} km</p>
-        <button v-if="config.gpx.imported" class="secondary" :disabled="importing || ui.generating || previewBusy" @click="store.clearGpx()">Remove GPX</button>
+        <button class="secondary" :disabled="importing || ui.generating || previewBusy" @click="fileInput?.click()">{{ importing ? 'Reading…' : config.gpx.imported ? 'Add GPX files' : 'Import GPX' }}</button>
+        <input ref="fileInput" class="sr-only" type="file" multiple accept=".gpx,application/gpx+xml" @change="importFiles(Array.from(($event.target as HTMLInputElement).files ?? []))" />
+        <GpxFileList :gpx="config.gpx" :disabled="importing || ui.generating || previewBusy" @remove="store.removeImport" @clear="store.clearGpx" />
       </header>
       <div class="scroll"><CityControls /></div>
       <footer>

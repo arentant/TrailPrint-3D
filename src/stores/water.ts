@@ -6,7 +6,7 @@ import type { WaterCatalog, WaterFeature, WaterFeatureStatus } from '@shared/typ
 import { waterCatalogKey } from '@shared/water/catalog';
 import { computeTerrainCropRegion } from '@shared/utils/crop-region';
 import { prepareWaterSelection } from '@shared/water/selection';
-import { buildTrailLinePolyline } from '../../electron/main/terrain/trail-pipeline';
+import { buildTrailLinePolylines } from '../../electron/main/terrain/trail-pipeline';
 import { maskMmScale } from '@shared/utils/map-mm-projection';
 import { containerPointToLatLng } from '@shared/utils/leaflet-projection';
 import { getManifold } from '@/browser/manifold-runtime';
@@ -54,7 +54,7 @@ export const useWaterStore = defineStore('water', () => {
       const wasm = await getManifold();
       if (id !== reviewRevision || !data) return;
       const crop = computeTerrainCropRegion(req.mapCrop, req.viewportWidth, req.viewportHeight);
-      const trail = buildTrailLinePolyline(config, crop, req.viewportWidth, req.viewportHeight);
+      const trail = buildTrailLinePolylines(config, crop, req.viewportWidth, req.viewportHeight);
       const selection = prepareWaterSelection(wasm, req, crop, data.features, trail);
       const scale = maskMmScale(req.mapCrop, crop, req.viewportWidth, req.viewportHeight);
       try {

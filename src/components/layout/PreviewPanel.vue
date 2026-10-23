@@ -15,7 +15,7 @@ import SettingHelp from "@/components/ui/SettingHelp.vue";
 const ui = useUiStore();
 const configStore = useConfigStore();
 const { config } = storeToRefs(configStore);
-const { importing, importFromFile } = useGpxImport();
+const { importing, importFromFiles } = useGpxImport();
 
 const dragOver = ref(false);
 const mapRef = ref<InstanceType<typeof MapLeafletView> | null>(null);
@@ -111,9 +111,9 @@ function onTerrainModalOpened(): void {
 async function onDrop(e: DragEvent): Promise<void> {
   e.preventDefault();
   dragOver.value = false;
-  const file = e.dataTransfer?.files?.[0];
-  if (file) {
-    const ok = await importFromFile(file);
+  const files = Array.from(e.dataTransfer?.files ?? []);
+  if (files.length) {
+    const ok = await importFromFiles(files);
     if (ok) {
       await nextTick();
       scheduleMapFit();
@@ -161,13 +161,13 @@ async function onDownloadStl(): Promise<void> {
           <path d="M16 6v16" />
         </svg>
         <p class="preview__title">
-          Drop to import GPX
+          Drop to add GPX files
         </p>
         <p class="preview__hint">
           {{
             importing
               ? "Reading track…"
-              : "Add a route to your terrain model."
+              : "Combine trails in one terrain model."
           }}
         </p>
       </div>

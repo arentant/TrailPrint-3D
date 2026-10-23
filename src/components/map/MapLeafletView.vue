@@ -10,7 +10,7 @@ const water = useWaterStore();
 const store = useConfigStore();
 const { config } = storeToRefs(store);
 const ui = useUiStore();
-const { effectivePoints } = useTrailPoints();
+const { effectivePoints, effectiveSegments } = useTrailPoints();
 const map = ref<InstanceType<typeof MapFramingView> | null>(null);
 let unsubscribe: (() => void) | undefined;
 const syncStoreFromMap = () => map.value?.syncStoreFromMap();
@@ -21,7 +21,7 @@ onUnmounted(() => { unsubscribe?.(); ui.mapReady = false; });
 defineExpose({ syncStoreFromMap, fitTrackInView, resetMapView });
 </script>
 <template>
-  <MapFramingView ref="map" :crop="config.mapCrop" :gpx="config.gpx" :points="effectivePoints"
+  <MapFramingView ref="map" :crop="config.mapCrop" :gpx="config.gpx" :points="effectivePoints" :segments="effectiveSegments"
     v-model:colors="config.colors"
     :tray="config.tray" :fit-nonce="ui.gpxMapFitNonce" :grid-visible="ui.mapGridVisible"
     :tray-tolerance-mm="config.assembly.trayToleranceMm"

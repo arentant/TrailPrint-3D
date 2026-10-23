@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConfigStore } from '@/stores/config'
 import { useUiStore } from '@/stores/ui'
+import GpxFileList from './GpxFileList.vue'
 
 const store = useConfigStore()
 const ui = useUiStore()
@@ -11,18 +12,11 @@ const gpx = computed(() => config.value.gpx)
 </script>
 
 <template>
-  <div v-if="gpx.lastImportError" class="gpx-summary gpx-summary--error">
+  <div v-if="gpx.lastImportError" class="gpx-summary gpx-summary--error" role="alert">
     {{ gpx.lastImportError }}
   </div>
-  <div v-else-if="gpx.imported" class="gpx-summary">
-    <p class="gpx-summary__title">{{ gpx.trackName || gpx.fileName || 'Imported trail' }}</p>
-    <p class="gpx-summary__meta">
-      {{ gpx.pointCount }} points · approx. {{ gpx.distanceKm.toFixed(2) }} km
-      <template v-if="gpx.bounds">
-        · {{ gpx.bounds.minLat.toFixed(2) }}°–{{ gpx.bounds.maxLat.toFixed(2) }}°
-      </template>
-    </p>
-    <button type="button" class="gpx-summary__remove" :disabled="ui.generating" @click="store.clearGpx()">Remove GPX</button>
+  <div v-if="gpx.imported" class="gpx-summary">
+    <GpxFileList :gpx="gpx" :disabled="ui.generating || ui.gpxImporting" @remove="store.removeGpxImport" @clear="store.clearGpx" />
   </div>
   <div v-else class="gpx-summary">
     <p class="gpx-summary__title">Choose a place on the map</p>
@@ -64,9 +58,4 @@ const gpx = computed(() => config.value.gpx)
   line-height: 1.35;
 }
 
-.gpx-summary__remove {
-  color: var(--tp-text-accent);
-  font-size: 12px;
-  padding: 4px 0;
-}
 </style>

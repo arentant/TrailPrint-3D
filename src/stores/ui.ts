@@ -12,6 +12,7 @@ export const useUiStore = defineStore("ui", () => {
     moldKit: false,
   });
   const generating = ref(false);
+  const gpxImporting = ref(false);
   const statusMessage = ref<string | null>(null);
   /** 预览区像素尺寸，供 STL 导出裁剪与预览一致 */
   const previewViewport = ref({ w: 800, h: 600 });
@@ -52,6 +53,7 @@ export const useUiStore = defineStore("ui", () => {
   return {
     openSections,
     generating,
+    gpxImporting,
     statusMessage,
     previewViewport,
     mapReady,

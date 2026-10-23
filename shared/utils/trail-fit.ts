@@ -3,7 +3,7 @@ import type { MapCropConfig } from "../types/config";
 import { computeTerrainCropRegion } from "./crop-region";
 import { zoomToFitBoundsInMask } from "./map-projection";
 import { projectTrailToModelMm } from "./trail-coords";
-import { resolveTrailPoints } from "./trail-resolve";
+import { resolveTrailSegments } from "./trail-resolve";
 
 function trailPointCount(
   config: AppConfig,
@@ -14,11 +14,11 @@ function trailPointCount(
   const w = Math.max(viewportWidth, 64);
   const h = Math.max(viewportHeight, 64);
   const crop = computeTerrainCropRegion(mapCrop, w, h);
-  return projectTrailToModelMm(resolveTrailPoints(config), crop, {
+  return resolveTrailSegments(config).reduce((count, points) => count + projectTrailToModelMm(points, crop, {
     mapCrop,
     viewportWidth: w,
     viewportHeight: h,
-  }).length;
+  }).length, 0);
 }
 
 /**
@@ -31,7 +31,7 @@ export function ensureMapZoomFitsTrail(
 ): AppConfig {
   if (config.mapCrop.selection) return config;
   if (!config.gpx.imported || !config.gpx.bounds) return config;
-  if (resolveTrailPoints(config).length < 2) return config;
+  if (!resolveTrailSegments(config).length) return config;
 
   const w = Math.max(viewportWidth, 64);
   const h = Math.max(viewportHeight, 64);

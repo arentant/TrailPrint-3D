@@ -159,6 +159,7 @@ export function useTerrainGeneration(
       config.value.mapCrop.selection?.mapBearingDeg ?? config.value.mapCrop.mapBearingDeg,
       config.value.gpx.imported,
       config.value.gpx.pointCount,
+      config.value.gpx.importId,
       config.value.trail.gpxSimplify,
       config.value.trail.trailWidthMm,
       config.value.trail.trailDepthMm,

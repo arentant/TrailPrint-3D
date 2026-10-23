@@ -16,7 +16,8 @@ const compiled = await build({
     export * from './shared/utils/leaflet-projection'; export * from './shared/utils/model-validation';
     export * from './shared/water/catalog'; export * from './shared/water/selection'; export * from './shared/water/fused-materials';
     export * from './shared/export/colored-3mf'; export * from './shared/utils/binary-stl'; export * from './electron/main/terrain/prepare-heightfield'; export * from './shared/export/export-artifact'; export * from './electron/main/terrain/terrain-main-service';
-    export * from './electron/main/export/mountain-trail-flow';`, resolveDir: resolve('.') },
+    export * from './electron/main/export/mountain-trail-flow';
+    export * from './shared/utils/gpx-collection'; export * from './shared/utils/gpx-parser';`, resolveDir: resolve('.') },
   bundle: true, write: false, platform: 'node', format: 'esm',
   plugins: [{ name: 'water-fixtures', setup(plugin) {
     plugin.onResolve({ filter: /^electron$/ }, () => ({ path: 'electron', namespace: 'fixture' }));
@@ -331,6 +332,43 @@ function catalogFor(req, crop, polygons) {
   return { key: api.waterCatalogKey({ mapCrop: req.config.mapCrop, viewportWidth: req.viewportWidth, viewportHeight: req.viewportHeight }),
     features: api.osmWaterFeatures(dataFor(req, crop, polygons)), sources: [api.OSM_WATER_ATTRIBUTION], errors: [], fetchedAt: '2026-10-14T00:00:00Z' };
 }
+
+for (const mode of ['separate', 'fused']) test(`multiple GPX files stay disconnected in ${mode} terrain, water and trail exports`, async () => {
+  const req = request(); req.config.printMode = mode; req.config.tray.enabled = false;
+  const { crop } = setup(req, []);
+  const paths = [[[-30, -20], [30, -20]], [[-30, 20], [30, 20]]];
+  const files = paths.map((path, i) => {
+    const points = path.map(([x, y]) => api.modelMmToLatLon(x, y, req.config.mapCrop, crop, 800, 600));
+    return { ...api.parseGpxXml(`<gpx><trk><trkseg>${points.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"/>`).join('')}</trkseg></trk></gpx>`), importId: `route-${i}`, fileName: `route-${i}.gpx` };
+  });
+  req.config.gpx = api.combineGpxFiles(files);
+  req.waterCatalog = catalogFor(req, crop, [[box(-25, -25, 25, 25)]]);
+  const preview = await api.generateTerrainMain(req);
+  assert.equal(preview.trailPolylinesMm.length, 2);
+  const exported = await api.generateTerrainMain({ ...req, stlExport: true });
+  assert.equal(exported.trailPolylinesMm.length, 2);
+  assertClosed(exported.trailMesh);
+  assert.ok(exported.waterMeshes.length > 0);
+  const trail = solid(exported.trailMesh), parts = trail.decompose();
+  const cube = wasm.Manifold.cube([4, 4, 10], true), gap = trail.intersect(cube);
+  try {
+    assert.equal(parts.length, 2, 'two disconnected printable routes');
+    assert.equal(gap.volume(), 0, 'no phantom diagonal joining the routes');
+  } finally { gap.delete(); cube.delete(); parts.forEach(p => p.delete()); trail.delete(); }
+  const selection = api.prepareWaterSelection(wasm, req, crop, req.waterCatalog.features, exported.trailPolylinesMm);
+  const center = new wasm.CrossSection([box(-2, -2, 2, 2)]), corridorAtCenter = selection.corridor.intersect(center);
+  try { assert.equal(corridorAtCenter.area(), 0, 'water clearance preserves the gap too'); }
+  finally { center.delete(); corridorAtCenter.delete(); selection.dispose(); }
+  req.config.water.enabled = false;
+  const withoutWater = await api.generateTerrainMain({ ...req, stlExport: true });
+  const field = withoutWater.heightPreview;
+  assert.ok(field.heights[Math.floor(field.rows / 2) * field.cols + Math.floor(field.cols / 2)] >= 0, 'no groove through the gap');
+  const standalone = await api.generateTerrainMain({ ...req, stlExport: true, trailOnly: true });
+  assertClosed(standalone.trailMesh);
+  const standaloneSolid = solid(standalone.trailMesh), standaloneParts = standaloneSolid.decompose();
+  try { assert.equal(standaloneParts.length, 2); }
+  finally { standaloneParts.forEach(p => p.delete()); standaloneSolid.delete(); }
+});
 
 test('a lake enclosing the crop retains a protective wall and its islands', () => {
   const req = request(), { crop, terrain } = setup(req, []);

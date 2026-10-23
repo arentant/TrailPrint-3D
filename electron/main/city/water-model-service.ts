@@ -1,3 +1,4 @@
+import type { TrailPathsMm } from '@shared/water/stroke';
 import type { TerrainCropRegion, TerrainGenerateRequest, TerrainMeshPayload, TrailGrooveSpec } from '@shared/types/terrain';
 import { buildWaterGeometry } from '@shared/water/geometry';
 import { fetchWaterCatalog } from './water-catalog-service';
@@ -8,7 +9,7 @@ export async function generateWaterAssembly(
   request: TerrainGenerateRequest,
   crop: TerrainCropRegion,
   terrain: TerrainMeshPayload,
-  trail: Array<{ x: number; y: number }>,
+  trail: TrailPathsMm,
   groove?: TrailGrooveSpec,
   seaLevelMm?: number,
 ) {

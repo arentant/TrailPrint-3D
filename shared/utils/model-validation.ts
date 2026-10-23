@@ -13,7 +13,7 @@ import {
   rectCorners,
 } from "./tray-nfc-layout";
 import { projectTrailToModelMm } from "./trail-coords";
-import { resolveTrailPoints } from "./trail-resolve";
+import { resolveTrailSegments } from "./trail-resolve";
 import { validateTrayFromAppConfig } from "./tray-validation";
 import { validateMoldKitFromAppConfig } from "./mold-kit-validation";
 import { assertKeychainClearance, computeTrayKeychainHole, KEYCHAIN_MIN_WALL_MM } from "./tray-keychain-layout";
@@ -96,8 +96,8 @@ export function validateTrailInPrintArea(
   viewportWidth: number,
   viewportHeight: number,
 ): ModelValidationResult {
-  const points = resolveTrailPoints(config);
-  if (points.length < 2) {
+  const segments = resolveTrailSegments(config);
+  if (!segments.length) {
     return fail("gpx", "Not enough track points to generate the model");
   }
 
@@ -106,13 +106,13 @@ export function validateTrailInPrintArea(
     viewportWidth,
     viewportHeight,
   );
-  const polyline = projectTrailToModelMm(points, crop, {
+  const polylines = segments.map(points => projectTrailToModelMm(points, crop, {
     mapCrop: config.mapCrop,
     viewportWidth,
     viewportHeight,
-  });
+  }));
 
-  if (polyline.length < 2) {
+  if (!polylines.some(line => line.length >= 2)) {
     return fail(
       "trail",
       config.mapCrop.selection ? "The trail is outside the selected area. Move or resize the white shape to include the trail, or place the shape over the track." : "The trail is outside the print area. Move the red trail inside the white outline on the 2D map, or adjust the map position and zoom.",

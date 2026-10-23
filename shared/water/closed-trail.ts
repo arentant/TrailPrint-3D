@@ -1,11 +1,11 @@
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
 import type { TerrainMeshPayload } from '../types/terrain';
-import { strokeSection } from './stroke';
+import { strokeTrailPaths, type TrailPathsMm } from './stroke';
 import { waterMeshPayload } from './mesh-payload';
 
 /** Clip a solid DEM surface to a round-capped trail, with a flat printable floor. */
-export function closedTrailVolume(wasm: ManifoldToplevel, surface: TerrainMeshPayload, points: Array<{ x: number; y: number }>, width: number): TerrainMeshPayload | null {
-  const sections = strokeSection(wasm, points.map(p => [p.x, p.y]), width);
+export function closedTrailVolume(wasm: ManifoldToplevel, surface: TerrainMeshPayload, points: TrailPathsMm, width: number): TerrainMeshPayload | null {
+  const sections = strokeTrailPaths(wasm, points, width);
   const allocated: Manifold[] = [];
   const own = (s: Manifold) => { allocated.push(s); return s; };
   try {

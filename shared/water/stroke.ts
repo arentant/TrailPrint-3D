@@ -1,5 +1,17 @@
 import type { ManifoldToplevel, Vec2, CrossSection } from 'manifold-3d';
 
+export type TrailPathsMm = Array<{ x: number; y: number }> | Array<Array<{ x: number; y: number }>>;
+
+/** Union independent strokes, including overlaps, without connecting their endpoints. */
+export function strokeTrailPaths(wasm: ManifoldToplevel, trail: TrailPathsMm, width: number): CrossSection {
+  const paths = (Array.isArray(trail[0]) ? trail : [trail]) as Array<Array<{ x: number; y: number }>>;
+  const sections: CrossSection[] = [];
+  try {
+    for (const path of paths) sections.push(strokeSection(wasm, path.map(p => [p.x, p.y]), width));
+    return wasm.CrossSection.union(sections);
+  } finally { sections.forEach(section => section.delete()); }
+}
+
 export function strokeSection(wasm: ManifoldToplevel, points: Vec2[], width: number): CrossSection {
   const { CrossSection: CS } = wasm;
   const radius = width / 2, circle = CS.circle(radius, 16), sections: CrossSection[] = [];

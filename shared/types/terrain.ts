@@ -50,6 +50,8 @@ export interface TerrainMeshPayload {
 export interface TrailGrooveSpec {
   /** 轨迹折线，模型平面坐标 mm（与 Terrain_Main 同一坐标系） */
   polylineMm: Array<{ x: number; y: number }>;
+  /** Separate paths; no connector is cut between them. */
+  polylinesMm?: Array<Array<{ x: number; y: number }>>;
   /** 凹槽宽度 (mm)，含任务-06 装配公差：trailWidth + 2×trailTolerance */
   widthMm: number;
   /** 凹槽深度 (mm)，等于轨迹厚度 trailDepthMm */
@@ -98,6 +100,7 @@ export interface TerrainGenerateResponse {
   waterCoverageErrors?: WaterCatalog['errors'];
   /** 3D 预览：模型平面轨迹折线 (mm) */
   trailPolylineMm: Array<{ x: number; y: number }>;
+  trailPolylinesMm?: Array<Array<{ x: number; y: number }>>;
   /** 3D 预览：轨迹显示宽度 (mm) */
   trailDisplayWidthMm: number;
   /** DEM 数据来源（OpenTopography 栅格） */

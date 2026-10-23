@@ -12,6 +12,7 @@ import {
   sampleHeightBilinearMm,
 } from "@shared/utils/heightfield-mesh";
 import { projectToFootprintMm } from "@shared/utils/footprint";
+import { resamplePolyline } from "@shared/utils/trail-coords";
 import {
   geoToNormalizedUv,
   modelMmToLatLon,
@@ -51,7 +52,11 @@ export function buildTrailTubeGeometry(
   const radius = Math.max(widthMm / 2, 0.6);
   const points: THREE.Vector3[] = [];
 
-  for (const p of polyline) {
+  // Sparse tracks still need to follow the hills between their recorded points.
+  const pathLength = polyline.reduce((sum, point, i) => i === 0 ? sum
+    : sum + Math.hypot(point.x - polyline[i - 1].x, point.y - polyline[i - 1].y), 0);
+  const sampleStep = Math.max(0.25, pathLength / 4096, Math.min(crop.widthMm / preview.cols, crop.heightMm / preview.rows));
+  for (const p of resamplePolyline(polyline, sampleStep)) {
     const z = sampleHeightPreviewZ(p.x, p.y, preview, crop) + liftMm;
     points.push(new THREE.Vector3(p.x, p.y, z));
   }

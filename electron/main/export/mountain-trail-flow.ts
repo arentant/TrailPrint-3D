@@ -156,7 +156,8 @@ async function generateMountainTrailFiles(
   })).mesh : null;
 
   const trailPoints = config.gpx.points.length || config.gpx.rawPoints.length;
-  const trailPolylinePts = terrainWithGroove.trailPolylineMm?.length ?? 0;
+  const trailPolylinePts = terrainWithGroove.trailPolylinesMm?.reduce((sum, path) => sum + path.length, 0)
+    ?? terrainWithGroove.trailPolylineMm?.length ?? 0;
   if (config.gpx.imported && !terrainWithGroove.trailMesh) {
     throw new IpcException(
       "TRAIL_EMPTY",

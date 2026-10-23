@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { compactCityMap } from '../city-fixture.mjs';
+import { fulfillCityPicture } from './city-picture-fixture';
 
 const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMILU/6DwAEgQIuIhp1GQAAAABJRU5ErkJggg==', 'base64');
 test.beforeEach(async ({ page }) => {
@@ -107,7 +108,7 @@ test('Mountain previews and exports the selected area without GPX, then allows a
   await page.getByRole('switch', { name: 'Generate base', exact: true }).click();
   await expect(page.getByRole('spinbutton', { name: 'Total thickness', exact: true })).toBeHidden();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
-  await expect(page.locator('.gpx-summary__title')).not.toHaveText('Choose a place on the map');
+  await expect(page.getByRole('list', { name: 'GPX files in this model' })).toBeVisible();
   await expect(page.locator('.sidebar').getByRole('button', { name: 'Download trail STL', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Remove GPX', exact: true }).click();
   await expect(page.locator('.sidebar').getByRole('button', { name: 'Download trail STL', exact: true })).toBeDisabled();
@@ -123,6 +124,7 @@ test('City previews and exports without GPX and offers map pictures while trail 
   page.on('pageerror', error => errors.push(error.message));
   let elevations = 0;
   await page.route('**/api/city', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(data) }));
+  await page.route('**/tiles.openfreemap.org/**', route => fulfillCityPicture(route));
   await page.route('**/api/elevation', route => { elevations++; return route.fulfill({ status: 502 }); });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
@@ -146,8 +148,9 @@ test('City previews and exports without GPX and offers map pictures while trail 
   const picture = page.getByRole('dialog', { name: 'Your run. On paper.' });
   await picture.getByRole('button', { name: 'Map only', exact: true }).click();
   const pictureEvent = page.waitForEvent('download');
-  await picture.getByRole('button', { name: 'Download SVG', exact: true }).click();
-  const svg = await readFile((await (await pictureEvent).path())!, 'utf8');
+  await picture.getByRole('button', { name: 'Download SVG + PNG', exact: true }).click();
+  const pictureFiles = unzipSync(await readFile((await (await pictureEvent).path())!));
+  const svg = new TextDecoder().decode(pictureFiles[Object.keys(pictureFiles).find(name => name.endsWith('.svg'))!]);
   expect(svg).toContain('id="street-map"');
   expect(svg).not.toMatch(/id="running-route"[^>]*><path/);
   await picture.getByRole('button', { name: 'Close picture preview', exact: true }).click();

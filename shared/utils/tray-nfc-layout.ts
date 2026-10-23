@@ -9,7 +9,7 @@ import {
   roundedRegularPolygon,
 } from "./rounded-footprint";
 import { projectTrailToModelMm } from "./trail-coords";
-import { resolveTrailPoints } from "./trail-resolve";
+import { resolveTrailSegments } from "./trail-resolve";
 
 /** 0805 贴片 LED 封装参考尺寸 (mm) */
 export const LED_0805_LENGTH_MM = 2.0;
@@ -197,33 +197,35 @@ export function computeTrayNfcLedPockets(
   viewportWidth: number,
   viewportHeight: number,
 ): LedPocketSpec[] {
-  const points = resolveTrailPoints(config);
-  if (points.length < 2) return [];
+  const segments = resolveTrailSegments(config);
+  if (!segments.length) return [];
 
   const crop = computeTerrainCropRegion(
     config.mapCrop,
     viewportWidth,
     viewportHeight,
   );
-  const polyline = projectTrailToModelMm(points, crop, {
+  const polylines = segments.map(points => projectTrailToModelMm(points, crop, {
     mapCrop: config.mapCrop,
     viewportWidth,
     viewportHeight,
-  });
-  if (polyline.length < 2) return [];
+  })).filter(line => line.length >= 2);
+  if (!polylines.length) return [];
+  // Keep the two endpoint lights on actual routes, even when files are disconnected.
+  const first = polylines[0]!, last = polylines[polylines.length - 1]!;
 
-  const start = polyline[0]!;
-  const end = polyline[polyline.length - 1]!;
+  const start = first[0]!;
+  const end = last[last.length - 1]!;
   const pockets: LedPocketSpec[] = [
     {
       cx: start.x,
       cy: start.y,
-      angleRad: angleFromPoints(start, polyline[1]!),
+      angleRad: angleFromPoints(start, first[1]!),
     },
     {
       cx: end.x,
       cy: end.y,
-      angleRad: angleFromPoints(polyline[polyline.length - 2]!, end),
+      angleRad: angleFromPoints(last[last.length - 2]!, end),
     },
   ];
   return dedupeOverlappingLedPockets(

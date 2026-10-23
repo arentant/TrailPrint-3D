@@ -39,9 +39,13 @@ Export your target track as a `.gpx` file from your GPS app or platform of choic
 ### 1. Import the track
 
 Launch the app and frame a place on the map. You can generate Mountain terrain
-and City models without a GPX. To add a trail, upload the `.gpx` file from the
-previous step. **Remove GPX** returns to a model without a route and keeps your
-map framing. Trail-only downloads require a GPX; other downloads omit the trail
+and City models without a GPX. Select or drop one or more `.gpx` files to combine
+their trails in one model. Use **Add GPX files** to append more routes; the map
+fits all imported files, and each file can be removed separately. Routes keep
+their segment boundaries in the map, preview, and exports, without connecting
+unrelated endpoints. All routes share the model's trail width and color.
+**Remove GPX** (or **Remove all GPX files**) returns to a model without routes and
+keeps your map framing. Trail-only downloads require a GPX; other downloads omit the trail
 part when no track is imported.
 
 ![Import GPX track](docs/images/readme/01-import-gpx.webp)

@@ -1,9 +1,6 @@
 import type { TerrainCropRegion } from "@shared/types/terrain";
 import type { TrailGrooveSpec } from "@shared/types/terrain";
-import {
-  distanceToPolylineMm,
-  type TrailPointMm,
-} from "@shared/utils/trail-coords";
+import { distanceToPolylineMm } from "@shared/utils/trail-coords";
 import { computeGrooveFloorZMm } from "@shared/utils/trail-groove-floor";
 
 /**
@@ -21,6 +18,7 @@ export function applyGrooveToHeightField(
 
   const floorZ =
     groove.floorZMm ?? computeGrooveFloorZMm(groove.depthMm);
+  const paths = groove.polylinesMm ?? [groove.polylineMm];
   const halfW = groove.widthMm / 2;
   const hw = crop.widthMm / 2;
   const hh = crop.heightMm / 2;
@@ -31,12 +29,7 @@ export function applyGrooveToHeightField(
       const t = rows <= 1 ? 0.5 : row / (rows - 1);
       const xMm = -hw + crop.widthMm * s;
       const yMm = -hh + crop.heightMm * t;
-      const dist = distanceToPolylineMm(
-        xMm,
-        yMm,
-        groove.polylineMm as TrailPointMm[],
-      );
-      if (dist <= halfW) {
+      if (paths.some(path => distanceToPolylineMm(xMm, yMm, path) <= halfW)) {
         heightMm[row * cols + col] = floorZ;
       }
     }

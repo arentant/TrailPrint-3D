@@ -60,13 +60,13 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   await page.goto('/'); await page.waitForLoadState('networkidle');
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/sample-trail.gpx'));
   await expect(page.locator('.sidebar__status')).toContainText('Imported');
-  const mountainTrack=await page.locator('.gpx-summary__title').textContent();
+  const mountainTrack=await page.getByRole('list', { name: 'GPX files in this model' }).locator('strong').textContent();
   const mountainRadius=await page.getByRole('spinbutton',{name:'Print radius'}).inputValue();
   await page.getByRole('button',{name:'City',exact:true}).click();
   await expect(page.getByRole('button',{name:'Flat',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(page.getByPlaceholder('Paste your API key')).toHaveCount(0);
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-run.gpx'));
-  await expect(page.getByText('City fixture run ·', {exact:false})).toBeVisible();
+  await expect(page.getByText('City fixture run', {exact:false})).toBeVisible();
   await page.getByRole('spinbutton',{name:'Print radius'}).fill('70');
   await page.getByRole('button',{name:'Preview & export City STL'}).click();
   const downloadButton=page.getByRole('button',{name:'Download City ZIP'});
@@ -111,10 +111,10 @@ test('City import, finalized preview, ZIP, repeat download and independent works
   const again=page.waitForEvent('download'); await page.getByRole('button',{name:'Download again',exact:true}).click(); expect((await again).suggestedFilename()).toBe(mapDownload.suggestedFilename());
   await page.getByRole('button',{name:'Mountain',exact:true}).click();
   await expect(page.getByRole('spinbutton',{name:'Print radius'})).toHaveValue(mountainRadius);
-  await expect(page.locator('.gpx-summary__title')).toHaveText(mountainTrack!);
+  await expect(page.getByRole('list', { name: 'GPX files in this model' }).locator('strong')).toHaveText(mountainTrack!);
   await page.getByRole('button',{name:'City',exact:true}).click();
   await expect(page.getByRole('spinbutton',{name:'Print radius'})).toHaveValue('70');
-  await expect(page.getByText('City fixture run ·',{exact:false})).toBeVisible();
+  await expect(page.getByText('City fixture run',{exact:false})).toBeVisible();
   await expect(page.getByRole('button',{name:'Download again',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Real terrain',exact:true}).click();
   await expect(page.getByPlaceholder('Paste your API key')).toBeVisible();
@@ -425,6 +425,12 @@ test('picture preview recovers from tile failures and stays usable on a narrow s
   await page.screenshot({ path: '.context/city-picture-mobile.png', fullPage: true });
   await dialog.getByRole('button', { name: 'Close picture preview' }).click();
   await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
+  await page.getByRole('button', { name: 'Preview & export map picture' }).click();
+  // Adding another route keeps the poster the user has already personalized.
+  await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('A small city adventure');
+  await dialog.getByRole('button', { name: 'Close picture preview' }).click();
+  await page.getByRole('button', { name: 'Remove all GPX files', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles(resolve('fixtures/city-timed-run.gpx'));
   await page.getByRole('button', { name: 'Preview & export map picture' }).click();
   await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Yerevan morning run');

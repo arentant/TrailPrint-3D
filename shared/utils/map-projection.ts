@@ -56,10 +56,12 @@ export function maskFitPadding(
   let inset = 12;
 
   if (geom.kind === "circle" && geom.r) {
-    top = geom.cy - geom.r;
-    bottom = canvasH - geom.cy - geom.r;
-    left = geom.cx - geom.r;
-    right = canvasW - geom.cx - geom.r;
+    // The corners of the combined GPX bounds must fit inside the circle too.
+    const halfSide = geom.r / Math.SQRT2;
+    top = geom.cy - halfSide;
+    bottom = canvasH - geom.cy - halfSide;
+    left = geom.cx - halfSide;
+    right = canvasW - geom.cx - halfSide;
     inset = geom.r * insetRatio;
   } else if (geom.kind === "rect" && geom.hw && geom.hh) {
     top = geom.cy - geom.hh;
@@ -97,7 +99,7 @@ function maskFitPixels(
 ): { w: number; h: number } {
   const geom = buildMaskGeometry(mapCrop, canvasW, canvasH);
   if (geom.kind === "circle" && geom.r) {
-    const d = geom.r * 2;
+    const d = geom.r * Math.SQRT2;
     return { w: d, h: d };
   }
   if (geom.kind === "rect" && geom.hw && geom.hh) {
