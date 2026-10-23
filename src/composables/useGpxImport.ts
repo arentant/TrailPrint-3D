@@ -1,36 +1,28 @@
-import { onScopeDispose, ref } from 'vue'
+import { onScopeDispose, toRef } from 'vue'
 import { useConfigStore } from '@/stores/config'
 import { useUiStore } from '@/stores/ui'
-import { formatIpcError, ipcParseGpx } from '@/ipc/client'
-import type { GpxParseRequest } from '@shared/types/gpx'
-
-type ElectronFile = File & { path?: string }
+import { formatIpcError } from '@/ipc/client'
+import { parseGpxFiles, parseGpxRequest } from '@/utils/gpx-import'
+import type { GpxFileImport } from '@shared/types/gpx'
 
 export function useGpxImport() {
   const configStore = useConfigStore()
   const ui = useUiStore()
-  const importing = ref(false)
+  const importing = toRef(ui, 'gpxImporting')
   let disposed = false
   onScopeDispose(() => { disposed = true })
 
-  async function importFromFile(file: File): Promise<boolean> {
-    if (!file.name.toLowerCase().endsWith('.gpx')) {
-      configStore.setGpxImportError('Select a .gpx file')
-      ui.statusMessage = 'Select a .gpx file'
-      return false
-    }
-
+  async function importBatch(parse: () => Promise<GpxFileImport[]>): Promise<boolean> {
+    if (importing.value || ui.generating) return false
     importing.value = true
     ui.statusMessage = 'Reading GPX…'
     configStore.config.gpx.lastImportError = undefined
-
     try {
-      const req = await buildParseRequest(file)
-      const { result } = await ipcParseGpx(req)
+      const files = await parse()
       if (disposed) return false
-      configStore.applyGpxImport(result, file.name, (file as ElectronFile).path)
-      ui.requestGpxMapFit()
-      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown on the satellite map`
+      configStore.addGpxImports(files)
+      const gpx = configStore.config.gpx
+      ui.statusMessage = `Imported ${files.length} GPX ${files.length === 1 ? 'file' : 'files'} · ${gpx.pointCount} points, approximately ${gpx.distanceKm.toFixed(2)} km total · Trails shown on the satellite map`
       return true
     } catch (err) {
       if (disposed) return false
@@ -43,44 +35,18 @@ export function useGpxImport() {
     }
   }
 
-  async function importFromPath(filePath: string, fileName?: string): Promise<boolean> {
-    importing.value = true
-    ui.statusMessage = 'Reading GPX…'
-    try {
-      const { result } = await ipcParseGpx({ filePath, fileName })
-      if (disposed) return false
-      configStore.applyGpxImport(result, fileName, filePath)
-      ui.requestGpxMapFit()
-      ui.statusMessage = `${formatImportSummary(result.trackName, result.pointCount, result.distanceKm)} · Trail shown on the satellite map`
-      return true
-    } catch (err) {
-      if (disposed) return false
-      const msg = formatIpcError(err)
-      configStore.setGpxImportError(msg)
-      ui.statusMessage = msg
-      return false
-    } finally {
-      importing.value = false
-    }
+  async function importFromFiles(files: File[]): Promise<boolean> {
+    if (!files.length) return false
+    return importBatch(() => parseGpxFiles(files))
   }
 
-  return { importing, importFromFile, importFromPath }
-}
-
-async function buildParseRequest(file: File): Promise<GpxParseRequest> {
-  const electronFile = file as ElectronFile
-  if (electronFile.path) {
-    return { filePath: electronFile.path, fileName: file.name }
+  function importFromFile(file: File): Promise<boolean> {
+    return importFromFiles([file])
   }
-  const content = await file.text()
-  return { content, fileName: file.name }
-}
 
-function formatImportSummary(
-  trackName: string | undefined,
-  pointCount: number,
-  distanceKm: number
-): string {
-  const name = trackName ? `“${trackName}”` : 'Trail'
-  return `Imported ${name}: ${pointCount} points, approximately ${distanceKm.toFixed(2)} km`
+  function importFromPath(filePath: string, fileName?: string): Promise<boolean> {
+    return importBatch(async () => [await parseGpxRequest({ filePath, fileName })])
+  }
+
+  return { importing, importFromFiles, importFromFile, importFromPath }
 }

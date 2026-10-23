@@ -1,7 +1,7 @@
 import type { TerrainMeshPayload } from "../types/terrain";
 import type { TrailGrooveSpec } from "../types/terrain";
 import { computeGrooveFloorZMm } from "./trail-groove-floor";
-import { distanceToPolylineMm, type TrailPointMm } from "./trail-coords";
+import { distanceToPolylineMm } from "./trail-coords";
 
 /**
  * 极坐标等地形网格在轨迹走廊外会做双线性插值，窄槽会被抹平。
@@ -18,7 +18,7 @@ export function imprintGrooveOnTerrainMesh(
   const floorZ =
     groove.floorZMm ?? computeGrooveFloorZMm(groove.depthMm);
   const halfW = groove.widthMm / 2;
-  const polyline = groove.polylineMm as TrailPointMm[];
+  const paths = groove.polylinesMm ?? [groove.polylineMm];
   const bottomZ = mesh.bottomZ;
   const positions = mesh.positions.slice();
 
@@ -27,7 +27,7 @@ export function imprintGrooveOnTerrainMesh(
     const y = positions[i + 1]!;
     const z = positions[i + 2]!;
     if (z <= bottomZ + 1e-4) continue;
-    if (distanceToPolylineMm(x, y, polyline) <= halfW) {
+    if (paths.some(path => distanceToPolylineMm(x, y, path) <= halfW)) {
       positions[i + 2] = Math.min(z, floorZ);
     }
   }

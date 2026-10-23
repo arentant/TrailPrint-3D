@@ -4,6 +4,7 @@
  */
 
 import type { OpenTopoDemType } from "./dem.js";
+import type { GpxFileImport } from './gpx.js';
 import { createDefaultModelColors, type ModelColors } from './model-colors.js';
 
 // ─── 模块一：地图选取与尺寸 ─────────────────────────────────────────
@@ -293,9 +294,10 @@ export interface GpxBounds {
 
 export interface GpxState {
   imported: boolean;
+  files?: GpxFileImport[];
   /** Identity of this import, used to scope desktop hydration. */
   importId?: string;
-  /** Original GPX segments. Never bridge gaps when generating a city route. */
+  /** Original GPX segments. Never bridge gaps between segments or files. */
   segments?: GpxPoint[][];
   fileName?: string;
   /** 本机 GPX 路径（Electron 导入时有值，供主进程导出时重新读取） */

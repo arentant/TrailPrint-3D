@@ -10,12 +10,13 @@ import {
   type AppConfig,
   type ConfigScheme,
   type ConfigSchemePayload,
-  type GpxPoint,
   type TrailConfig,
 } from "@shared/types";
-import type { GpxImportResult } from "@shared/types/gpx";
+import type { GpxFileImport, GpxImportResult } from "@shared/types/gpx";
 import { zoomToFitBoundsInMask } from "@shared/utils/map-projection";
 import { useUiStore } from "@/stores/ui";
+
+import { combineGpxFiles, gpxFiles } from "@shared/utils/gpx-collection";
 
 const OPENTOPO_API_KEY_STORAGE = "trailprint.openTopographyApiKey";
 const SCHEMES_STORAGE = "trailprint.configSchemes";
@@ -293,22 +294,24 @@ export const useConfigStore = defineStore("config", () => {
     fileName?: string,
     filePath?: string,
   ): void {
-    const raw = clonePoints(result.points);
+    addGpxImports([{ ...result, importId: result.importId ?? crypto.randomUUID(), fileName, filePath }]);
+  }
+
+  function addGpxImports(files: GpxFileImport[]): void {
+    const next = combineGpxFiles([...gpxFiles(config.value.gpx), ...files]);
+    config.value.gpx = next;
+    fitGpxBounds();
+  }
+
+  function removeGpxImport(importId: string): void {
+    config.value.gpx = combineGpxFiles(gpxFiles(config.value.gpx).filter(file => file.importId !== importId));
+    fitGpxBounds();
+  }
+
+  function fitGpxBounds(): void {
+    const result = config.value.gpx;
+    if (!result.imported) return;
     config.value.mapCrop.selection = undefined;
-    config.value.gpx = {
-      imported: true,
-      importId: result.importId,
-      segments: result.segments,
-      fileName,
-      filePath,
-      trackName: result.trackName,
-      points: raw,
-      rawPoints: raw,
-      bounds: result.bounds,
-      pointCount: result.pointCount,
-      distanceKm: result.distanceKm,
-      lastImportError: undefined,
-    };
     if (result.bounds) {
       config.value.mapCrop.mapCenterLat =
         (result.bounds.minLat + result.bounds.maxLat) / 2;
@@ -323,15 +326,12 @@ export const useConfigStore = defineStore("config", () => {
         h,
         config.value.mapCrop,
       );
-    } else {
-      config.value.mapCrop.mapCenterLat = result.suggestedCenter.lat;
-      config.value.mapCrop.mapCenterLon = result.suggestedCenter.lon;
     }
+    useUiStore().requestGpxMapFit();
   }
 
   function setGpxImportError(message: string): void {
     config.value.gpx.lastImportError = message;
-    config.value.gpx.imported = false;
   }
 
   function clearGpx(): void {
@@ -427,6 +427,8 @@ export const useConfigStore = defineStore("config", () => {
     resetConfig,
     patchConfig,
     applyGpxImport,
+    addGpxImports,
+    removeGpxImport,
     setGpxImportError,
     clearGpx,
     toSnapshot,
@@ -438,7 +440,3 @@ export const useConfigStore = defineStore("config", () => {
     isSchemeNameTaken,
   };
 });
-
-function clonePoints(points: GpxPoint[]): GpxPoint[] {
-  return points.map((p) => ({ ...p }));
-}

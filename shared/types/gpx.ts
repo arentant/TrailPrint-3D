@@ -30,3 +30,10 @@ export interface GpxParseRequest {
 export interface GpxParseResponse {
   result: GpxImportResult
 }
+
+/** One source file in a model. Segment boundaries remain intact. */
+export interface GpxFileImport extends GpxImportResult {
+  importId: string
+  fileName?: string
+  filePath?: string
+}

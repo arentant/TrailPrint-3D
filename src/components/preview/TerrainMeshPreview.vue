@@ -424,45 +424,29 @@ async function rebuildScene(): Promise<void> {
     }
   }
 
-  const polyline = r.trailPolylineMm ?? [];
+  const polylines = (r.trailPolylinesMm ?? [r.trailPolylineMm ?? []]).filter(line => line.length >= 2);
   const trailWidth = r.trailDisplayWidthMm ?? 4;
 
   if ((r.modelFeaturesApplied || config.value.printMode === 'fused') && r.trailMesh?.indices.length) {
     const trail = new THREE.Mesh(payloadToBufferGeometry(r.trailMesh, { hardEdges: true }), trailMaterial);
     trail.frustumCulled = false;
     overlayRoot.add(trail);
-  } else if (!r.modelFeaturesApplied && polyline.length >= 2) {
+  } else if (!r.modelFeaturesApplied && polylines.length > 0) {
     reportScene("trail", 0.78, "Drawing trail…");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (token !== rebuildToken) return;
-    const tubeSegs = trailPreviewTubeSegments(polyline.length, {
-      meshQuality: config.value.terrain.meshQuality,
-      meshQualityCustom: config.value.terrain.meshQualityCustom,
-    });
-    const tubeGeo = buildTrailTubeGeometry(
-      polyline,
-      preview,
-      r.crop,
-      trailWidth,
-      tubeSegs,
-    );
-    if (tubeGeo) {
-      const tube = new THREE.Mesh(tubeGeo, trailMaterial);
-      tube.frustumCulled = false;
-      tube.renderOrder = 2;
-      overlayRoot.add(tube);
-    } else if (r.trailMesh?.positions?.length && r.trailMesh.indices?.length) {
-      const trailGeo = payloadToBufferGeometry(r.trailMesh);
-      const pos = trailGeo.getAttribute("position") as THREE.BufferAttribute;
-      for (let vi = 0; vi < pos.count; vi++) {
-        pos.setZ(vi, pos.getZ(vi) + 0.35);
+    for (const polyline of polylines) {
+      const tubeSegs = trailPreviewTubeSegments(polyline.length, {
+        meshQuality: config.value.terrain.meshQuality,
+        meshQualityCustom: config.value.terrain.meshQualityCustom,
+      });
+      const tubeGeo = buildTrailTubeGeometry(polyline, preview, r.crop, trailWidth, tubeSegs);
+      if (tubeGeo) {
+        const tube = new THREE.Mesh(tubeGeo, trailMaterial);
+        tube.frustumCulled = false;
+        tube.renderOrder = 2;
+        overlayRoot.add(tube);
       }
-      pos.needsUpdate = true;
-      trailGeo.computeVertexNormals();
-      const trail = new THREE.Mesh(trailGeo, trailMaterial);
-      trail.frustumCulled = false;
-      trail.renderOrder = 2;
-      overlayRoot.add(trail);
     }
   } else if (r.trailMesh?.positions?.length) {
     statusHint.value = "The trail is empty. Check that the GPX track is inside the white outline.";

@@ -1,3 +1,4 @@
+import type { TrailPathsMm } from './stroke';
 import type { CrossSection, ManifoldToplevel, Vec2 } from 'manifold-3d';
 import type { AppConfig } from '../types/config';
 import type { TerrainCropRegion } from '../types/terrain';
@@ -5,7 +6,7 @@ import type { WaterFeature, WaterFeatureStatus } from '../types/water';
 import { normalizeWaterConfig } from '../types/config';
 import { cityProjector } from '../city/geometry';
 import { buildFootprintPolygonMm } from '../utils/footprint';
-import { strokeSection } from './stroke';
+import { strokeSection, strokeTrailPaths } from './stroke';
 import { metersPerDegreeLon } from '../utils/map-projection';
 
 export interface PreparedWaterFeature {
@@ -22,7 +23,7 @@ export interface PreparedWaterPart {
 
 /** One planar selection pipeline for map review, preview and every export. */
 export function prepareWaterSelection(wasm: ManifoldToplevel, request: { config: AppConfig; viewportWidth: number; viewportHeight: number }, crop: TerrainCropRegion,
-  features: WaterFeature[], trail: Array<{ x: number; y: number }>) {
+  features: WaterFeature[], trail: TrailPathsMm) {
   const { CrossSection: CS } = wasm;
   const allocations = new Set<CrossSection>();
   const own = (s: CrossSection) => { allocations.add(s); return s; };
@@ -42,7 +43,7 @@ export function prepareWaterSelection(wasm: ManifoldToplevel, request: { config:
     const outer = vertices ? own(new CS([vertices.map((v): Vec2 => [v.x, v.y])], 'EvenOdd')) : own(CS.circle(crop.radiusMm!, 128));
     const footprint = own(outer.offset(-0.6, 'Round', 2, 24));
     const trailWidth = request.config.trail.trailWidthMm + (request.config.printMode === 'fused' ? 0 : 2 * request.config.assembly.trailToleranceMm + 0.1);
-    const corridor = stroke(trail.map(p => [p.x, p.y]), trailWidth);
+    const corridor = own(strokeTrailPaths(wasm, trail, trailWidth));
     let occupied = own(new CS([[]]));
     let sourcePriority = -1;
     let sourceCoverage: CrossSection[] = [];

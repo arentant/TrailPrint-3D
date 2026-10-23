@@ -16,7 +16,7 @@ import {
   minHeightFieldMm,
 } from "@shared/utils/heightfield-mesh";
 import { closedTrailVolume } from "@shared/water/closed-trail";
-import { buildTrailGrooveSpec, buildTrailLinePolyline } from "./trail-pipeline";
+import { buildTrailGrooveSpec, buildTrailLinePolylines } from "./trail-pipeline";
 import { applyGrooveToHeightField } from "./trail-groove";
 import { imprintGrooveOnTerrainMesh } from "@shared/utils/trail-groove-imprint";
 import { hydrateGpxConfig } from "../gpx/hydrate-gpx-config";
@@ -197,20 +197,20 @@ export async function generateTerrainMain(
   );
 
   reportProgress(onProgress, "trail", 0.84, "Calculating trail position…");
-  const polylineMm = buildTrailLinePolyline(
+  const polylinesMm = buildTrailLinePolylines(
     config,
     crop,
     viewportWidth,
     viewportHeight,
   );
-  const trailPolylineMm = exportGroove?.polylineMm ?? polylineMm;
+  const trailPolylinesMm = exportGroove?.polylinesMm ?? polylinesMm;
   const printWidth = req.trailLineWidthMm ?? trailLineWidthMmForPrint(config);
   let trailMesh: TerrainMeshPayload | null = null;
-  if (buildTrailMesh && trailPolylineMm.length >= 2) {
+  if (buildTrailMesh && trailPolylinesMm.length > 0) {
     const trailSurface = buildHeightfieldTerrainMesh(crop,
       Float64Array.from(surfaceForTrail, height => height + trailHeightAboveMainMm(config)),
       cols, rows, config.trail.trailDepthMm);
-    trailMesh = closedTrailVolume(await getManifold(), trailSurface, trailPolylineMm, printWidth);
+    trailMesh = closedTrailVolume(await getManifold(), trailSurface, trailPolylinesMm, printWidth);
   }
 
   let waterMeshes: TerrainMeshPayload[] = [];
@@ -223,7 +223,7 @@ export async function generateTerrainMain(
     const waterSource = buildExportMesh
       ? buildHeightfieldTerrainMesh(crop, surfaceForTrail, cols, rows, baseThicknessMm)
       : mesh;
-    const water = await generateWaterAssembly({ ...req, config }, crop, waterSource, polylineMm, buildExportMesh && !fused ? exportGroove : undefined, elevationTransform.seaLevelMm);
+    const water = await generateWaterAssembly({ ...req, config }, crop, waterSource, polylinesMm, buildExportMesh && !fused ? exportGroove : undefined, elevationTransform.seaLevelMm);
     if (water.waterMeshes.length) mesh = water.mesh;
     waterMeshes = water.waterMeshes;
     waterWarnings = water.waterWarnings;
@@ -272,7 +272,8 @@ export async function generateTerrainMain(
     waterMeshes,
     waterWarnings,
     ...waterMetadata,
-    trailPolylineMm: polylineMm,
+    trailPolylineMm: polylinesMm[0] ?? [],
+    trailPolylinesMm: polylinesMm,
     trailDisplayWidthMm: config.trail.trailWidthMm,
     demSource: dem.source,
     generationMs: Date.now() - started,

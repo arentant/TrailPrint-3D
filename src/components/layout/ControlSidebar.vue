@@ -53,7 +53,7 @@ onUnmounted(() => {
   unsubscribeExportProgress?.()
   unsubscribeExportProgress = null
 })
-const { importing, importFromFile } = useGpxImport()
+const { importing, importFromFiles } = useGpxImport()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 /** 上次导出详情默认收起，减少底部占用 */
@@ -66,9 +66,9 @@ function openGpxPicker(): void {
 }
 
 async function onGpxSelected(e: Event): Promise<void> {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  await importFromFile(file)
+  const files = Array.from((e.target as HTMLInputElement).files ?? [])
+  if (!files.length) return
+  await importFromFiles(files)
   ;(e.target as HTMLInputElement).value = ''
 }
 
@@ -101,7 +101,7 @@ function openPreviewModal(): void {
         <button
           type="button"
           class="sidebar__import"
-          :disabled="importing"
+          :disabled="importing || generating"
           @click="openGpxPicker"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -109,7 +109,7 @@ function openPreviewModal(): void {
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          {{ importing ? 'Reading…' : 'Import GPX' }}
+          {{ importing ? 'Reading…' : configStore.config.gpx.imported ? 'Add GPX files' : 'Import GPX' }}
         </button>
         <button
           type="button"
@@ -130,6 +130,7 @@ function openPreviewModal(): void {
       <input
         ref="fileInput"
         type="file"
+        multiple
         accept=".gpx,application/gpx+xml"
         class="sr-only"
         @change="onGpxSelected"

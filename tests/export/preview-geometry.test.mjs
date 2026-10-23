@@ -7,14 +7,26 @@ import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const compiled = await build({
-  stdin: { contents: "export { payloadToBufferGeometry } from './src/utils/terrain-mesh-three';", resolveDir: resolve('.') },
+  stdin: { contents: "export { payloadToBufferGeometry, buildTrailTubeGeometry } from './src/utils/terrain-mesh-three';", resolveDir: resolve('.') },
   bundle: true, write: false, platform: 'node', format: 'esm', tsconfig: 'tsconfig.web.json',
 });
 const directory = await mkdtemp(join(tmpdir(), 'trailprint-preview-geometry-'));
 after(() => rm(directory, { recursive: true, force: true }));
 await writeFile(join(directory, 'preview.mjs'), compiled.outputFiles[0].contents);
-const { payloadToBufferGeometry } = await import(pathToFileURL(join(directory, 'preview.mjs')).href);
+const { payloadToBufferGeometry, buildTrailTubeGeometry } = await import(pathToFileURL(join(directory, 'preview.mjs')).href);
 const metadata = { bottomZ: 0, minSurfaceZ: 0, gridCols: 0, gridRows: 0 };
+
+test('a sparse GPX segment follows intervening terrain instead of disappearing beneath it', () => {
+  const crop = { shape: 'rectangle', widthMm: 100, heightMm: 100, centerLat: 0, centerLon: 0, bearingDeg: 0, minLat: 0, maxLat: 1, minLon: 0, maxLon: 1 };
+  const heights = Array.from({ length: 101 * 101 }, (_, i) => 20 * Math.sin((i % 101) / 100 * Math.PI));
+  const geometry = buildTrailTubeGeometry([{ x: -45, y: 0 }, { x: 45, y: 0 }],
+    { cols: 101, rows: 101, heights, minSurfaceZ: 0, bottomZ: -2, baseThicknessMm: 2 }, crop, 2, 100);
+  try {
+    const center = geometry.parameters.path.getPointAt(0.5);
+    assert.ok(Math.abs(center.x) < 0.1);
+    assert.ok(center.z > 20, 'trail remains above the hill at the midpoint');
+  } finally { geometry.dispose(); }
+});
 
 test('engraving floors and vertical walls keep distinct face normals at shared corners', () => {
   const mesh = { ...metadata,

@@ -1,6 +1,7 @@
 import type { GpxState } from "@shared/types";
 import type { GpxImportResult } from "@shared/types/gpx";
 import { getGpxSessionCache, setGpxSessionCache } from "./gpx-session-cache";
+import { combineGpxFiles } from "@shared/utils/gpx-collection";
 import { parseGpxFile } from "./parse-gpx";
 
 function applyGpxResult<T extends { gpx: GpxState }>(
@@ -35,6 +36,22 @@ export async function hydrateGpxConfig<T extends { gpx: GpxState }>(
 ): Promise<T> {
   if (!config.gpx.imported) return config;
   if (config.gpx.rawPoints?.length >= 2 || config.gpx.points?.length >= 2) return config;
+
+  // A combined model must restore every source; never hydrate it from just one file.
+  if (config.gpx.files?.length) {
+    const files = [];
+    for (const file of config.gpx.files) {
+      if (file.points?.length) { files.push(file); continue; }
+      let result = getGpxSessionCache(file.importId);
+      if (!result && file.filePath) {
+        result = await parseGpxFile(file);
+        setGpxSessionCache(result);
+      }
+      if (!result) throw new Error(`Import ${file.fileName ?? 'your GPX file'} again to restore its track points`);
+      files.push({ ...file, ...result, importId: file.importId });
+    }
+    return { ...config, gpx: combineGpxFiles(files) };
+  }
 
   const cached = getGpxSessionCache(config.gpx.importId);
   if (cached && cached.points.length >= 2) {

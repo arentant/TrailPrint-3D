@@ -1,3 +1,4 @@
+import type { TrailPathsMm } from './stroke';
 import type { CrossSection, Manifold, ManifoldToplevel } from 'manifold-3d';
 import type { CityMapData } from '../types/city';
 import type { WaterCatalog, WaterFeatureStatus, WaterPartMapping, WaterAttribution, WaterFeatureSummary } from '../types/water';
@@ -19,7 +20,7 @@ export interface WaterGeometryResult {
 
 /** Flat seats for inland DEM surfaces; sea tops use the terrain's sea-level transform. */
 export function buildWaterGeometry(wasm: ManifoldToplevel, request: TerrainGenerateRequest, crop: TerrainCropRegion,
-  data: CityMapData | WaterCatalog, terrain: TerrainMeshPayload, trail: Array<{ x: number; y: number }>,
+  data: CityMapData | WaterCatalog, terrain: TerrainMeshPayload, trail: TrailPathsMm,
   groove?: TrailGrooveSpec, seaLevelMm?: number): WaterGeometryResult {
   const settings = normalizeWaterConfig(request.config.water);
   const features = 'features' in data ? data.features : osmWaterFeatures(data);
