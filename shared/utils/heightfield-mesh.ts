@@ -73,6 +73,28 @@ function surfaceZ(
   return sampleHeightBilinearMm(x, y, heightMm, cols, rows, crop, minSurface);
 }
 
+/** Close a convex terrain surface without duplicating its grid on the flat base. */
+function closeFlatBase(
+  positions: number[],
+  indices: number[],
+  perimeter: number[],
+  bottomZ: number,
+): void {
+  const center = positions.length / 3;
+  positions.push(0, 0, bottomZ);
+  const bottom = perimeter.map(top => {
+    const index = positions.length / 3;
+    positions.push(positions[top * 3]!, positions[top * 3 + 1]!, bottomZ);
+    return index;
+  });
+  for (let i = 0; i < perimeter.length; i++) {
+    const next = (i + 1) % perimeter.length;
+    const t0 = perimeter[i]!, t1 = perimeter[next]!;
+    const b0 = bottom[i]!, b1 = bottom[next]!;
+    indices.push(center, b1, b0, b0, b1, t1, b0, t1, t0);
+  }
+}
+
 /**
  * 圆盘：极坐标网格，外圈精确落在半径上 → 顶/底/侧壁共享顶点，水密实心。
  */
@@ -92,7 +114,6 @@ function buildPolarCircleMesh(
   const positions: number[] = [];
   const indices: number[] = [];
   const topIdx: number[][] = [];
-  const botIdx: number[][] = [];
 
   function push(x: number, y: number, z: number): number {
     const i = positions.length / 3;
@@ -103,7 +124,6 @@ function buildPolarCircleMesh(
   for (let ring = 0; ring < nRings; ring++) {
     const r = ring === 0 ? 0 : (ring / (nRings - 1)) * R;
     topIdx[ring] = [];
-    botIdx[ring] = [];
     const count = ring === 0 ? 1 : nAngles;
     for (let a = 0; a < count; a++) {
       const ang =
@@ -112,20 +132,15 @@ function buildPolarCircleMesh(
       const y = r * Math.sin(ang);
       const z = surfaceZ(x, y, heightMm, cols, rows, crop, minSurface);
       topIdx[ring]![a] = push(x, y, z);
-      botIdx[ring]![a] = push(x, y, bottomZ);
     }
   }
 
   const tCenter = topIdx[0]![0]!;
-  const bCenter = botIdx[0]![0]!;
   for (let a = 0; a < nAngles; a++) {
     const a1 = (a + 1) % nAngles;
     const t0 = topIdx[1]![a]!;
     const t1 = topIdx[1]![a1]!;
-    const b0 = botIdx[1]![a]!;
-    const b1 = botIdx[1]![a1]!;
     indices.push(tCenter, t0, t1);
-    indices.push(bCenter, b1, b0);
   }
 
   for (let ring = 1; ring < nRings - 1; ring++) {
@@ -136,24 +151,10 @@ function buildPolarCircleMesh(
       const tt2 = topIdx[ring + 1]![a1]!;
       const tt3 = topIdx[ring + 1]![a]!;
       indices.push(tt0, tt3, tt1, tt1, tt3, tt2);
-
-      const bb0 = botIdx[ring]![a]!;
-      const bb1 = botIdx[ring]![a1]!;
-      const bb2 = botIdx[ring + 1]![a1]!;
-      const bb3 = botIdx[ring + 1]![a]!;
-      indices.push(bb0, bb1, bb3, bb1, bb2, bb3);
     }
   }
 
-  const outer = nRings - 1;
-  for (let a = 0; a < nAngles; a++) {
-    const a1 = (a + 1) % nAngles;
-    const t0 = topIdx[outer]![a]!;
-    const t1 = topIdx[outer]![a1]!;
-    const b0 = botIdx[outer]![a]!;
-    const b1 = botIdx[outer]![a1]!;
-    indices.push(b0, b1, t1, b0, t1, t0);
-  }
+  closeFlatBase(positions, indices, topIdx[nRings - 1]!, bottomZ);
 
   return {
     positions,
@@ -220,7 +221,6 @@ function buildPolygonSolidMesh(
   const positions: number[] = [];
   const indices: number[] = [];
   const topIdx: number[][] = [];
-  const botIdx: number[][] = [];
 
   function push(x: number, y: number, z: number): number {
     const i = positions.length / 3;
@@ -231,14 +231,12 @@ function buildPolygonSolidMesh(
   for (let ring = 0; ring < nRings; ring++) {
     const scale = (ring + 1) / nRings;
     topIdx[ring] = [];
-    botIdx[ring] = [];
     for (let p = 0; p < nPerim; p++) {
       const pt = outerRing[p]!;
       const x = pt.x * scale;
       const y = pt.y * scale;
       const z = surfaceZ(x, y, heightMm, cols, rows, crop, minSurface);
       topIdx[ring]![p] = push(x, y, z);
-      botIdx[ring]![p] = push(x, y, bottomZ);
     }
   }
 
@@ -250,32 +248,16 @@ function buildPolygonSolidMesh(
       const tt2 = topIdx[ring + 1]![p1]!;
       const tt3 = topIdx[ring + 1]![p]!;
       indices.push(tt0, tt3, tt1, tt1, tt3, tt2);
-
-      const bb0 = botIdx[ring]![p]!;
-      const bb1 = botIdx[ring]![p1]!;
-      const bb2 = botIdx[ring + 1]![p1]!;
-      const bb3 = botIdx[ring + 1]![p]!;
-      indices.push(bb0, bb1, bb3, bb1, bb2, bb3);
     }
   }
 
   const tCenter = push(0, 0, surfaceZ(0, 0, heightMm, cols, rows, crop, minSurface));
-  const bCenter = push(0, 0, bottomZ);
   for (let p = 0; p < nPerim; p++) {
     const p1 = (p + 1) % nPerim;
     indices.push(tCenter, topIdx[0]![p]!, topIdx[0]![p1]!);
-    indices.push(bCenter, botIdx[0]![p1]!, botIdx[0]![p]!);
   }
 
-  const outer = nRings - 1;
-  for (let p = 0; p < nPerim; p++) {
-    const p1 = (p + 1) % nPerim;
-    const t0 = topIdx[outer]![p]!;
-    const t1 = topIdx[outer]![p1]!;
-    const b0 = botIdx[outer]![p]!;
-    const b1 = botIdx[outer]![p1]!;
-    indices.push(b0, b1, t1, b0, t1, t0);
-  }
+  closeFlatBase(positions, indices, topIdx[nRings - 1]!, bottomZ);
 
   return {
     positions,
@@ -300,7 +282,6 @@ function buildRectGridMesh(
   const positions: number[] = [];
   const indices: number[] = [];
   const topIdx = new Int32Array(rows * cols);
-  const botIdx = new Int32Array(rows * cols);
 
   function push(x: number, y: number, z: number): number {
     const i = positions.length / 3;
@@ -313,7 +294,6 @@ function buildRectGridMesh(
       const { x, y } = gridCornerMm(crop, row, col, rows, cols);
       const z = surfaceZ(x, y, heightMm, cols, rows, crop, minSurface);
       topIdx[row * cols + col] = push(x, y, z);
-      botIdx[row * cols + col] = push(x, y, bottomZ);
     }
   }
 
@@ -324,52 +304,15 @@ function buildRectGridMesh(
       const i01 = topIdx[(row + 1) * cols + col]!;
       const i11 = topIdx[(row + 1) * cols + col + 1]!;
       indices.push(i00, i10, i01, i10, i11, i01);
-
-      const b00 = botIdx[row * cols + col]!;
-      const b10 = botIdx[row * cols + col + 1]!;
-      const b01 = botIdx[(row + 1) * cols + col]!;
-      const b11 = botIdx[(row + 1) * cols + col + 1]!;
-      indices.push(b00, b01, b10, b10, b01, b11);
     }
   }
 
-  function wallStrip(
-    topA: number,
-    topB: number,
-    botA: number,
-    botB: number,
-  ): void {
-    indices.push(botA, botB, topB, botA, topB, topA);
-  }
-
-  for (let row = 0; row < rows - 1; row++) {
-    wallStrip(
-      topIdx[(row + 1) * cols]!,
-      topIdx[row * cols]!,
-      botIdx[(row + 1) * cols]!,
-      botIdx[row * cols]!,
-    );
-    wallStrip(
-      topIdx[row * cols + cols - 1]!,
-      topIdx[(row + 1) * cols + cols - 1]!,
-      botIdx[row * cols + cols - 1]!,
-      botIdx[(row + 1) * cols + cols - 1]!,
-    );
-  }
-  for (let col = 0; col < cols - 1; col++) {
-    wallStrip(
-      topIdx[col]!,
-      topIdx[col + 1]!,
-      botIdx[col]!,
-      botIdx[col + 1]!,
-    );
-    wallStrip(
-      topIdx[(rows - 1) * cols + col + 1]!,
-      topIdx[(rows - 1) * cols + col]!,
-      botIdx[(rows - 1) * cols + col + 1]!,
-      botIdx[(rows - 1) * cols + col]!,
-    );
-  }
+  const perimeter: number[] = [];
+  for (let col = 0; col < cols; col++) perimeter.push(topIdx[col]!);
+  for (let row = 1; row < rows; row++) perimeter.push(topIdx[row * cols + cols - 1]!);
+  for (let col = cols - 2; col >= 0; col--) perimeter.push(topIdx[(rows - 1) * cols + col]!);
+  for (let row = rows - 2; row > 0; row--) perimeter.push(topIdx[row * cols]!);
+  closeFlatBase(positions, indices, perimeter, bottomZ);
 
   return {
     positions,

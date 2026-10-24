@@ -23,6 +23,7 @@ export function buildTerrainColorVolumes(wasm: ManifoldToplevel, mesh: TerrainMe
 
   const allocations = new Set<Manifold | CrossSection>();
   const own = <T extends Manifold | CrossSection>(value: T): T => { allocations.add(value); return value; };
+  const release = (value: Manifold | CrossSection) => { allocations.delete(value); value.delete(); };
   const solid = (payload: TerrainMeshPayload) => {
     const raw = new wasm.Mesh({ numProp: 3, tolerance: 0.00001,
       vertProperties: new Float32Array(payload.positions), triVerts: new Uint32Array(payload.indices) });
@@ -53,8 +54,13 @@ export function buildTerrainColorVolumes(wasm: ManifoldToplevel, mesh: TerrainMe
         Math.floor(i / cols) / (rows - 1) * heightMm - heightMm / 2,
         snow.boundaryHeights, cols, rows, crop));
       const belowSnow = solid(buildHeightfieldTerrainMesh(rectangle, field, cols, rows, Math.max(1, -bounds.min[2] + 1)));
-      add(own(terrain.intersect(belowSnow)), 0);
-      add(own(terrain.subtract(belowSnow)), 1);
+      // One Boolean computes both complementary volumes. Release its inputs and
+      // each exported solid promptly instead of retaining every mesh until exit.
+      const [rock, snowVolume] = terrain.split(belowSnow);
+      own(rock); own(snowVolume);
+      release(terrain); release(belowSnow);
+      add(rock, 0); release(rock);
+      add(snowVolume, 1); release(snowVolume);
     } else {
       let remaining = terrain;
       const top = terrain.boundingBox().max[2] + 1;
@@ -75,8 +81,11 @@ export function buildTerrainColorVolumes(wasm: ManifoldToplevel, mesh: TerrainMe
         if (!contours.length || top <= 0) continue;
         const section = own(new wasm.CrossSection(contours, 'NonZero'));
         const cutter = own(section.extrude(top));
-        add(own(remaining.intersect(cutter)), color.regionId);
-        remaining = own(remaining.subtract(cutter));
+        const [part, rest] = remaining.split(cutter);
+        own(part); own(rest);
+        release(remaining); release(cutter); release(section);
+        add(part, color.regionId); release(part);
+        remaining = rest;
       }
       add(remaining, 0);
     }
